@@ -5,7 +5,10 @@ import java.io.Console;
 
 /** Local-only administrative entrypoint. Never displays the token on redirected stdout. */
 public final class BootstrapAdmin {
-    public static void main(String[] args)throws Exception {
+    public static void main(String[] args)throws Exception { launch(args, System.getenv()); }
+
+    static void launch(String[] args, java.util.Map<String, String> environment)throws Exception {
+        RestoreLaunchGuard.check(environment);
         Console tty=System.console();if(tty==null)throw new IllegalStateException("A local interactive TTY is required");
         String url=System.getenv("JARVIS_DB_URL"),user=System.getenv("JARVIS_DB_USER"),password=System.getenv("JARVIS_DB_PASSWORD");
         try(Connection c=DriverManager.getConnection(url,user,password)) {
