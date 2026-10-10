@@ -1,0 +1,401 @@
+[
+  {
+    "name": "create-intent",
+    "schema": "task-intent-request",
+    "valid": true,
+    "instance": {
+      "tool_id": "task.create",
+      "target_id": null,
+      "arguments": {
+        "title": "Synthetic study task",
+        "description": "Solve a sample exercise.",
+        "project_id": null,
+        "due_at": "2030-01-01T10:00:00Z",
+        "priority": "NORMAL",
+        "estimated_minutes": 30
+      }
+    }
+  },
+  {
+    "name": "update-intent",
+    "schema": "task-intent-request",
+    "valid": true,
+    "instance": {
+      "tool_id": "task.update",
+      "target_id": "10000000-0000-4000-8000-000000000001",
+      "arguments": {
+        "expected_version": 1,
+        "status": "DONE"
+      }
+    }
+  },
+  {
+    "name": "issued-intent",
+    "schema": "task-intent-response",
+    "valid": true,
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "tool_id": "task.create",
+      "target_id": "10000000-0000-4000-8000-000000000001",
+      "arguments": {
+        "title": "Synthetic study task",
+        "description": "Solve a sample exercise.",
+        "project_id": null,
+        "due_at": "2030-01-01T10:00:00Z",
+        "priority": "NORMAL",
+        "estimated_minutes": 30
+      },
+      "payload_hash": "033e4d73ee348e940e27161f8f9e06a039389c3185d0c01911df424beeeb04db",
+      "expires_at": "2030-01-01T09:05:00Z",
+      "status": "ISSUED"
+    }
+  },
+  {
+    "name": "create-task",
+    "schema": "task-create-request",
+    "valid": true,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "update-task",
+    "schema": "task-update-request",
+    "valid": true,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000003",
+      "expected_version": 1,
+      "status": "DONE"
+    }
+  },
+  {
+    "name": "task-record",
+    "schema": "task",
+    "valid": true,
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30,
+      "status": "TODO",
+      "version": 1,
+      "created_at": "2030-01-01T09:00:00Z",
+      "updated_at": "2030-01-01T09:00:00Z"
+    }
+  },
+  {
+    "name": "task-list",
+    "schema": "task-list",
+    "valid": true,
+    "instance": {
+      "items": [
+        {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "title": "Synthetic study task",
+          "description": "Solve a sample exercise.",
+          "project_id": null,
+          "due_at": "2030-01-01T10:00:00Z",
+          "priority": "NORMAL",
+          "estimated_minutes": 30,
+          "status": "TODO",
+          "version": 1,
+          "created_at": "2030-01-01T09:00:00Z",
+          "updated_at": "2030-01-01T09:00:00Z"
+        }
+      ],
+      "next_cursor": null
+    }
+  },
+  {
+    "name": "query",
+    "schema": "task-list-query",
+    "valid": true,
+    "instance": {
+      "status": "TODO",
+      "limit": 20
+    }
+  },
+  {
+    "name": "committed",
+    "schema": "task-mutation-result",
+    "valid": true,
+    "instance": {
+      "status": "COMMITTED",
+      "task": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "title": "Synthetic study task",
+        "description": "Solve a sample exercise.",
+        "project_id": null,
+        "due_at": "2030-01-01T10:00:00Z",
+        "priority": "NORMAL",
+        "estimated_minutes": 30,
+        "status": "TODO",
+        "version": 1,
+        "created_at": "2030-01-01T09:00:00Z",
+        "updated_at": "2030-01-01T09:00:00Z"
+      }
+    }
+  },
+  {
+    "name": "not-observed",
+    "schema": "task-mutation-result",
+    "valid": true,
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "task": null
+    }
+  },
+  {
+    "name": "forged-owner",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30,
+      "owner_id": "10000000-0000-4000-8000-000000000004"
+    }
+  },
+  {
+    "name": "create-status-injection",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30,
+      "status": "DONE"
+    }
+  },
+  {
+    "name": "authority-in-args",
+    "schema": "task-intent-request",
+    "valid": false,
+    "instance": {
+      "tool_id": "task.create",
+      "target_id": null,
+      "arguments": {
+        "title": "Synthetic study task",
+        "description": "Solve a sample exercise.",
+        "project_id": null,
+        "due_at": "2030-01-01T10:00:00Z",
+        "priority": "NORMAL",
+        "estimated_minutes": 30,
+        "approved": true
+      }
+    }
+  },
+  {
+    "name": "generic-tool",
+    "schema": "task-intent-request",
+    "valid": false,
+    "instance": {
+      "tool_id": "mail.send",
+      "target_id": null,
+      "arguments": {
+        "title": "Synthetic study task",
+        "description": "Solve a sample exercise.",
+        "project_id": null,
+        "due_at": "2030-01-01T10:00:00Z",
+        "priority": "NORMAL",
+        "estimated_minutes": 30
+      }
+    }
+  },
+  {
+    "name": "empty-patch",
+    "schema": "task-update-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "expected_version": 1
+    }
+  },
+  {
+    "name": "unknown-is-not-success",
+    "schema": "task-mutation-result",
+    "valid": false,
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "task": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "title": "Synthetic study task",
+        "description": "Solve a sample exercise.",
+        "project_id": null,
+        "due_at": "2030-01-01T10:00:00Z",
+        "priority": "NORMAL",
+        "estimated_minutes": 30,
+        "status": "TODO",
+        "version": 1,
+        "created_at": "2030-01-01T09:00:00Z",
+        "updated_at": "2030-01-01T09:00:00Z"
+      }
+    }
+  },
+  {
+    "name": "committed-needs-task",
+    "schema": "task-mutation-result",
+    "valid": false,
+    "instance": {
+      "status": "COMMITTED",
+      "task": null
+    }
+  },
+  {
+    "name": "blank-ascii",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": " \t\r\n",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "blank-nbsp",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": " ",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "blank-feff",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "﻿",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "blank-u0085",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "title-preserved",
+    "schema": "task-create-request",
+    "valid": true,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": " Synthetic﻿ ",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "non-whitespace-u200b",
+    "schema": "task-create-request",
+    "valid": true,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "​",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "non-whitespace-u180e",
+    "schema": "task-create-request",
+    "valid": true,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "᠎",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "excess-timestamp-precision",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00.1234567Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "uppercase-task-uuid",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "ABCDEF01-2345-6789-ABCD-EF0123456789",
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  {
+    "name": "title-nul",
+    "schema": "task-create-request",
+    "valid": false,
+    "instance": {
+      "user_intent_id": "10000000-0000-4000-8000-000000000002",
+      "title": "Synthetic\u0000title",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  }
+]
