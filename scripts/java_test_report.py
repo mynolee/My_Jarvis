@@ -44,6 +44,34 @@ CONTEXT_ENV = {"checkout_sha": "REPORT_CHECKOUT_SHA", "pr_head_sha": "REPORT_PR_
                "run_id": "GITHUB_RUN_ID", "run_attempt": "GITHUB_RUN_ATTEMPT"}
 # Reviewed source names only. Do not learn output identities from XML attributes.
 ALLOWED_TESTS = {
+    "ExportServiceTest": (
+        "jobsAreOnlyMetadataAndExactReplayDoesNotRefreshExpiry",
+        "exactScopeCurrentValuesCanonicalUnicodeAndClosedOutputFields",
+        "currentSnapshotIncludesLaterCreateAndExcludesLaterDeleteWithoutArtifactCopies",
+        "ownerSessionEpochReauthAndPauseAreCheckedIndependently",
+        "strictRequestRejectsAuthoritySmugglingScopeConfusionAndMalformedIdentifiers",
+        "ownerCapAndCreationOnlyRetentionAreBoundedAndReplayDoesNotConsumeCapacity",
+        "rowCeilingFailsBeforeDecryptAndByteCeilingFailsWithoutTruncation",
+        "byteBudgetCountsUtf8AndAllowsExactBoundary",
+        "exactThousandRowsSucceedInCanonicalIdOrderWithOnlyAllowlistedFields",
+        "databaseOwnerLockTimeoutIsExplicitAndCannotCreateAJob",
+        "metadataSurvivesRestartAndDownloadsAreRebuiltFromCurrentRows",
+        "priorDeletionLogoutAndRotationWinAgainstWaitingDownload",
+        "generatedSnapshotCannotBeRecalledButLaterDeleteFencesNextDownload",
+        "finalReleaseRechecksReauthAndExpiryAndReturnsNoPartialDocument",
+        "databaseClockIgnoresApplicationClockSkewAndTimeBudgetFailsClosed",
+        "realHttpAuthenticationAndDatabaseProduceOnlyExplicitDownloadThenRejectRotation",
+    ),
+    "ExportHttpTest": (
+        "createBindsExactSessionKeyAndBodyWithMetadataEnvelope",
+        "metadataReadsForwardExactlyAndNeverTriggerGeneration",
+        "contentIsRawUtf8BoundedAttachmentWithSafeConstantFilename",
+        "authenticationOriginCsrfAndMediaTypeFailBeforeService",
+        "duplicateAbsentAndNonCanonicalKeysFailBeforeService",
+        "everyQueryAndNonemptyReadBodyIsRejectedIncludingChunkedAndEmptySegments",
+        "strictJsonRejectsDuplicatesMalformedUnicodeAndOversizedInput",
+        "knownAndUnexpectedErrorsContainNoAttachmentOrPartialContent",
+    ),
     "UsageServiceTest": (
         "emptySummaryHasClosedShapeUnknownCostAndNoObservedPeak",
         "sixDisjointClassesNeverLabelActiveOrLegacyWorkAsZeroMeasured",

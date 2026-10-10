@@ -148,3 +148,34 @@ outcome. Duplicate measurements cannot overwrite accepted facts. Synthetic tests
 do not establish actual native-model performance, browser acceptance, or release
 readiness.
 
+## Explicit-memory export
+
+The owner can explicitly create a short-lived export job for current GLOBAL
+memories or one owned PROJECT. This is a bounded memory export, not a complete
+account-data export. Job records contain metadata only. Each authenticated
+JSON download rebuilds current, non-deleted, non-superseded memories under the
+owner/session lock (`CURRENT_AT_DOWNLOAD`); no export file is retained on the
+server. Owner-authored values and reasons are exported unchanged and may contain
+personal information or secrets. The exported field allowlist excludes internal
+authority, credentials, encryption and storage metadata; it does not sanitize
+arbitrary owner text.
+
+Jobs are bound to their original owner, session and epoch, expire after 15 minutes,
+and require recent identity confirmation. Session rotation requires a new job.
+Creation is blocked while execution is paused, but authorized privacy reads and
+downloads remain available. Lost creation responses retain their original key
+for explicit reconciliation; NOT_OBSERVED does not establish that a request never
+committed. No automatic retry or replacement job is issued.
+
+Configured safety ceilings are 1,000 records, 8 MiB of full UTF-8 JSON, a five-second
+server generation budget, and 100 job records per owner. Exceeding a bound fails
+without partial output. Metadata older than 24 hours is eligible for cleanup on
+new job creation, not guaranteed background erasure. A deletion committed before
+the download snapshot is excluded. Bytes already generated or delivered cannot
+be recalled; a later download reads current data again.
+
+The UI requires an explicit scope review and download action, uses a fixed JSON
+filename, and clears private state and object URLs on disposal. Korean time is
+used for visible timestamps. Starting a download does not prove that a browser
+saved the file. Real browser/mobile file saving and native model execution remain
+separate, unverified acceptance requirements.
