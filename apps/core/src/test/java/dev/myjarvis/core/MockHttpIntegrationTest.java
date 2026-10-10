@@ -241,7 +241,8 @@ class MockHttpIntegrationTest {
         String cursor = events.body().lines().filter(line -> line.startsWith("id: ")).findFirst().orElseThrow().substring(4);
         var response = client.send(HttpRequest.newBuilder(URI.create(base + "/api/v1/conversations/" + other + "/events"))
                 .timeout(Duration.ofSeconds(10)).header("Cookie", cookie).header("Last-Event-ID", cursor).GET().build(), HttpResponse.BodyHandlers.ofString());
-        assertEquals(404, response.statusCode());
+        assertEquals(410, response.statusCode());
+        assertTrue(response.body().contains("EVENT_CURSOR_UNAVAILABLE"));
         assertEquals(404, get("/api/v1/runs/" + UUID.randomUUID()).statusCode());
         assertEquals("DISABLED", data(get("/api/v1/local-model/status"), 200).get("status").asText());
     }
