@@ -44,6 +44,30 @@ CONTEXT_ENV = {"checkout_sha": "REPORT_CHECKOUT_SHA", "pr_head_sha": "REPORT_PR_
                "run_id": "GITHUB_RUN_ID", "run_attempt": "GITHUB_RUN_ATTEMPT"}
 # Reviewed source names only. Do not learn output identities from XML attributes.
 ALLOWED_TESTS = {
+    "TodayServiceTest": (
+        "ranksEntireOwnerSetRatherThanFirstPage",
+        "orderingExcludesClosedAndUsesPriorityThenDueThenIdWithNullsLast",
+        "deadlinesHaveExclusiveLocalMidnightNoLowerBoundExactCountAndTruncation",
+        "checkedTimeComesFromDatabaseAndOwnerTimezoneDeterminesDate",
+        "timezoneRulesCoverDstShortLongDaysAndExactMidnightUsingPostgresInstants",
+        "sessionAndOwnerAreRevalidatedWithoutTouchingIdleExpiry",
+        "otherOwnerTasksCannotLeak",
+        "allTablesIncludingSessionsAuditAndNoncesRemainByteEquivalent",
+        "concurrentCommitCannotSplitTopRowsDeadlineRowsAndTotal",
+        "databaseAndCorruptProfileErrorsNeverBecomeAvailableEmptyData",
+        "invalidStoredTaskTitlesAndTimestampsFailClosed",
+        "invalidStoredProfileFieldsFailClosed",
+        "unrepresentableNextDayAndLocalDateFailClosed",
+    ),
+    "TodayHttpTest": (
+        "authenticatedGetHasExistingEnvelopeNoStoreAndHonestEmptySections",
+        "noQueryParametersAreAccepted",
+        "missingRevokedIdleExpiredAndAbsoluteExpiredSessionsReturn401",
+        "databaseFailureReturnsSanitizedErrorNotAnEmptyDashboard",
+        "getDoesNotCreateBusinessSideEffectsAndOnlyMiddlewareTouchesSession",
+        "nonemptyGetBodiesAreRejectedRegardlessOfContentType",
+        "malformedStoredSummaryReturnsSanitized500",
+    ),
     "MailDraftServiceTest": (
         "foreignFixtureRestoresSingletonAndDependenciesAfterAssertionFailure",
         "encryptedCreateDetailMetadataAndReceipt",
