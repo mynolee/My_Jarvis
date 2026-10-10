@@ -140,6 +140,17 @@ class CoreSecurityTest {
     }
     @Test void localDailyBudgetStopsBeforeModelCall(){
         Owner o=owner();var calls=new java.util.concurrent.atomic.AtomicInteger();var local=local(calls,false);
-        try{UUID c=conversation(o);local.accept(o.session,c,json(Map.of("client_message_id",UUID.randomUUID().toString(),"text","Synthetic")));local.runOne();db.execute("ALTER TABLE inference_reservations DROP CONSTRAINT inference_reservations_max_compute_ms_check");try{db.update("UPDATE inference_reservations SET max_compute_ms=3600000");assertEquals("INFERENCE_BUDGET_EXCEEDED",assertThrows(ApiException.class,()->local.accept(o.session,c,json(Map.of("client_message_id",UUID.randomUUID().toString(),"text","Synthetic")))).code);assertEquals(1,calls.get());}finally{db.update("UPDATE inference_reservations SET max_compute_ms=60000");db.execute("ALTER TABLE inference_reservations ADD CONSTRAINT inference_reservations_max_compute_ms_check CHECK(max_compute_ms BETWEEN 1 AND 60000)");}}finally{local.close();}
+        try{
+            UUID c=conversation(o);local.accept(o.session,c,json(Map.of("client_message_id",UUID.randomUUID().toString(),"text","Synthetic")));local.runOne();
+            // Real per-request ceilings stay immutable. Fill the UTC day with independent valid
+            // synthetic reservations rather than changing a prior measured request's budget.
+            for(int i=0;i<60;i++){
+                UUID run=UUID.randomUUID();
+                db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'SUCCEEDED')",run,o.id,c);
+                db.update("INSERT INTO inference_reservations(id,owner_id,run_id,request_id,body_hash,model_manifest_hash,status,max_compute_ms,reserved_output_tokens,security_epoch) VALUES (?,?,?,?,?,?,'SUCCEEDED',60000,512,?)",UUID.randomUUID(),o.id,run,UUID.randomUUID(),"0".repeat(64),"a".repeat(64),o.session.epoch());
+            }
+            assertEquals("INFERENCE_BUDGET_EXCEEDED",assertThrows(ApiException.class,()->local.accept(o.session,c,json(Map.of("client_message_id",UUID.randomUUID().toString(),"text","Synthetic")))).code);
+            assertEquals(1,calls.get());
+        }finally{local.close();}
     }
 }
