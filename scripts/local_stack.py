@@ -17,6 +17,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_SOURCE = ROOT / 'apps/intelligence/src'
+# The guard module and package initializer are pure standard library.
+sys.path.insert(0, str(PYTHON_SOURCE))
+from jarvis_intelligence.restore_guard import check_restore_launch, RestoreBlocked
 CORE_KEYS = {'JARVIS_DB_URL', 'JARVIS_DB_USER', 'JARVIS_DB_PASSWORD', 'JARVIS_KEY_FILE',
              'JARVIS_ORIGIN', 'JARVIS_LOCAL_URL', 'JARVIS_LOCAL_MANIFEST_HASH',
              'JARVIS_LOCAL_CLIENT_CERT_FILE', 'JARVIS_LOCAL_CLIENT_KEY_FILE',
@@ -28,6 +31,7 @@ LAUNCH_KEYS = {'JARVIS_PYTHON_PATH', 'JARVIS_JAVA_PATH', 'JARVIS_CORE_JAR_PATH',
                'JARVIS_TLS_KEY_FILE', 'JARVIS_TLS_CA_FILE', 'JARVIS_CORE_CERT_SHA256'}
 KEYS = CORE_KEYS | LAUNCH_KEYS
 OPTIONAL_CORE_KEYS = {'JARVIS_REMINDER_WORKER_ENABLED'}
+OPTIONAL_RESTORE_KEYS = {'JARVIS_RESTORE_CONTROL_DIR'}
 
 class Blocked(ValueError):
     pass
@@ -61,7 +65,7 @@ def read_environment(path):
         if not line or line.startswith('#'):
             continue
         key, separator, value = line.partition('=')
-        if not separator or key not in KEYS | OPTIONAL_CORE_KEYS or key in values or not value or '\x00' in value:
+        if not separator or key not in KEYS | OPTIONAL_CORE_KEYS | OPTIONAL_RESTORE_KEYS or key in values or (key not in OPTIONAL_RESTORE_KEYS and (not value or '\x00' in value)):
             raise Blocked('INVALID_ENVIRONMENT')
         # Intentionally not shell syntax: no quote removal, interpolation or eval.
         values[key] = value
@@ -107,6 +111,12 @@ def child_environment(values, service):
     else:
         env.update(PYTHONPATH=str(PYTHON_SOURCE), PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1',
                    HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', HF_HUB_DISABLE_TELEMETRY='1')
+    # Preserve restore intent even if an env-file omits the ambient setting.
+    for key in ('JARVIS_RESTORE_CONTROL_DIR', 'JARVIS_RUNTIME_DIR'):
+        if key in os.environ:
+            env[key] = os.environ[key]
+        if key in values:
+            env[key] = values[key]
     return env
 
 
@@ -125,6 +135,7 @@ def commands(values):
 
 
 def doctor(values):
+    check_restore_launch(os.environ, values)
     for key in KEYS:
         if key.endswith('_FILE') or key in {'JARVIS_LOCAL_CONFIG', 'SERVER_SSL_CERTIFICATE', 'SERVER_SSL_CERTIFICATE_PRIVATE_KEY'}:
             if key == 'JARVIS_LEDGER_FILE':
@@ -207,6 +218,7 @@ def stop_children(children):
 
 
 def supervise(values):
+    check_restore_launch(os.environ, values)
     doctor(values)
     directory = state_directory(values['JARVIS_RUNTIME_DIR'])
     if (directory / 'shutdown-unconfirmed').exists() or (directory / 'shutdown-unconfirmed').is_symlink():
@@ -321,23 +333,29 @@ def main():
     parser.add_argument('--config', type=Path)
     args = parser.parse_args()
     try:
+        if args.command in {'start', 'doctor', '_doctor'}:
+            check_restore_launch(os.environ)
         if args.command == '_doctor':
+            if args.env_file is not None:
+                check_restore_launch(os.environ, read_environment(args.env_file))
             from jarvis_intelligence.local_runtime import LocalConfig, verify_artifacts, verify_dependencies
             config = LocalConfig.from_file(args.config)
             value = {'manifest_hash': verify_artifacts(config), 'integrity_verified': True}
             verify_dependencies(config)
         elif args.command == 'setup':
-            value = {'status': 'CONFIGURATION_REQUIRED', 'required_environment_keys': sorted(KEYS), 'optional_environment_keys': sorted(OPTIONAL_CORE_KEYS),
+            value = {'status': 'CONFIGURATION_REQUIRED', 'required_environment_keys': sorted(KEYS), 'optional_environment_keys': sorted(OPTIONAL_CORE_KEYS | OPTIONAL_RESTORE_KEYS),
                      'installed': False, 'downloaded': False, 'inference': 'NOT_RUN'}
         else:
             if args.env_file is None:
                 raise Blocked('PRIVATE_ENV_FILE_REQUIRED')
             values = read_environment(args.env_file)
+            if args.command in {'start', 'doctor'}:
+                check_restore_launch(os.environ, values)
             value = doctor(values) if args.command == 'doctor' else supervise(values) if args.command == 'start' else control(values, args.command)
         print(json.dumps(value, sort_keys=True))
         return 0
     except (Exception, KeyboardInterrupt) as exc:
-        code = str(exc) if isinstance(exc, Blocked) else 'CHECK_FAILED'
+        code = str(exc) if isinstance(exc, (Blocked, RestoreBlocked)) else 'CHECK_FAILED'
         print(json.dumps({'status': 'BLOCKED', 'code': code, 'inference': 'NOT_RUN', 'release_authorized': False}))
         return 1
 

@@ -1,4 +1,6 @@
 import json
+import contextlib
+import io
 import os
 from pathlib import Path
 import signal
@@ -150,5 +152,80 @@ class LifecycleTest(unittest.TestCase):
             self.assertEqual(result.returncode,1)
             self.assertNotIn(b'never-log-this',result.stdout+result.stderr)
             self.assertNotIn(str(p).encode(),result.stdout+result.stderr)
+
+
+    def test_restore_optional_key_and_both_child_environments_preserve_intent(self):
+        with tempfile.TemporaryDirectory() as root:
+            values = {**self.values(), 'JARVIS_RUNTIME_DIR': root,
+                      'JARVIS_RESTORE_CONTROL_DIR': str(Path(root) / 'control')}
+            parsed = stack.read_environment(self.write_env(root, values))
+            for service in ('core', 'intelligence'):
+                child = stack.child_environment(parsed, service)
+                self.assertEqual(child['JARVIS_RESTORE_CONTROL_DIR'], values['JARVIS_RESTORE_CONTROL_DIR'])
+                self.assertEqual(child['JARVIS_RUNTIME_DIR'], root)
+            parsed.pop('JARVIS_RESTORE_CONTROL_DIR')
+            with patch.dict(os.environ, {'JARVIS_RESTORE_CONTROL_DIR': ''}, clear=True):
+                for service in ('core', 'intelligence'):
+                    self.assertEqual(stack.child_environment(parsed, service)['JARVIS_RESTORE_CONTROL_DIR'], '')
+
+    def test_ambient_restore_refuses_every_start_doctor_before_config_or_runtime(self):
+        for command in ('start', 'doctor', '_doctor'):
+            with self.subTest(command=command), patch.dict(os.environ, {'JARVIS_RESTORE_CONTROL_DIR': 'normal'}, clear=True), \
+                 patch('sys.argv', ['local_stack', command]), \
+                 patch.object(stack, 'read_environment', side_effect=AssertionError('env file read')), \
+                 patch.object(stack, 'doctor', side_effect=AssertionError('doctor invoked')), \
+                 patch.object(stack, 'supervise', side_effect=AssertionError('supervisor invoked')):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output): self.assertEqual(stack.main(), 1)
+                self.assertEqual(json.loads(output.getvalue())['code'], 'RESTORE_LAUNCH_BLOCKED')
+
+    def test_envfile_restore_and_ambient_runtime_anchor_refuse_before_doctor(self):
+        with tempfile.TemporaryDirectory() as root:
+            values = {**self.values(), 'JARVIS_RUNTIME_DIR': root}
+            path = self.write_env(root, {**values, 'JARVIS_RESTORE_CONTROL_DIR': 'false'})
+            for command in ('doctor', 'start', '_doctor'):
+                with patch.dict(os.environ, {}, clear=True), \
+                     patch('sys.argv', ['local_stack', command, '--env-file', str(path)]), \
+                     patch.object(stack, 'doctor', side_effect=AssertionError('doctor invoked')), \
+                     patch.object(stack, 'supervise', side_effect=AssertionError('supervisor invoked')):
+                    output = io.StringIO()
+                    with contextlib.redirect_stdout(output): self.assertEqual(stack.main(), 1)
+                    self.assertEqual(json.loads(output.getvalue())['code'], 'RESTORE_LAUNCH_BLOCKED')
+            (Path(root) / 'restore-enrollment.json').write_text('corrupt')
+            path = self.write_env(root, {**values, 'JARVIS_RUNTIME_DIR': str(Path(root) / 'clean')})
+            with patch.dict(os.environ, {'JARVIS_RUNTIME_DIR': root}, clear=True), \
+                 patch('sys.argv', ['local_stack', 'doctor', '--env-file', str(path)]), \
+                 patch.object(stack, 'read_environment', side_effect=AssertionError('env file read')):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output): self.assertEqual(stack.main(), 1)
+                self.assertEqual(json.loads(output.getvalue())['code'], 'RESTORE_LAUNCH_BLOCKED')
+
+    def test_direct_doctor_and_supervisor_refuse_before_key_or_process_access(self):
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.object(stack, 'private_file', side_effect=AssertionError('key read')), \
+             patch.object(stack.subprocess, 'run', side_effect=AssertionError('process run')), \
+             patch.object(stack.subprocess, 'Popen', side_effect=AssertionError('process start')):
+            values = {**self.values(), 'JARVIS_RESTORE_CONTROL_DIR': ''}
+            with self.assertRaises(stack.RestoreBlocked): stack.doctor(values)
+            with self.assertRaises(stack.RestoreBlocked): stack.supervise(values)
+
+    def test_unenrolled_main_admission_and_enrolled_stop_status_remain_usable(self):
+        with tempfile.TemporaryDirectory() as root:
+            values = {**self.values(), 'JARVIS_RUNTIME_DIR': root}
+            path = self.write_env(root, values)
+            for command in ('doctor', 'start'):
+                with patch.dict(os.environ, {}, clear=True), \
+                     patch('sys.argv', ['local_stack', command, '--env-file', str(path)]), \
+                     patch.object(stack, 'doctor', return_value={'admitted': True}) as doctor, \
+                     patch.object(stack, 'supervise', return_value={'admitted': True}) as supervise:
+                    with contextlib.redirect_stdout(io.StringIO()): self.assertEqual(stack.main(), 0)
+                    (doctor if command == 'doctor' else supervise).assert_called_once()
+            path = self.write_env(root, {**values, 'JARVIS_RESTORE_CONTROL_DIR': ''})
+            for command in ('stop', 'status'):
+                with patch.dict(os.environ, {'JARVIS_RESTORE_CONTROL_DIR': ''}, clear=True), \
+                     patch('sys.argv', ['local_stack', command, '--env-file', str(path)]), \
+                     patch.object(stack, 'control', return_value={'status': 'synthetic'}) as control:
+                    with contextlib.redirect_stdout(io.StringIO()): self.assertEqual(stack.main(), 0)
+                    control.assert_called_once()
 
 if __name__=='__main__':unittest.main()
