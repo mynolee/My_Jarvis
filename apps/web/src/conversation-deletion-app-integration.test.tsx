@@ -104,9 +104,10 @@ describe('real App and deletion panel phase integration (synthetic DOM)', () => 
     expect(confirmCalls(request)).toHaveLength(1); expect(screen.queryByRole('region', { name: 'Synthetic source history' })).toBeNull(); expect(screen.queryByText(targetResult)).toBeNull(); expect(screen.queryByLabelText('Frozen approval payload')).toBeNull(); expect(screen.queryByLabelText('Message')).toBeNull();
     expect(button('Start new conversation').disabled).toBe(true); expect(button('대화 원문 삭제 닫기').disabled).toBe(true);
     await act(async () => confirmReject(new ApiError('UNKNOWN', true))); await screen.findByText(/^UNKNOWN: 삭제 결과/);
-    click('Refresh server state'); await screen.findByRole('button', { name: '원래 삭제 요청 결과 확인' }); await waitFor(() => expect(button('Start new conversation').disabled).toBe(true));
+    // Refresh temporarily changes writesPaused; await the account read and then the republished recovery view.
+    click('Refresh server state'); await screen.findByText('Account state: AVAILABLE FOR NEW WORK'); await waitFor(() => expect(button('Start new conversation').disabled).toBe(true));
     act(() => staleHistory.onSnapshot(target, snapshot(target))); expect(screen.queryByText(targetResult)).toBeNull();
-    click('원래 삭제 요청 결과 확인'); await screen.findByText(/^NOT_OBSERVED:/); expect(button('Start new conversation').disabled).toBe(true); expect(screen.queryByRole('region', { name: 'Synthetic source history' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: '원래 삭제 요청 결과 확인' })); await screen.findByText(/^NOT_OBSERVED:/); expect(button('Start new conversation').disabled).toBe(true); expect(screen.queryByRole('region', { name: 'Synthetic source history' })).toBeNull();
     committed = true; click('원래 삭제 요청 결과 확인'); await screen.findByText('History selection: none'); await screen.findByText('No run selected.');
     expect(screen.queryByText(targetResult)).toBeNull(); expect(screen.queryByText(targetBody)).toBeNull(); expect(screen.queryByLabelText('Frozen approval payload')).toBeNull(); expect((screen.getByLabelText('Message') as HTMLTextAreaElement).value).toBe(''); expect(button('Start new conversation').disabled).toBe(false); expect(button('Select synthetic other').disabled).toBe(false);
     act(() => staleHistory.onSnapshot(target, snapshot(target))); expect(screen.queryByText(targetResult)).toBeNull();
