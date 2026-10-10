@@ -18,6 +18,16 @@ final class WorkflowService {
     }
     List<Map<String,Object>> conversations(UUID owner){return db.queryForList("SELECT * FROM conversations WHERE owner_id=? ORDER BY created_at DESC,id LIMIT 100",owner).stream().map(this::conversation).toList();}
     private Map<String,Object> conversation(Map<String,Object> row){Map<String,Object> m=new LinkedHashMap<>();for(String k:List.of("id","title","project_id"))m.put(k,row.get(k));m.put("created_at",AuthService.instant(row.get("created_at")).toString());return m;}
+    /** Authenticated HTTP admission cannot survive an account epoch change while waiting. */
+    Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body){
+        AuthService.requireOwner(session);
+        return tx.execute(s->{
+            var owners=db.queryForList("SELECT security_epoch FROM owners WHERE id=? FOR UPDATE",session.owner());
+            if(owners.isEmpty()||session.epoch()!=((Number)owners.getFirst().get("security_epoch")).longValue())throw new ApiException(401,"SESSION_REVOKED");
+            if(db.queryForList("SELECT token_hash FROM sessions WHERE token_hash=? AND owner_id=? FOR UPDATE",session.hash(),session.owner()).isEmpty())throw new ApiException(401,"SESSION_REVOKED");
+            executionStatus(session);return accept(session.owner(),conversation,body);
+        });
+    }
     Map<String,Object> accept(UUID owner,UUID conversation,JsonNode body){
         Json.fields(body,"client_message_id","text","attachment_ids");UUID client=Json.uuid(body,"client_message_id");String text=Json.string(body,"text",8000);
         if(!body.has("attachment_ids")||!body.get("attachment_ids").isArray()||!body.get("attachment_ids").isEmpty())throw new ApiException(400,"ATTACHMENTS_DISABLED");
@@ -84,7 +94,65 @@ final class WorkflowService {
         db.update("UPDATE inference_reservations SET cancel_requested_at=now(),status=CASE WHEN status='QUEUED' THEN 'CANCELLED' ELSE 'UNKNOWN' END WHERE owner_id=? AND run_id=? AND status IN ('QUEUED','STARTED','UNKNOWN')",owner,run);
         db.update("UPDATE runs SET cancel_requested_at=now() WHERE id=?",run);setRun(owner,run,inFlight?"UNKNOWN":"CANCELLED",null);event(owner,run,"CANCEL_REQUESTED");return run(owner,run);
     });}
-    void pause(AuthService.Session session,boolean paused){AuthService.requireRecent(session);tx.executeWithoutResult(s->{lockOwner(session.owner());validateSession(session,owned("owners",session.owner(),session.owner()));db.update("UPDATE owners SET execution_paused=?,security_epoch=security_epoch+1,version=version+1 WHERE id=?",paused,session.owner());db.update("UPDATE jobs SET status='CANCELLED',lease_generation=lease_generation+1 WHERE owner_id=? AND status IN ('QUEUED','RUNNING') AND started_effect=false",session.owner());db.update("UPDATE approvals SET status='REVOKED' WHERE owner_id=? AND status='PENDING'",session.owner());db.update("UPDATE action_proposals SET status='CANCELLED',version=version+1 WHERE owner_id=? AND status IN ('WAITING_APPROVAL','QUEUED')",session.owner());db.update("UPDATE runs SET status=CASE WHEN status='RUNNING' THEN 'UNKNOWN' ELSE 'CANCELLED' END,version=version+1 WHERE owner_id=? AND status IN ('ACCEPTED','PLANNING','WAITING_APPROVAL','QUEUED','RUNNING')",session.owner());db.update("UPDATE inference_reservations SET cancel_requested_at=now(),status=CASE WHEN status='QUEUED' THEN 'CANCELLED' ELSE 'UNKNOWN' END WHERE owner_id=? AND status IN ('QUEUED','STARTED')",session.owner());db.update("UPDATE sessions SET security_epoch=(SELECT security_epoch FROM owners WHERE id=?) WHERE token_hash=?",session.owner(),session.hash());db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),session.owner(),paused?"EXECUTION_PAUSED":"EXECUTION_RESUMED",session.owner());});}
+    static final long EXECUTION_MAX=9007199254740991L;
+
+    /** One database observation; no profile, session, epoch, work payload, or mutation attribution. */
+    Map<String,Object> executionStatus(AuthService.Session session){
+        AuthService.requireOwner(session);
+        var rows=db.queryForList("WITH checked AS MATERIALIZED (SELECT clock_timestamp() AS at) SELECT o.execution_paused,o.version,checked.at AS checked_at FROM owners o JOIN sessions s ON s.owner_id=o.id CROSS JOIN checked WHERE o.id=? AND o.security_epoch=? AND s.token_hash=? AND s.security_epoch=o.security_epoch AND s.revoked_at IS NULL AND s.created_at>checked.at-interval '12 hours' AND s.last_seen_at>checked.at-interval '2 hours'",session.owner(),session.epoch(),session.hash());
+        if(rows.isEmpty())throw new ApiException(401,"SESSION_REVOKED");return executionView(rows.getFirst());
+    }
+    private Map<String,Object> executionView(Map<String,Object> row){
+        long version=((Number)row.get("version")).longValue();if(version<1||version>EXECUTION_MAX)throw new ApiException(409,"VERSION_EXHAUSTED");
+        return Map.of("execution_paused",row.get("execution_paused"),"version",version,"checked_at",AuthService.instant(row.get("checked_at")).toString());
+    }
+    Map<String,Object> executionTransition(AuthService.Session session,boolean paused,JsonNode body){
+        if(body==null)throw ApiException.bad();Json.fields(body,"expected_version");long expected=Json.integer(body,"expected_version");
+        if(expected<1||expected>EXECUTION_MAX)throw ApiException.bad();AuthService.requireOwner(session);
+        return tx.execute(s->executionTransitionLocked(session,paused,expected));
+    }
+    /** Internal fixture compatibility only. HTTP callers must supply their displayed expected_version. */
+    void pause(AuthService.Session session,boolean paused){
+        AuthService.requireOwner(session);tx.executeWithoutResult(s->{
+            var owners=db.queryForList("SELECT version FROM owners WHERE id=? FOR UPDATE",session.owner());
+            if(owners.isEmpty())throw new ApiException(401,"SESSION_REVOKED");
+            executionTransitionLocked(session,paused,((Number)owners.getFirst().get("version")).longValue());
+        });
+    }
+    private Map<String,Object> executionTransitionLocked(AuthService.Session session,boolean paused,long expected){
+        // Owner first, then session. Capture the database time only after all lock waits.
+        var owners=db.queryForList("SELECT execution_paused,version,security_epoch FROM owners WHERE id=? FOR UPDATE",session.owner());
+        if(owners.isEmpty()||session.epoch()!=((Number)owners.getFirst().get("security_epoch")).longValue())throw new ApiException(401,"SESSION_REVOKED");
+        var sessions=db.queryForList("SELECT * FROM sessions WHERE token_hash=? AND owner_id=? FOR UPDATE",session.hash(),session.owner());
+        Instant now=AuthService.instant(db.queryForObject("SELECT clock_timestamp()",Object.class));
+        if(sessions.isEmpty())throw new ApiException(401,"SESSION_REVOKED");var live=sessions.getFirst();
+        if(live.get("revoked_at")!=null||live.get("security_epoch")==null||((Number)live.get("security_epoch")).longValue()!=session.epoch()
+                ||!AuthService.instant(live.get("created_at")).isAfter(now.minusSeconds(43200))||!AuthService.instant(live.get("last_seen_at")).isAfter(now.minusSeconds(7200)))throw new ApiException(401,"SESSION_REVOKED");
+        Instant reauth=AuthService.instant(live.get("reauthenticated_at"));
+        if(reauth==null||reauth.isBefore(now.minusSeconds(300))||reauth.isAfter(now))throw new ApiException(403,"REAUTHENTICATION_REQUIRED");
+        var owner=owners.getFirst();long version=((Number)owner.get("version")).longValue(),epoch=((Number)owner.get("security_epoch")).longValue();
+        if(version!=expected)throw new ApiException(409,"PRECONDITION_CHANGED");
+        // A repeated snapshot is stale even if its desired state happens to match again.
+        if(Boolean.TRUE.equals(owner.get("execution_paused"))==paused)return executionSnapshot(session.owner());
+        if(version<1||version>=EXECUTION_MAX||epoch<1||epoch>=EXECUTION_MAX)throw new ApiException(409,"VERSION_EXHAUSTED");
+        int changed=db.update("UPDATE owners SET execution_paused=?,security_epoch=security_epoch+1,version=version+1 WHERE id=? AND version=? AND security_epoch=?",paused,session.owner(),expected,session.epoch());
+        if(changed!=1)throw new ApiException(409,"PRECONDITION_CHANGED");
+        if(paused)invalidateExecution(session.owner());
+        db.update("UPDATE sessions SET security_epoch=? WHERE token_hash=? AND owner_id=?",epoch+1,session.hash(),session.owner());
+        db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),session.owner(),paused?"EXECUTION_PAUSED":"EXECUTION_RESUMED",session.owner());
+        return executionSnapshot(session.owner());
+    }
+    private Map<String,Object> executionSnapshot(UUID owner){return executionView(db.queryForMap("SELECT execution_paused,version,clock_timestamp() AS checked_at FROM owners WHERE id=?",owner));}
+    private void invalidateExecution(UUID owner){
+        // Fence every active lease. Started work remains uncertain; this is not external cancellation.
+        db.update("UPDATE jobs SET status=CASE WHEN started_effect THEN 'UNKNOWN' ELSE 'CANCELLED' END,lease_generation=lease_generation+1,lease_owner=NULL,lease_until=NULL WHERE owner_id=? AND status IN ('QUEUED','RUNNING')",owner);
+        db.update("UPDATE approvals SET status='REVOKED' WHERE owner_id=? AND status='PENDING'",owner);
+        db.update("UPDATE action_executions SET status='UNKNOWN' WHERE owner_id=? AND status='STARTED'",owner);
+        db.update("UPDATE action_proposals SET status=CASE WHEN status='EXECUTING' THEN 'UNKNOWN' ELSE 'CANCELLED' END,version=version+1 WHERE owner_id=? AND status IN ('WAITING_APPROVAL','QUEUED','EXECUTING')",owner);
+        db.update("UPDATE inference_reservations SET cancel_requested_at=clock_timestamp(),status=CASE WHEN status='QUEUED' THEN 'CANCELLED' ELSE 'UNKNOWN' END WHERE owner_id=? AND status IN ('QUEUED','STARTED')",owner);
+        db.update("UPDATE inference_contexts SET state='INVALIDATED',invalidated_at=clock_timestamp() WHERE owner_id=? AND state IN ('CAPTURED','PREPARED','DISPATCHED')",owner);
+        db.update("UPDATE runs r SET status=CASE WHEN r.status='RUNNING' OR EXISTS(SELECT 1 FROM jobs j WHERE j.owner_id=r.owner_id AND j.run_id=r.id AND j.started_effect AND j.status='UNKNOWN') OR EXISTS(SELECT 1 FROM inference_reservations i WHERE i.owner_id=r.owner_id AND i.run_id=r.id AND i.status='UNKNOWN') THEN 'UNKNOWN' ELSE 'CANCELLED' END,cancel_requested_at=clock_timestamp(),version=version+1 WHERE r.owner_id=? AND r.status IN ('ACCEPTED','PLANNING','WAITING_APPROVAL','QUEUED','RUNNING','CANCEL_REQUESTED')",owner);
+    }
     private void validateSession(AuthService.Session session,Map<String,Object> ownerRow){
         AuthService.requireRecent(session);
         var rows=db.queryForList("SELECT token_hash FROM sessions WHERE token_hash=? AND owner_id=? AND revoked_at IS NULL AND security_epoch=? AND created_at>now()-interval '12 hours' AND last_seen_at>now()-interval '2 hours' AND reauthenticated_at>now()-interval '5 minutes' FOR UPDATE",session.hash(),session.owner(),ownerRow.get("security_epoch"));

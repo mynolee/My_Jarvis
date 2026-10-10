@@ -21,7 +21,7 @@ final class ApiController {
     @PostMapping("/api/v1/auth/logout") Map<String,Object> logout(HttpServletRequest req,HttpServletResponse res){Json.fields(body(req));auth.logout(session(req));res.addHeader("Set-Cookie",WebSecurity.COOKIE+"=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0");return wrap(req,Map.of("logged_out",true));}
     @GetMapping("/api/v1/me") Map<String,Object> me(HttpServletRequest req){if(!req.getParameterMap().isEmpty())throw ApiException.bad();return wrap(req,profiles.get(session(req)));}
     @PostMapping("/api/v1/conversations") Map<String,Object> createConversation(HttpServletRequest req){return wrap(req,flow.createConversation(session(req).owner(),body(req)));}
-    @PostMapping("/api/v1/conversations/{id}/messages") Map<String,Object> message(@PathVariable UUID id,HttpServletRequest req,HttpServletResponse res){var result=flow.accept(session(req).owner(),id,body(req));res.setStatus(202);return wrap(req,result);}
+    @PostMapping("/api/v1/conversations/{id}/messages") Map<String,Object> message(@PathVariable UUID id,HttpServletRequest req,HttpServletResponse res){var result=flow.accept(session(req),id,body(req));res.setStatus(202);return wrap(req,result);}
     @GetMapping("/api/v1/local-model/status") Map<String,Object> localStatus(HttpServletRequest req){return wrap(req,local.status());}
     @PostMapping("/api/v1/conversations/{id}/local-inference") Map<String,Object> localInference(@PathVariable UUID id,HttpServletRequest req,HttpServletResponse res){var result=local.accept(session(req),id,body(req));res.setStatus(202);return wrap(req,result);}
     @GetMapping("/api/v1/runs/{id}") Map<String,Object> run(@PathVariable UUID id,HttpServletRequest req){return wrap(req,flow.run(session(req).owner(),id));}
@@ -30,6 +30,4 @@ final class ApiController {
     @GetMapping("/api/v1/approvals/{id}") Map<String,Object> approval(@PathVariable UUID id,HttpServletRequest req){return wrap(req,flow.approval(session(req).owner(),id));}
     @GetMapping("/api/v1/approvals") Map<String,Object> approvals(HttpServletRequest req){return wrap(req,Map.of("items",flow.db.queryForList("SELECT id FROM approvals WHERE owner_id=? AND status='PENDING' ORDER BY expires_at LIMIT 100",session(req).owner()).stream().map(r->flow.approval(session(req).owner(),(UUID)r.get("id"))).toList()));}
     @PostMapping("/api/v1/approvals/{id}/decision") Map<String,Object> decision(@PathVariable UUID id,HttpServletRequest req){return wrap(req,flow.decision(session(req),id,body(req)));}
-    @PostMapping("/api/v1/execution/pause") Map<String,Object> pause(HttpServletRequest req){Json.fields(body(req));flow.pause(session(req),true);local.interruptOwner(session(req).owner());return wrap(req,Map.of("execution_paused",true));}
-    @PostMapping("/api/v1/execution/resume") Map<String,Object> resume(HttpServletRequest req){Json.fields(body(req));flow.pause(session(req),false);local.interruptOwner(session(req).owner());return wrap(req,Map.of("execution_paused",false));}
 }
