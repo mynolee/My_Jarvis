@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/schedule-occurrences.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/occurrence"
+      }
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/cursor"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "items",
+    "next_cursor"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "occurrence": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "schedule_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "schedule_version": {
+          "$ref": "#/$defs/version"
+        },
+        "planned_fire_at_utc": {
+          "$ref": "#/$defs/utc"
+        },
+        "status": {
+          "enum": [
+            "PLANNED",
+            "DELIVERED",
+            "SKIPPED_MISSED",
+            "BLOCKED",
+            "CANCELLED"
+          ]
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "PAUSED",
+                "EPOCH_CHANGED",
+                "DISABLED",
+                "REPLACED",
+                "AUTHORIZATION_EXPIRED",
+                "QUOTA_EXHAUSTED",
+                "OPERATIONAL_FAILURE",
+                "SUPERSEDED_MISSED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notification_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lateness_seconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settled_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/utc"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "schedule_id",
+        "schedule_version",
+        "planned_fire_at_utc",
+        "status",
+        "reason_code",
+        "notification_id",
+        "lateness_seconds",
+        "settled_at"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PLANNED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "type": "null"
+              },
+              "notification_id": {
+                "type": "null"
+              },
+              "lateness_seconds": {
+                "type": "null"
+              },
+              "settled_at": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "DELIVERED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "type": "null"
+              },
+              "notification_id": {
+                "$ref": "#/$defs/uuid"
+              },
+              "lateness_seconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "settled_at": {
+                "$ref": "#/$defs/utc"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SKIPPED_MISSED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "type": "null"
+              },
+              "notification_id": {
+                "type": "null"
+              },
+              "lateness_seconds": {
+                "type": "integer",
+                "minimum": 3601,
+                "maximum": 9007199254740991
+              },
+              "settled_at": {
+                "$ref": "#/$defs/utc"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "BLOCKED",
+                  "CANCELLED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "type": "string"
+              },
+              "notification_id": {
+                "type": "null"
+              },
+              "lateness_seconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "settled_at": {
+                "$ref": "#/$defs/utc"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reason_code": {
+                "const": "SUPERSEDED_MISSED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "CANCELLED"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9](?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^[A-Za-z0-9_.-]+$(?![\\s\\S])"
+    }
+  }
+}

@@ -1,0 +1,90 @@
+[
+  {
+    "name": "seoul",
+    "timezone": "Asia/Seoul",
+    "local": "2030-01-01T09:00:00",
+    "expected": {
+      "planned_fire_at_utc": "2030-01-01T00:00:00Z",
+      "local_datetime": "2030-01-01T09:00:00",
+      "offset_seconds": 32400,
+      "dst_adjustment": "NONE"
+    }
+  },
+  {
+    "name": "new-york-gap",
+    "timezone": "America/New_York",
+    "local": "2030-03-10T02:30:00",
+    "expected": {
+      "planned_fire_at_utc": "2030-03-10T07:00:00Z",
+      "local_datetime": "2030-03-10T03:00:00",
+      "offset_seconds": -14400,
+      "dst_adjustment": "GAP_FORWARD"
+    }
+  },
+  {
+    "name": "new-york-fold",
+    "timezone": "America/New_York",
+    "local": "2030-11-03T01:30:00",
+    "expected": {
+      "planned_fire_at_utc": "2030-11-03T05:30:00Z",
+      "local_datetime": "2030-11-03T01:30:00",
+      "offset_seconds": -14400,
+      "dst_adjustment": "FOLD_FIRST"
+    }
+  },
+  {
+    "name": "new-york-after-fold",
+    "timezone": "America/New_York",
+    "local": "2030-11-04T01:30:00",
+    "expected": {
+      "planned_fire_at_utc": "2030-11-04T06:30:00Z",
+      "local_datetime": "2030-11-04T01:30:00",
+      "offset_seconds": -18000,
+      "dst_adjustment": "NONE"
+    }
+  },
+  {
+    "name": "lord-howe-half-hour-gap",
+    "timezone": "Australia/Lord_Howe",
+    "local": "2030-10-06T02:15:00",
+    "expected": {
+      "planned_fire_at_utc": "2030-10-05T15:30:00Z",
+      "local_datetime": "2030-10-06T02:30:00",
+      "offset_seconds": 39600,
+      "dst_adjustment": "GAP_FORWARD"
+    }
+  },
+  {
+    "name": "apia-whole-date-gap",
+    "timezone": "Pacific/Apia",
+    "local": "2011-12-30T09:00:00",
+    "expected": {
+      "planned_fire_at_utc": "2011-12-30T10:00:00Z",
+      "local_datetime": "2011-12-31T00:00:00",
+      "offset_seconds": 50400,
+      "dst_adjustment": "GAP_FORWARD"
+    }
+  },
+  {
+    "name": "utc-leap-day",
+    "timezone": "UTC",
+    "local": "2032-02-29T00:00:00",
+    "expected": {
+      "planned_fire_at_utc": "2032-02-29T00:00:00Z",
+      "local_datetime": "2032-02-29T00:00:00",
+      "offset_seconds": 0,
+      "dst_adjustment": "NONE"
+    }
+  },
+  {
+    "name": "lord-howe-half-hour-fold",
+    "timezone": "Australia/Lord_Howe",
+    "local": "2030-04-07T01:45:00",
+    "expected": {
+      "planned_fire_at_utc": "2030-04-06T14:45:00Z",
+      "local_datetime": "2030-04-07T01:45:00",
+      "offset_seconds": 39600,
+      "dst_adjustment": "FOLD_FIRST"
+    }
+  }
+]
