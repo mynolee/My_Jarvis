@@ -127,3 +127,24 @@ The account-wide controls read a database-timed execution snapshot before enabli
 Pause prevents unstarted work from crossing the execution boundary. Already-started outcomes remain UNKNOWN where completion cannot be established; the UI does not claim all external work was canceled. A lost response is not retried automatically. A fresh status read establishes current account state only, not whether a particular earlier request committed. An explicit new request may use the newly observed state; unrelated unresolved operations remain separately fenced.
 
 The dedicated identity/control flow is separate from ordinary pending-work navigation. Private UI generations and API credential generations fence late responses, and sign-out is serialized against pending identity/control requests. These client checks do not prove browser cookie ordering or server-side session-lineage revocation. Real browser/mobile/keyboard and late Set-Cookie behavior remain separate verification requirements; local component tests are not substitutes.
+## Local inference usage summaries
+
+The owner-only `GET /api/v1/usage` read separates validated metering from pending,
+in-progress, never-started, uncertain, and legacy requests without measurements.
+Day and month periods use the owner's profile timezone and attribute each request
+to its reservation creation time. Existing enforcement windows remain UTC.
+Visible timestamps use Korean time (KST); the accounting timezone is identified
+separately. Reading or refreshing this view never starts inference.
+
+Measured token and compute subtotals cover only accepted measurements. Missing
+measurements are not zero consumption. Peak memory is the maximum observed value,
+not a sum, and is unavailable when no measurement exists. Monetary cost is
+unavailable. Retained reservation ceilings are shown separately and must not be
+added to actual measurements or interpreted as remaining quota.
+
+Validated late measurements can be retained after cancellation or authority
+changes without restoring stale output, execution authority, or a successful run
+outcome. Duplicate measurements cannot overwrite accepted facts. Synthetic tests
+do not establish actual native-model performance, browser acceptance, or release
+readiness.
+
