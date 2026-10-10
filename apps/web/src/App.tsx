@@ -1,0 +1,83 @@
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { flushSync } from 'react-dom';
+import { Api, ApiError } from './api';
+import { can_decide, decision_body, terminal, UUID, valid_snapshot, type Approval, type Conversation, type Message, type Run } from './domain';
+import { watch_events } from './events';
+import { read_runtime, type LocalRuntime } from './runtime';
+
+export function App({ api = new Api() }: { api?: Api }) {
+  const client = useRef(api).current;
+  const [authenticated, set_authenticated] = useState(false);
+  const [ready, set_ready] = useState(false);
+  const [runtime, set_runtime] = useState<LocalRuntime | null>(null);
+  const [runtime_checked_at, set_runtime_checked_at] = useState(0);
+  const [busy, set_busy] = useState(false);
+  const locked = useRef(false);
+  const generation = useRef(0);
+  const [notice, set_notice] = useState('');
+  const [uncertain, set_uncertain] = useState(false);
+  const [reauth_required, set_reauth_required] = useState(false);
+  const [conversation, set_conversation] = useState<Conversation | null>(null);
+  const [messages, set_messages] = useState<Message[]>([]);
+  const [run, set_run] = useState<Run | null>(null);
+  const [approval, set_approval] = useState<Approval | null>(null);
+  const [stream, set_stream] = useState('OFFLINE');
+  const [text, set_text] = useState('');
+  const [now, set_now] = useState(Date.now());
+  const refresh_lock = useRef(false);
+  const clear_private = useCallback(() => { generation.current++; client.clear(); set_authenticated(false); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); set_messages([]); set_run(null); set_approval(null); set_text(''); set_stream('OFFLINE'); set_uncertain(false); set_reauth_required(false); }, [client]);
+  const fail = useCallback((error: unknown) => { if (error instanceof ApiError) { if (error.status === 401) clear_private(); if (error.uncertain) set_uncertain(true); if (error.code === 'REAUTHENTICATION_REQUIRED') set_reauth_required(true); if (error.status === 409) set_approval(null); if (error.code === 'MODEL_UNAVAILABLE' || error.code === 'LOCAL_MODEL_UNAVAILABLE') set_runtime(null); set_notice(error.uncertain ? 'UNKNOWN: The request may have reached the server. Writes are paused. Reconcile server state; do not resend.' : /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code) ? error.code : 'REQUEST_REJECTED'); } else set_notice('BLOCKED: Invalid server data or unavailable operation.'); }, [clear_private]);
+  const refresh = useCallback(async () => {
+    if (refresh_lock.current) return;
+    refresh_lock.current = true; const current = generation.current;
+    try {
+      try { const status = read_runtime(await client.request<unknown>('/local-model/status')); if (current !== generation.current) return; set_runtime(status); set_runtime_checked_at(Date.now()); } catch (error) { if (current !== generation.current) return; set_runtime(null); if (error instanceof ApiError && error.status === 401) throw error; }
+      const list = await client.request<{ items: Conversation[] }>('/conversations');
+      const selected = conversation ?? list.items[0] ?? null;
+      if (current !== generation.current) return;
+      if (!selected) { set_conversation(null); set_messages([]); set_run(null); set_approval(null); return; }
+      if (!UUID.test(selected.id)) throw new Error('INVALID_CONVERSATION');
+      set_conversation(selected);
+      const data = await client.request<{ items: Message[] }>(`/conversations/${selected.id}/messages`);
+      if (current !== generation.current) return;
+      const run_id = [...data.items].reverse().find(item => item.run_id)?.run_id;
+      const latest = run_id && UUID.test(run_id) ? await client.request<Run>(`/runs/${run_id}`) : null;
+      if (current !== generation.current) return;
+      let snapshot: Approval | null = null;
+      if (latest?.approval_id && UUID.test(latest.approval_id)) { snapshot = await client.request<Approval>(`/approvals/${latest.approval_id}`); if (!valid_snapshot(snapshot)) throw new Error('INVALID_SNAPSHOT'); }
+      if (current !== generation.current) return;
+      set_messages(data.items); set_run(latest); set_approval(snapshot);
+    } catch (error) { if (current === generation.current) fail(error); } finally { refresh_lock.current = false; }
+  }, [client, conversation, fail]);
+  useEffect(() => { let live = true; const current = generation.current; void (async () => { try { await client.bootstrap_csrf(); if (!live || current !== generation.current) { client.clear(); return; } await client.request('/me'); if (live && current === generation.current) set_authenticated(true); } catch (error) { if (live && current === generation.current && !(error instanceof ApiError && error.status === 401)) fail(error); } finally { if (live) set_ready(true); } })(); return () => { live = false; generation.current++; client.clear(); }; }, [client, fail]);
+  useEffect(() => { if (authenticated) void refresh(); }, [authenticated, refresh]);
+  useEffect(() => { if (!authenticated) return; const timer = setInterval(() => { set_now(Date.now()); void refresh(); }, 3000); return () => clearInterval(timer); }, [authenticated, refresh]);
+  useEffect(() => { if (!authenticated || !conversation || !UUID.test(conversation.id)) return; return watch_events(conversation.id, () => void refresh(), set_stream); }, [authenticated, conversation, refresh]);
+  // Clear private state on page disposal and never persist it in CacheStorage/IDB/Web Storage.
+  useEffect(() => { const hide = () => flushSync(() => clear_private()); window.addEventListener('pagehide', hide); return () => window.removeEventListener('pagehide', hide); }, [clear_private]);
+  async function mutate(operation: (current: number) => Promise<void>) { if (locked.current) return; const current = generation.current; locked.current = true; set_busy(true); set_notice(''); try { await operation(current); } catch (error) { if (current === generation.current) fail(error); } finally { locked.current = false; set_busy(false); } }
+  function login(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const login_name = String(data.get('login_name') ?? ''); const password = String(data.get('password') ?? ''); form.reset(); void mutate(async current => { await client.bootstrap_csrf(); if (current !== generation.current) { client.clear(); return; } const result = await client.request<{ csrf_token: string }>('/auth/login', { login_name, password }); if (current !== generation.current) return; client.set_csrf(result.csrf_token); set_authenticated(true); set_uncertain(false); }); }
+  const writes_paused = uncertain || run?.status === 'UNKNOWN';
+  const local_ready = runtime?.ready === true && runtime.status === 'READY' && Math.max(now, Date.now()) - runtime_checked_at < 10000;
+  function send(event: FormEvent, local = true) { event.preventDefault(); if (writes_paused || (local && !local_ready) || !text.trim()) return; if (local && Date.now() - runtime_checked_at >= 10000) { set_runtime(null); set_notice('Runtime status is stale. Refresh server state before sending.'); return; } if (local ? [...text].length > 8000 : new TextEncoder().encode(text).length > 16000) { set_notice(local ? 'Message exceeds the 8000-character local input limit.' : 'Message exceeds the 16000-byte mock input limit.'); return; } const message = text; const current = generation.current; void mutate(async () => { let selected = conversation; if (!selected) { selected = await client.request<Conversation>('/conversations', { title: 'Operator session', project_id: null }, crypto.randomUUID()); if (current !== generation.current) return; if (!UUID.test(selected.id)) throw new Error('INVALID_CONVERSATION'); set_conversation(selected); } if (!UUID.test(selected.id)) throw new Error('INVALID_CONVERSATION'); await client.request(`/conversations/${selected.id}/${local ? 'local-inference' : 'messages'}`, { client_message_id: crypto.randomUUID(), text: message, ...(local ? {} : { attachment_ids: [] }) }); if (current !== generation.current) return; set_text(''); await refresh(); }); }
+  function decide(decision: 'APPROVE' | 'REJECT') { if (!approval || writes_paused) return; const snapshot = approval; void mutate(async current => { await client.request(`/approvals/${snapshot.id}/decision`, decision_body(snapshot, decision), crypto.randomUUID()); if (current === generation.current) await refresh(); }); }
+  function cancel() { if (!run || writes_paused) return; const current = run; void mutate(async epoch => { await client.request(`/runs/${current.id}/cancel`, { expected_version: current.version }, crypto.randomUUID()); if (epoch === generation.current) await refresh(); }); }
+  function reauthenticate(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const password = String(new FormData(form).get('password') ?? ''); form.reset(); void mutate(async current => { const result = await client.request<{ csrf_token: string }>('/auth/reauthenticate', { password }); if (current !== generation.current) return; client.set_csrf(result.csrf_token); set_reauth_required(false); set_notice('Identity confirmed. Review the current snapshot before deciding.'); await refresh(); }); }
+  function reconcile_mock() { if (!run || run.execution_mode !== 'MOCK' || run.status !== 'UNKNOWN') return; const selected = run; void mutate(async current => { await client.request(`/runs/${selected.id}/reconcile`, {}); if (current === generation.current) await refresh(); }); }
+  function logout() { void mutate(async () => { try { await client.request('/auth/logout', {}); } finally { clear_private(); } }); }
+  return <main>
+    <header><div><span className="eyebrow">MY JARVIS / LOCAL TEXT</span><h1>Operator console</h1></div><span className="badge">Server-reported state</span></header>
+    <p className="boundary">Local text inference requires a ready server runtime. Mock demonstrations remain separate. Calendar, mail, and device integrations are not enabled here. No additional model training. This is not a production release.</p>
+    {notice && <div className="notice" role="alert">{notice}</div>}
+    {!authenticated ? <section className="panel login"><h2>Owner sign in</h2><p>Use an owner account provisioned through the server’s local administration flow.</p><form onSubmit={login}><label>Login name<input name="login_name" autoComplete="username" required maxLength={128} disabled={!ready || busy}/></label><label>Password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={!ready || busy}/></label><button disabled={!ready || busy}>{ready ? 'Sign in' : 'Connecting securely…'}</button></form></section> : <>
+      <nav aria-label="Session controls"><span>Session active · Events: {stream}</span><button className="secondary" disabled={busy} onClick={() => void refresh()}>Refresh server state</button><button className="secondary" disabled={busy} onClick={logout}>Sign out</button></nav>
+      <section className="panel" aria-label="Local model runtime"><h2>Local model runtime</h2><span className="badge" role="status">{runtime?.status === 'READY' && !local_ready ? 'UNKNOWN' : runtime?.status ?? 'UNKNOWN'}</span><p>{local_ready ? 'The server reports the local worker is ready. Responses are generated only after you send a message.' : runtime?.status === 'LOADING' ? 'The local model is loading. Sending is disabled until the server confirms readiness.' : runtime?.status === 'DISABLED' ? 'Local inference is disabled on this server.' : runtime?.status === 'UNAVAILABLE' ? 'MODEL_UNAVAILABLE: the local runtime is unavailable.' : 'Runtime state could not be confirmed. Local sending is disabled.'}</p><p className="hint">No external AI fallback. Download, loading, and successful inference are separate states. No training progress is reported.</p></section>
+      {reauth_required && <section className="panel"><h2>Confirm your identity</h2><p>Approval requires a recent password confirmation. The decision will not be retried automatically.</p><form onSubmit={reauthenticate}><label>Confirm password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={busy || writes_paused}/></label><button disabled={busy || writes_paused}>Confirm identity</button></form></section>}
+      {writes_paused && <section className="notice"><strong>Writes paused</strong><p>Refresh checks the canonical server state without repeating the request. Do not resend while the outcome is unknown. A new sign-in does not cancel a running request.</p></section>}
+      <div className="workspace"><section className="panel"><h2>Conversation</h2><p className="hint">Send to the local model only when READY. The separate mock button uses synthetic fixtures (/calendar, /calendar-timeout, /deny) and never performs real provider actions.</p><div className="messages" aria-live="polite">{messages.length === 0 && <p className="empty">Your conversation will appear here.</p>}{messages.map(message => <article className="message" key={message.id}><strong>{message.role}</strong><p>{message.text}</p></article>)}</div><form onSubmit={event => send(event)}><label>Message<textarea value={text} onChange={event => set_text(event.target.value)} maxLength={16000} disabled={busy || writes_paused} rows={3}/></label><div className="actions"><button disabled={busy || writes_paused || !local_ready || !text.trim()}>Send to local model</button><button type="button" className="secondary" disabled={busy || writes_paused || !text.trim()} onClick={event => send(event, false)}>Send mock message</button></div></form></section>
+      <aside><section className="panel"><h2>Server execution state</h2>{run ? <><span className="badge">{run.status}</span><dl><dt>Run</dt><dd>{run.id}</dd><dt>Version</dt><dd>{run.version}</dd></dl>{run.status === 'QUEUED' && <p>Waiting for a local worker slot. Generation has not completed.</p>}{run.status === 'RUNNING' && <p>The server is processing this request. No completion has been confirmed.</p>}{run.status === 'CANCEL_REQUESTED' && <p>Cancellation requested; worker termination is not yet confirmed.</p>}{run.status === 'CANCELLED' && <p>The server reports this run cancelled.</p>}{run.execution_mode && <p className="hint">Mode: {run.execution_mode}</p>}{run.result && <p className="result">{run.result}</p>}<p className="hint">This status is read from the server. A generated answer is not proof of any external action; mock results prove only fixture outcomes.</p>{run.status === 'UNKNOWN' && <><p className="notice">UNKNOWN: outcome not confirmed. No action is repeated.</p>{run.execution_mode === 'MOCK' && <button className="secondary" disabled={busy} onClick={reconcile_mock}>Reconcile mock outcome</button>}</>}{!terminal.has(run.status) && <button className="secondary" disabled={busy || writes_paused} onClick={cancel}>Cancel run</button>}</> : <p className="empty">No run selected.</p>}</section>
+      {approval && <section className="panel approval"><h2>Review exact server snapshot</h2><span className="badge">{approval.status}</span><dl><dt>Action version</dt><dd>{approval.action_version}</dd><dt>Expires</dt><dd>{approval.expires_at}</dd><dt>SHA-256 payload hash</dt><dd>{approval.payload_hash}</dd></dl><pre aria-label="Frozen approval payload">{JSON.stringify(approval.payload, null, 2)}</pre><p className="hint">Approval applies to this exact snapshot once. Content cannot be edited here.</p><div className="actions"><button disabled={busy || writes_paused || reauth_required || !can_decide(approval, now)} onClick={() => decide('APPROVE')}>Approve exact action</button><button className="secondary" disabled={busy || writes_paused || reauth_required || !can_decide(approval, now)} onClick={() => decide('REJECT')}>Reject action</button></div>{!can_decide(approval, now) && <p>BLOCKED: this snapshot is expired, decided, or invalid.</p>}</section>}</aside></div>
+    </>}
+    <footer>Untrusted text stays text. No private offline cache. Server policy remains authoritative.</footer>
+  </main>;
+}
