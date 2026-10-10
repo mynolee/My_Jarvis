@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/project-create-request.schema.json",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "[^\\u0009-\\u000D\\u001C-\\u0020\\u1680\\u2000-\\u2006\\u2008-\\u200A\\u2028\\u2029\\u205F\\u3000]",
+      "not": {
+        "pattern": "[\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]"
+      },
+      "description": "Implementation decision: count Unicode code points, preserve exact text, reject Java String.isBlank and ISO controls. NBSP, figure space, narrow NBSP and FEFF are not Java whitespace."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 4000,
+      "not": {
+        "pattern": "[\\u0000\\uD800-\\uDFFF]"
+      },
+      "description": "Implementation decision: required, non-null, up to 4000 Unicode code points; empty allowed, U+0000 forbidden. Runtime encrypts description at rest."
+    }
+  },
+  "required": [
+    "name",
+    "description"
+  ],
+  "additionalProperties": false,
+  "description": "Direct explicit authenticated CSRF-protected user-form create data. Metadata only; does not create R2 grants, expose memory context, or authorize AI-tool creation. Additional limits are implementation decisions."
+}

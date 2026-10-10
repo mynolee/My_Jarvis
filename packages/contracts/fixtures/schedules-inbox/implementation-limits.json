@@ -1,0 +1,22 @@
+{
+  "revision": "schedules-inbox-v1",
+  "canonical_request_bytes": 16384,
+  "raw_request_bytes": 262144,
+  "title_codepoints": 200,
+  "text_codepoints": 2000,
+  "max_enabled_schedules": 100,
+  "authorization_seconds": 2592000,
+  "max_deliveries": 31,
+  "preparation_ttl_seconds": 300,
+  "max_lateness_seconds": 3600,
+  "poll_seconds": 5,
+  "list_default": 20,
+  "list_max": 50,
+  "cursor_characters": 1024,
+  "safe_integer_max": 9007199254740991,
+  "destination": "OWN_INBOX",
+  "no_external_delivery": true,
+  "no_model_execution": true,
+  "metadata_only_receipts": true,
+  "pause_requires_reconfirmation": true
+}

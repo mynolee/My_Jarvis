@@ -1,0 +1,9 @@
+{
+  "deletion_id": "83000000-0000-4000-8000-000000000001",
+  "conversation_id": "81000000-0000-4000-8000-000000000001",
+  "preparation_id": "82000000-0000-4000-8000-000000000001",
+  "scope_policy": "CONVERSATION_SOURCE_V1",
+  "deleted_version": 7,
+  "tombstone_version": 8,
+  "deleted_at": "2026-10-10T17:41:00Z"
+}
