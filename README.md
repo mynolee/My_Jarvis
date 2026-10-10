@@ -64,6 +64,15 @@ Static checks, synthetic tests, native model output, fresh-process reload, resou
 measurements and full application integration are separate evidence categories.
 Mac/Metal inference is NOT_RUN until tested on the actual supported hardware.
 
+## Offline restore preparation
+
+[Restore preparation Q0](docs/restore-quarantine.md) adds a metadata-only offline
+preparation CLI and early refusal for explicitly enrolled supported launch paths.
+Its receipt always remains BLOCKED / STILL_PAUSED; it performs no database
+restore, deletion replay or activation. Ordinary unenrolled startup is unchanged.
+Omitting enrollment settings and supported staging references is an unsupported
+restore bypass, not proof that a database has never been rolled back.
+
 ## Internal reminders and inbox
 
 The reminder panel supports explicit one-time or bounded recurring reminders to
