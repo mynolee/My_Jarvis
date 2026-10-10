@@ -99,3 +99,9 @@ actual deployment are separate checks. The contracts alone do not establish
 transactional safety or native notification delivery. CI's sanitized Java report
 must have its complete matching trailer, sequence/count checks and digest before
 individual method outcomes are used; declared method inventories are not passes.
+
+## Internal mail drafts
+
+The owner can explicitly create, open and edit a private draft without connecting an email account. Drafts are saved internally and always show `NOT_SENT`; a candidate sender is unverified text. Empty recipient lists and incomplete text are permitted. Attachments must be empty until a separately verified attachment flow exists. There is no sending, provider connection, scheduling, clipboard action or automatic model drafting in this feature.
+
+Sensitive draft fields are encrypted. Lists and mutation receipts contain metadata only; opening a draft requires a current owner session. Updates use an expected version and idempotency binding. Global execution pause blocks new saves. Unknown write outcomes require a read-only outcome check rather than automatic resubmission. Logout and disposal clear private form and recovery state. These boundaries do not establish provider delivery, conversational drafting, full privacy export/deletion, browser layout acceptance or native-model quality.

@@ -44,6 +44,37 @@ CONTEXT_ENV = {"checkout_sha": "REPORT_CHECKOUT_SHA", "pr_head_sha": "REPORT_PR_
                "run_id": "GITHUB_RUN_ID", "run_attempt": "GITHUB_RUN_ATTEMPT"}
 # Reviewed source names only. Do not learn output identities from XML attributes.
 ALLOWED_TESTS = {
+    "MailDraftServiceTest": (
+        "encryptedCreateDetailMetadataAndReceipt",
+        "patchPreservesOmittedFieldsAndOriginalReceiptReplaysCurrentRecord",
+        "concurrentSameKeyCommitsOneDraft",
+        "concurrentDistinctPatchKeysCannotLoseAnUpdate",
+        "liveOwnerAndOriginalSessionAreRequiredForReplayAndReconciliation",
+        "expiredAndStaleEpochSessionsCannotReadOrWrite",
+        "pausedBlocksNewWritesButAllowsReadsReceiptsAndExactReplays",
+        "noRecentReauthenticationIsNeeded",
+        "projectReferencesRequireActiveOwnerAndListsRetainInactiveHistory",
+        "paginationIsStableAndOwnerFilterAndSignatureBound",
+        "strictValidationAndMergedRecipientLimit",
+        "bodyAndCanonicalByteLimitsAndEmptyContent",
+        "versionExhaustionAndAuditFailureRollBackEverything",
+        "ciphertextCannotBeSwappedAcrossDrafts",
+        "missingReceiptHasExactlyThreeNullMetadataFields",
+        "actualPostgresHttpCreatePatchReceiptAndMissingCsrf",
+        "frozenCommitmentAndCursorVectorMatches",
+        "authenticatedCursorStillRequiresStrictTimestampAndPayloadShape",
+        "sharedCreateAndPatchFixturesMatchRuntimeShapeValidation",
+    ),
+    "MailDraftHttpTest": (
+        "createAndPatchUseOwnerSessionAndExactBodyWithNoStore",
+        "authenticationOriginAndCsrfFailBeforeService",
+        "missingDuplicateAndNonCanonicalKeysFail",
+        "strictQueryAndPathValidation",
+        "strictJsonRejectsDuplicateKeysDecimalsAndMalformedUnicode",
+        "metadataReadsAndReceiptNeverMutate",
+        "explicitProjectAndMaximumLimitAreForwarded",
+        "errorsAreRedactedAndNoSendRouteExists",
+    ),
     "ConversationHistoryHttpTest": (
         "authenticatedReadUsesSessionOwnerAndNoStore",
         "noSessionCannotReadHistory",
