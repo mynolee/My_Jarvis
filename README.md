@@ -111,3 +111,11 @@ Sensitive draft fields are encrypted. Lists and mutation receipts contain metada
 The read-only Today view summarizes the owner's open tasks from a coherent server-side snapshot, using the saved timezone and database time. It shows up to three ranked tasks and up to twenty overdue or remaining-today deadlines, with an exact deadline count and a visible truncation indicator. The deadline window ends at the next local midnight, including daylight-saving transitions; it is not a fixed 24-hour interval.
 
 Ranking is an explicit product default: overdue tasks first, then priority, due time and stable identifier. A failed read is not an empty or all-clear result. Calendar appointments, morning briefings and device status remain visibly unavailable until their independent integrations exist. This view does not execute models, providers, reminder jobs or notification acknowledgements. Browser layout and native-device acceptance remain separate verification work.
+
+## Execution history
+
+The execution history panel reads owner-scoped audit metadata from the existing server ledger. Opening, closing, refreshing or paging the panel never approves, retries, resumes, reconciles or cancels a run. It is separate from the active conversation and execution controls. Displayed timestamps use Korean Standard Time (Asia/Seoul); wire timestamps remain UTC.
+
+Only explicitly allowlisted event and resource metadata is returned. Unknown event types are sanitized, and any linked run state is its state at the current page's database snapshot, not a reconstruction of its state when the event occurred. A status does not prove an external action or real-provider verification. Message bodies, draft text, authentication material and encrypted payload references are excluded.
+
+Each page has a fresh coherent read snapshot and a descending time/ID boundary. The signed cursor is bound to the owner, session, epoch and scope and has a fixed expiry. Paging does not freeze the entire event collection: later inserts with older event timestamps can appear below the current boundary. The panel keeps a bounded window and reports failed reads separately from an empty history. Session changes and disposal clear private UI state; request-generation fences ignore late responses without claiming to cancel transport already in progress.
