@@ -9,9 +9,9 @@ import java.util.*;
 
 @Service
 final class WorkflowService {
-    final JdbcTemplate db; final TransactionTemplate tx;final Vault vault;
+    final JdbcTemplate db; final TransactionTemplate tx;final Vault vault; final ConversationReplyWriter replies;
     static final String POLICY="m0-v1";
-    WorkflowService(JdbcTemplate db,TransactionTemplate tx,Vault vault){this.db=db;this.tx=tx;this.vault=vault;}
+    WorkflowService(JdbcTemplate db,TransactionTemplate tx,Vault vault,ConversationReplyWriter replies){this.db=db;this.tx=tx;this.vault=vault;this.replies=replies;}
     Map<String,Object> createConversation(UUID owner,JsonNode body){
         Json.fields(body,"title","project_id");String title=Json.string(body,"title",200);UUID project=body.hasNonNull("project_id")?Json.uuid(body,"project_id"):null;
         return tx.execute(s->{if(project!=null)owned("projects",owner,project);UUID id=UUID.randomUUID();db.update("INSERT INTO conversations(id,owner_id,project_id,title) VALUES (?,?,?,?)",id,owner,project,title);return conversation(owned("conversations",owner,id));});
@@ -90,7 +90,10 @@ final class WorkflowService {
         if(rows.isEmpty()||session.epoch()!=((Number)ownerRow.get("security_epoch")).longValue())throw new ApiException(401,"SESSION_REVOKED");
     }
     UUID job(UUID owner,UUID run,UUID action,String kind){UUID id=UUID.randomUUID();db.update("INSERT INTO jobs(id,owner_id,kind,logical_key,run_id,action_id,status) VALUES (?,?,?,?,?,?,'QUEUED')",id,owner,kind,kind+":"+(action==null?run:action),run,action);return id;}
-    void setRun(UUID owner,UUID run,String status,String result){db.update("UPDATE runs SET status=?,version=version+1,result_ref=COALESCE(?,result_ref) WHERE owner_id=? AND id=?",status,result==null?null:vault.seal(owner,run,"result",result),owner,run);}
+    void setRun(UUID owner,UUID run,String status,String result){
+        int changed=db.update("UPDATE runs SET status=?,version=version+1,result_ref=COALESCE(?,result_ref) WHERE owner_id=? AND id=?",status,result==null?null:vault.seal(owner,run,"result",result),owner,run);
+        if(changed==1 && result!=null && Set.of("SUCCEEDED","WAITING_INPUT").contains(status))replies.appendAccepted(owner,run);
+    }
     void event(UUID owner,UUID run,String type){db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),owner,type,run);db.update("INSERT INTO outbox_events(id,owner_id,aggregate_id,event_type) VALUES (?,?,?,?)",UUID.randomUUID(),owner,run,type);db.update("INSERT INTO stream_events(owner_id,conversation_id,run_id,event_type) SELECT owner_id,conversation_id,id,? FROM runs WHERE owner_id=? AND id=?",type,owner,run);}
     void lockOwner(UUID owner){db.queryForObject("SELECT id FROM owners WHERE id=? FOR UPDATE",UUID.class,owner);}
     Map<String,Object> owned(String table,UUID owner,UUID id){return fetch(table,owner,id,false);}

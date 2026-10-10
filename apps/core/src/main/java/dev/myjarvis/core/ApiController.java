@@ -1,7 +1,6 @@
 package dev.myjarvis.core;
 
 import jakarta.servlet.http.*;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import tools.jackson.databind.JsonNode;
 import java.util.*;
@@ -22,9 +21,7 @@ final class ApiController {
     @PostMapping("/api/v1/auth/logout") Map<String,Object> logout(HttpServletRequest req,HttpServletResponse res){Json.fields(body(req));auth.logout(session(req));res.addHeader("Set-Cookie",WebSecurity.COOKIE+"=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0");return wrap(req,Map.of("logged_out",true));}
     @GetMapping("/api/v1/me") Map<String,Object> me(HttpServletRequest req){var o=flow.owned("owners",session(req).owner(),session(req).owner());return wrap(req,Map.of("id",o.get("id"),"login_name",o.get("login_name"),"execution_paused",o.get("execution_paused"),"version",o.get("version"),"mode","MOCK"));}
     @PostMapping("/api/v1/conversations") Map<String,Object> createConversation(HttpServletRequest req){return wrap(req,flow.createConversation(session(req).owner(),body(req)));}
-    @GetMapping("/api/v1/conversations") Map<String,Object> conversations(HttpServletRequest req){return wrap(req,Map.of("items",flow.conversations(session(req).owner())));}
     @PostMapping("/api/v1/conversations/{id}/messages") Map<String,Object> message(@PathVariable UUID id,HttpServletRequest req,HttpServletResponse res){var result=flow.accept(session(req).owner(),id,body(req));res.setStatus(202);return wrap(req,result);}
-    @GetMapping("/api/v1/conversations/{id}/messages") Map<String,Object> messages(@PathVariable UUID id,HttpServletRequest req){return wrap(req,Map.of("items",flow.messages(session(req).owner(),id)));}
     @GetMapping("/api/v1/local-model/status") Map<String,Object> localStatus(HttpServletRequest req){return wrap(req,local.status());}
     @PostMapping("/api/v1/conversations/{id}/local-inference") Map<String,Object> localInference(@PathVariable UUID id,HttpServletRequest req,HttpServletResponse res){var result=local.accept(session(req).owner(),id,body(req));res.setStatus(202);return wrap(req,result);}
     @GetMapping("/api/v1/runs/{id}") Map<String,Object> run(@PathVariable UUID id,HttpServletRequest req){return wrap(req,flow.run(session(req).owner(),id));}
@@ -35,14 +32,4 @@ final class ApiController {
     @PostMapping("/api/v1/approvals/{id}/decision") Map<String,Object> decision(@PathVariable UUID id,HttpServletRequest req){return wrap(req,flow.decision(session(req),id,body(req)));}
     @PostMapping("/api/v1/execution/pause") Map<String,Object> pause(HttpServletRequest req){Json.fields(body(req));flow.pause(session(req),true);local.interruptOwner(session(req).owner());return wrap(req,Map.of("execution_paused",true));}
     @PostMapping("/api/v1/execution/resume") Map<String,Object> resume(HttpServletRequest req){Json.fields(body(req));flow.pause(session(req),false);local.interruptOwner(session(req).owner());return wrap(req,Map.of("execution_paused",false));}
-    @GetMapping(value="/api/v1/conversations/{id}/events",produces=MediaType.TEXT_EVENT_STREAM_VALUE)
-    String events(@PathVariable UUID id,@RequestHeader(value="Last-Event-ID",required=false)String last,HttpServletRequest req){
-        UUID owner=session(req).owner();flow.owned("conversations",owner,id);long sequence=0;
-        if(last!=null){UUID event;try{event=UUID.fromString(last);}catch(Exception e){throw ApiException.bad();}var rows=flow.db.queryForList("SELECT sequence FROM stream_events WHERE event_id=? AND owner_id=? AND conversation_id=?",event,owner,id);if(rows.isEmpty())throw ApiException.missing();sequence=((Number)rows.getFirst().get("sequence")).longValue();}
-        StringBuilder out=new StringBuilder("retry: 2000\n\n");
-        for(var row:flow.db.queryForList("SELECT event_id,sequence,run_id FROM stream_events WHERE owner_id=? AND conversation_id=? AND sequence>? ORDER BY sequence LIMIT 100",owner,id,sequence)){
-            Map<String,Object> data=Map.of("event_id",row.get("event_id"),"sequence",row.get("sequence"),"run_id",row.get("run_id"),"conversation_id",id);
-            out.append("id: ").append(row.get("event_id")).append("\nevent: run.status\ndata: ").append(Json.MAPPER.writeValueAsString(data)).append("\n\n");
-        }return out.toString();
-    }
 }
