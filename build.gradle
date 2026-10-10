@@ -1,0 +1,14 @@
+allprojects {
+    group = 'io.myjarvis'
+    version = '0.1.0-SNAPSHOT'
+    repositories { mavenCentral() }
+}
+
+// Explicit review-only bootstrap. Ordinary verification never regenerates locks.
+tasks.register('resolveDependencyGraph') {
+    doLast {
+        allprojects.each { project ->
+            project.configurations.findAll { it.canBeResolved }.each { it.resolve() }
+        }
+    }
+}
