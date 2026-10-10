@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/owner-profile-mutation-receipt.schema.json",
+  "$comment": "Wire shape only. Server must enforce authenticated owner/live session and epoch, Origin/CSRF, exact Java TZDB membership, strict integer-only JSON, duplicate-key/header/query rejection, canonical request cap 4096 bytes, transactional versioning and session-bound HMAC idempotency. No scheduling, translation or inference personalization is enabled.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "COMMITTED"
+        },
+        "owner_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "updated_fields": {
+          "enum": [
+            [
+              "display_name"
+            ],
+            [
+              "locale"
+            ],
+            [
+              "timezone"
+            ],
+            [
+              "display_name",
+              "locale"
+            ],
+            [
+              "display_name",
+              "timezone"
+            ],
+            [
+              "locale",
+              "timezone"
+            ],
+            [
+              "display_name",
+              "locale",
+              "timezone"
+            ]
+          ],
+          "description": "Nonempty submitted field names, unique and lexicographically sorted; never values."
+        }
+      },
+      "required": [
+        "status",
+        "owner_id",
+        "version",
+        "updated_fields"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "NOT_OBSERVED"
+        },
+        "owner_id": {
+          "type": "null"
+        },
+        "version": {
+          "type": "null"
+        },
+        "updated_fields": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "owner_id",
+        "version",
+        "updated_fields"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

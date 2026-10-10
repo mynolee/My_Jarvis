@@ -1,0 +1,233 @@
+[
+  {
+    "name": "default-profile",
+    "schema": "owner-profile",
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "login_name": "synthetic-owner",
+      "execution_paused": false,
+      "version": 1,
+      "mode": "MOCK",
+      "display_name": null,
+      "locale": "ko-KR",
+      "timezone": "UTC",
+      "profile_updated_at": null,
+      "server_time": "2030-01-01T00:00:00Z",
+      "profile_effects": {
+        "settings_time_preview": true,
+        "ui_translation": false,
+        "chat_personalization": false,
+        "inference_timezone": "UTC",
+        "scheduling": false
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "saved-profile",
+    "schema": "owner-profile",
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "login_name": "synthetic-owner",
+      "execution_paused": false,
+      "version": 2,
+      "mode": "MOCK",
+      "display_name": "Synthetic Example",
+      "locale": "en-US",
+      "timezone": "Etc/UTC",
+      "profile_updated_at": "2030-01-01T00:00:01.123456Z",
+      "server_time": "2030-01-01T00:00:00Z",
+      "profile_effects": {
+        "settings_time_preview": true,
+        "ui_translation": false,
+        "chat_personalization": false,
+        "inference_timezone": "UTC",
+        "scheduling": false
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-all",
+    "schema": "owner-profile-patch-request",
+    "instance": {
+      "expected_version": 1,
+      "display_name": "Synthetic Example",
+      "locale": "en-US",
+      "timezone": "Etc/UTC"
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-display_name",
+    "schema": "owner-profile-patch-request",
+    "instance": {
+      "expected_version": 2,
+      "display_name": null
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-locale",
+    "schema": "owner-profile-patch-request",
+    "instance": {
+      "expected_version": 2,
+      "locale": "ko-KR"
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-timezone",
+    "schema": "owner-profile-patch-request",
+    "instance": {
+      "expected_version": 2,
+      "timezone": "UTC"
+    },
+    "valid": true
+  },
+  {
+    "name": "empty-patch",
+    "schema": "owner-profile-patch-request",
+    "instance": {
+      "expected_version": 1
+    },
+    "valid": false
+  },
+  {
+    "name": "committed-receipt",
+    "schema": "owner-profile-mutation-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "owner_id": "10000000-0000-4000-8000-000000000001",
+      "version": 2,
+      "updated_fields": [
+        "display_name",
+        "locale",
+        "timezone"
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "not-observed-receipt",
+    "schema": "owner-profile-mutation-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "owner_id": null,
+      "version": null,
+      "updated_fields": null
+    },
+    "valid": true
+  },
+  {
+    "name": "first-result",
+    "schema": "owner-profile-patch-result",
+    "instance": {
+      "profile": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "login_name": "synthetic-owner",
+        "execution_paused": false,
+        "version": 2,
+        "mode": "MOCK",
+        "display_name": "Synthetic Example",
+        "locale": "en-US",
+        "timezone": "Etc/UTC",
+        "profile_updated_at": "2030-01-01T00:00:01.123456Z",
+        "server_time": "2030-01-01T00:00:00Z",
+        "profile_effects": {
+          "settings_time_preview": true,
+          "ui_translation": false,
+          "chat_personalization": false,
+          "inference_timezone": "UTC",
+          "scheduling": false
+        }
+      },
+      "mutation": {
+        "status": "COMMITTED",
+        "owner_id": "10000000-0000-4000-8000-000000000001",
+        "version": 2,
+        "updated_fields": [
+          "display_name",
+          "locale",
+          "timezone"
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "replay-current-profile",
+    "schema": "owner-profile-patch-result",
+    "instance": {
+      "profile": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "login_name": "synthetic-owner",
+        "execution_paused": false,
+        "version": 5,
+        "mode": "MOCK",
+        "display_name": "Synthetic Example",
+        "locale": "en-US",
+        "timezone": "Etc/UTC",
+        "profile_updated_at": "2030-01-01T00:00:01.123456Z",
+        "server_time": "2030-01-01T00:00:00Z",
+        "profile_effects": {
+          "settings_time_preview": true,
+          "ui_translation": false,
+          "chat_personalization": false,
+          "inference_timezone": "UTC",
+          "scheduling": false
+        }
+      },
+      "mutation": {
+        "status": "COMMITTED",
+        "owner_id": "10000000-0000-4000-8000-000000000001",
+        "version": 2,
+        "updated_fields": [
+          "display_name",
+          "locale",
+          "timezone"
+        ]
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "options",
+    "schema": "owner-profile-options",
+    "instance": {
+      "locales": [
+        "ko-KR",
+        "en-US"
+      ],
+      "timezones": [
+        "Etc/GMT+5",
+        "Etc/UTC",
+        "UTC"
+      ],
+      "tzdb_version": "2030a"
+    },
+    "valid": true
+  },
+  {
+    "name": "query",
+    "schema": "owner-profile-query",
+    "instance": {},
+    "valid": true
+  },
+  {
+    "name": "headers",
+    "schema": "owner-profile-mutation-headers",
+    "instance": {
+      "Idempotency-Key": "10000000-0000-4000-8000-000000000001"
+    },
+    "valid": true
+  },
+  {
+    "name": "path",
+    "schema": "owner-profile-mutation-path",
+    "instance": {
+      "key": "10000000-0000-4000-8000-000000000001"
+    },
+    "valid": true
+  }
+]
