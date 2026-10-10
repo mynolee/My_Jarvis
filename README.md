@@ -179,3 +179,44 @@ filename, and clears private state and object URLs on disposal. Korean time is
 used for visible timestamps. Starting a download does not prove that a browser
 saved the file. Real browser/mobile file saving and native model execution remain
 separate, unverified acceptance requirements.
+
+## Conversation source deletion
+
+The owner can review and explicitly confirm irreversible deletion of the stored
+source content for one quiescent conversation. Review does not delete anything.
+The confirmation is bound to the exact target, content version and digest,
+counts, current session/security epoch and a five-minute preparation. Recent
+reauthentication and an unpaused account are required for a new deletion.
+Unknown mutation outcomes keep writes fenced and permit only a read-only receipt
+check; `NOT_OBSERVED` is not proof that deletion failed.
+
+The transaction redacts the conversation title, messages, saved responses,
+action-content copies and associated context references, and leaves a permanent
+target tombstone. Supported history, replay, dispatch and settlement paths check
+that tombstone. Independently saved memories, tasks, drafts, reminders, profile
+and projects remain. Protected content-derived keyed commitments, usage records,
+execution metadata and revoked authorization shells remain for integrity and
+replay safety; these are not anonymous records. Other conversations are not
+cancelled and their owner-wide epochs are not changed.
+
+Every descendant must independently be closed. Active or unknown work, pending
+approval, inconsistent relationships and local inference without the immutable
+supported no-response-cache dispatch marker refuse deletion. Existing inference
+history is not retroactively marked; even a never-started local reservation
+without that marker is refused. The marker describes a supported software path,
+not proof of physical memory erasure.
+
+Bounds are 1,000 runs, 2,000 messages, 1,000 actions, 40,000 scoped mutable/reference
+rows, 16 MiB scoped source/commitment bytes and a five-second transaction budget.
+A preview and its content commitments are cleared when consumed or revoked.
+Already delivered/in-flight responses, other clients' existing views, downloaded
+files, database WAL/dead tuples, replicas and historical backups cannot be
+recalled by this operation. Physical zeroization and safe historical-backup
+restoration are not established. This is not full-account deletion or model
+unlearning. Visible review times use Asia/Seoul (KST); wire timestamps remain UTC.
+
+The UI requires separate consent and an explicit destructive action, clears
+review on selection/session/content changes, and hides target content while a
+confirmation is unresolved. A later authenticated tombstone response also clears
+that client's selected source view. Synthetic contract, UI and database tests
+must be distinguished from real-user deletion and actual browser/device testing.
