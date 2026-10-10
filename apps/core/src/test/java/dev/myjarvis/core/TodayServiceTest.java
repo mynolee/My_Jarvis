@@ -19,7 +19,7 @@ class TodayServiceTest extends ReminderTestSupport {
     UUID task(String priority,String status,Instant due){return task(UUID.randomUUID(),priority,status,due);}
     tools.jackson.databind.JsonNode result(){return body(today().get(session));}
     List<String> ids(tools.jackson.databind.JsonNode rows){List<String> ids=new ArrayList<>();rows.forEach(row->ids.add(row.path("id").asText()));return ids;}
-    void zone(String timezone){Map<String,Object> profile=new LinkedHashMap<>();profile.put("display_name",null);profile.put("locale","ko-KR");profile.put("timezone",timezone);db.update("UPDATE owners SET profile_ref=? WHERE id=?",vault.seal(owner,owner,"owner-profile",Json.MAPPER.writeValueAsString(profile)),owner);}
+    void zone(String timezone){Map<String,Object> profile=new LinkedHashMap<>();profile.put("display_name",null);profile.put("locale","ko-KR");profile.put("timezone",timezone);db.update("UPDATE owners SET profile_ref=?,profile_updated_at=clock_timestamp() WHERE id=?",vault.seal(owner,owner,"owner-profile",Json.MAPPER.writeValueAsString(profile)),owner);}
 
     @Test void ranksEntireOwnerSetRatherThanFirstPage(){
         UUID urgent=task("HIGH","TODO",now().minusSeconds(3600));
@@ -124,7 +124,7 @@ class TodayServiceTest extends ReminderTestSupport {
     @Test void databaseAndCorruptProfileErrorsNeverBecomeAvailableEmptyData(){
         db.execute("ALTER TABLE tasks RENAME TO today_test_hidden_tasks");
         try{assertThrows(org.springframework.dao.DataAccessException.class,()->today().get(session));}finally{db.execute("ALTER TABLE today_test_hidden_tasks RENAME TO tasks");}
-        db.update("UPDATE owners SET profile_ref='corrupt' WHERE id=?",owner);assertThrows(RuntimeException.class,()->today().get(session));
+        db.update("UPDATE owners SET profile_ref='corrupt',profile_updated_at=clock_timestamp() WHERE id=?",owner);assertThrows(RuntimeException.class,()->today().get(session));
     }
     @Test void invalidStoredTaskTitlesAndTimestampsFailClosed(){
         UUID id=task("HIGH","TODO",null);
@@ -147,7 +147,7 @@ class TodayServiceTest extends ReminderTestSupport {
             Map.of("display_name","x".repeat(81),"locale","ko-KR","timezone","UTC"),
             Map.of("display_name",3,"locale","ko-KR","timezone","UTC"),
             Map.of("display_name","Valid","locale","ko-KR","timezone","Unknown/Nowhere"))){
-            db.update("UPDATE owners SET profile_ref=? WHERE id=?",vault.seal(owner,owner,"owner-profile",Json.MAPPER.writeValueAsString(profile)),owner);
+            db.update("UPDATE owners SET profile_ref=?,profile_updated_at=clock_timestamp() WHERE id=?",vault.seal(owner,owner,"owner-profile",Json.MAPPER.writeValueAsString(profile)),owner);
             assertThrows(IllegalStateException.class,()->today().get(session));
         }
     }
