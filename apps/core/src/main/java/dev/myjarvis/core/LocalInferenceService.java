@@ -14,10 +14,13 @@ final class LocalInferenceService {
     private final WorkflowService flow;
     private final LocalInferenceClient client;
     private final InferenceContextService contexts;private final InferenceContextFreshness freshness;
+    private final UsageService usage;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private final java.util.concurrent.atomic.AtomicBoolean busy=new java.util.concurrent.atomic.AtomicBoolean();
     private final ConcurrentMap<UUID,Thread> active=new ConcurrentHashMap<>();
-    LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness){this.flow=flow;this.client=client;this.contexts=contexts;this.freshness=freshness;}
+    LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness){this(flow,client,contexts,freshness,new UsageService(flow.db,flow.vault,contexts,Objects.requireNonNull(flow.tx.getTransactionManager())));}
+    @org.springframework.beans.factory.annotation.Autowired
+    LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness,UsageService usage){this.flow=flow;this.client=client;this.contexts=contexts;this.freshness=freshness;this.usage=usage;}
     Map<String,Object> status(){boolean ready=client.ready();return Map.of("mode","LOCAL_MLX","model_id","local-mlx-v1","ready",ready,"status",ready?"READY":client.enabled?"UNAVAILABLE":"DISABLED");}
     Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body){
         AuthService.requireOwner(session);UUID owner=session.owner();
@@ -96,9 +99,14 @@ final class LocalInferenceService {
             // Last check after registration closes the cancel-before-registration race.
             if(!Boolean.TRUE.equals(flow.tx.execute(s->{flow.lockOwner(owner);if(!"STARTED".equals(flow.db.queryForObject("SELECT status FROM inference_reservations WHERE id=?",String.class,id)))return false;if(!freshness.valid(owner,dispatch.run())){freshness.invalidateRun(owner,dispatch.run());return false;}return true;})))return true;
             JsonNode response=client.infer(owner,dispatch.body());String result=validate(response,dispatch.body());
+            // Transport has fully finished. Unregister atomically against interruption before
+            // persisting its facts; repeated pause/logout ticks must not interrupt the receipt.
+            active.remove(dispatch.run(),Thread.currentThread());Thread.interrupted();
+            // Factual accounting commits independently before revocation/output gates or result encryption.
+            usage.record(dispatch,response);
             settle(dispatch,switch(response.get("kind").asText()){case "ANSWER" -> "SUCCEEDED";case "NEED_INPUT" -> "WAITING_INPUT";default -> "FAILED";},result);
         }catch(Exception uncertain){settle(dispatch,"UNKNOWN",null);}
-        finally{active.remove(dispatch.run());Thread.interrupted();}
+        finally{active.remove(dispatch.run(),Thread.currentThread());Thread.interrupted();}
         return true;
     }
     record Dispatch(UUID owner,UUID run,UUID reservation,JsonNode body){}
@@ -108,6 +116,7 @@ final class LocalInferenceService {
         body.put("budget",Map.of("reservation_id",row.get("id").toString(),"max_compute_ms",60000,"max_input_tokens",3584,"max_output_tokens",512,"max_model_calls",1));body.put("model_id","local-mlx-v1");body.put("model_manifest_hash",row.get("model_manifest_hash"));body.put("prompt_revision","local-v1");JsonNode result=Json.MAPPER.valueToTree(body);if(Json.canonical(result).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>262144)throw new ApiException(413,"CONTEXT_TOO_LARGE");return result;
     }
     static String validate(JsonNode response,JsonNode request){
+        if(response==null)throw ApiException.bad();Json.validate(response);
         String kind=Json.string(response,"kind",30);if(!Set.of("ANSWER","NEED_INPUT","ERROR").contains(kind))throw ApiException.bad();
         if(kind.equals("ANSWER")){Json.fields(response,"kind","reply_text","cited_source_ids","usage");if(!response.path("cited_source_ids").isArray()||!response.path("cited_source_ids").isEmpty())throw ApiException.bad();}
         else if(kind.equals("NEED_INPUT")){Json.fields(response,"kind","question","missing_fields","usage");var missing=response.path("missing_fields");if(!missing.isArray()||missing.size()>32)throw ApiException.bad();for(var field:missing)if(!field.isTextual()||field.asText().isEmpty()||field.asText().codePointCount(0,field.asText().length())>80)throw ApiException.bad();}
@@ -121,6 +130,6 @@ final class LocalInferenceService {
     }
     private void settle(Dispatch d,String status,String text){flow.tx.executeWithoutResult(s->{flow.lockOwner(d.owner());if(!freshness.valid(d.owner(),d.run())){freshness.invalidateRun(d.owner(),d.run());return;}contexts.markSettled(d.owner(),d.run());int changed=flow.db.update("UPDATE inference_reservations SET status=?,completed_at=now() WHERE id=? AND status='STARTED' AND cancel_requested_at IS NULL",(status.equals("WAITING_INPUT")?"SUCCEEDED":status),d.reservation());if(changed==1){flow.setRun(d.owner(),d.run(),status,text);flow.event(d.owner(),d.run(),"LOCAL_INFERENCE_"+status);}});}
     void interruptOwner(UUID owner){for(var row:flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND cancel_requested_at IS NOT NULL",owner))interrupt((UUID)row.get("run_id"));}
-    void interrupt(UUID run){Thread t=active.get(run);if(t!=null)t.interrupt();}
+    void interrupt(UUID run){active.computeIfPresent(run,(id,thread)->{thread.interrupt();return thread;});}
     @PreDestroy void close(){executor.shutdownNow();}
 }
