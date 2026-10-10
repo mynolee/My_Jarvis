@@ -22,16 +22,17 @@ final class ConversationHistoryService {
     private final JdbcTemplate db;
     private final Vault vault;
     private final TransactionTemplate snapshot;
+    private final ConversationAccess access;
     private final byte[] cursorKey;
 
     ConversationHistoryService(JdbcTemplate db, Vault vault, PlatformTransactionManager manager,
                                @Value("${jarvis.key-file}") String keyFile) throws Exception {
-        this.db = db; this.vault = vault;
+        this.db = db; this.vault = vault; this.access = new ConversationAccess(db);
         snapshot = new TransactionTemplate(manager);
-        snapshot.setReadOnly(true);
-        snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        // SELECT FOR UPDATE is intentional: the lock is the content read linearization boundary.
+        snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         snapshot.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        snapshot.setTimeout(10);
+        snapshot.setTimeout(5);
         Path path = Path.of(keyFile);
         if (Files.isSymbolicLink(path) || !Files.isRegularFile(path)
                 || Files.getPosixFilePermissions(path).stream().anyMatch(p -> p.name().startsWith("GROUP_") || p.name().startsWith("OTHERS_")))
@@ -43,13 +44,16 @@ final class ConversationHistoryService {
         } finally { Arrays.fill(key, (byte) 0); }
     }
 
-    Map<String,Object> conversations(UUID owner, String cursor, int limit) {
+    Map<String,Object> conversations(UUID owner, String cursor, int limit) { return conversations(null, owner, cursor, limit); }
+    Map<String,Object> conversations(AuthService.Session session, String cursor, int limit) { return conversations(session, session.owner(), cursor, limit); }
+    private Map<String,Object> conversations(AuthService.Session session, UUID owner, String cursor, int limit) {
         checkLimit(limit);
         Boundary boundary = decode(owner, "conversations", null, cursor);
         return snapshot.execute(s -> {
+            if (session == null) access.lockOwner(owner); else access.lockSession(session);
             List<Object> args = new ArrayList<>(List.of(owner));
             String where = older(boundary, args); args.add(limit + 1);
-            var rows = db.queryForList("SELECT id,title,project_id,created_at FROM conversations WHERE owner_id=?" + where + " ORDER BY created_at DESC,id DESC LIMIT ?", args.toArray());
+            var rows = db.queryForList("SELECT id,title,project_id,created_at FROM conversations WHERE owner_id=? AND deleted_at IS NULL" + where + " ORDER BY created_at DESC,id DESC LIMIT ?", args.toArray());
             boolean more = rows.size() > limit;
             if (more) rows = new ArrayList<>(rows.subList(0, limit));
             var items = rows.stream().map(this::conversation).toList();
@@ -57,10 +61,12 @@ final class ConversationHistoryService {
         });
     }
 
-    Map<String,Object> messages(UUID owner, UUID conversation, String cursor, int limit) {
+    Map<String,Object> messages(UUID owner, UUID conversation, String cursor, int limit) { return messages(null, owner, conversation, cursor, limit); }
+    Map<String,Object> messages(AuthService.Session session, UUID conversation, String cursor, int limit) { return messages(session, session.owner(), conversation, cursor, limit); }
+    private Map<String,Object> messages(AuthService.Session session, UUID owner, UUID conversation, String cursor, int limit) {
         checkLimit(limit);
         return snapshot.execute(s -> {
-            requireConversation(owner, conversation);
+            if (session == null) access.requireLive(owner, conversation); else access.requireLive(session, conversation);
             Boundary boundary = decode(owner, "messages", conversation, cursor);
             List<Object> args = new ArrayList<>(List.of(owner, conversation));
             String where = older(boundary, args); args.add(limit + 1);
@@ -88,9 +94,11 @@ final class ConversationHistoryService {
         });
     }
 
-    String events(UUID owner, UUID conversation, String cursor) {
+    String events(UUID owner, UUID conversation, String cursor) { return events(null, owner, conversation, cursor); }
+    String events(AuthService.Session session, UUID conversation, String cursor) { return events(session, session.owner(), conversation, cursor); }
+    private String events(AuthService.Session session, UUID owner, UUID conversation, String cursor) {
         return snapshot.execute(s -> {
-            requireConversation(owner, conversation);
+            if (session == null) access.requireLive(owner, conversation); else access.requireLive(session, conversation);
             long sequence = 0;
             if (cursor != null) {
                 UUID id;
@@ -124,9 +132,6 @@ final class ConversationHistoryService {
         return result;
     }
 
-    private void requireConversation(UUID owner, UUID conversation) {
-        if (!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM conversations WHERE owner_id=? AND id=?)", Boolean.class, owner, conversation))) throw ApiException.missing();
-    }
     private Map<String,Object> conversation(Map<String,Object> row) {
         Map<String,Object> result = new LinkedHashMap<>();
         for (String key : List.of("id", "title", "project_id")) result.put(key, row.get(key));

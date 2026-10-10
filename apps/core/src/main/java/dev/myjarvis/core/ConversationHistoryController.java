@@ -16,19 +16,19 @@ final class ConversationHistoryController {
     @GetMapping("/api/v1/conversations")
     Map<String,Object> conversations(HttpServletRequest request) {
         query(request, "cursor", "limit");
-        return ApiController.wrap(request, history.conversations(ApiController.session(request).owner(), request.getParameter("cursor"), limit(request)));
+        return ApiController.wrap(request, history.conversations(ApiController.session(request), request.getParameter("cursor"), limit(request)));
     }
     @GetMapping("/api/v1/conversations/{id}/messages")
     Map<String,Object> messages(@PathVariable UUID id, HttpServletRequest request) {
         query(request, "cursor", "limit");
-        return ApiController.wrap(request, history.messages(ApiController.session(request).owner(), id, request.getParameter("cursor"), limit(request)));
+        return ApiController.wrap(request, history.messages(ApiController.session(request), id, request.getParameter("cursor"), limit(request)));
     }
     @GetMapping(value="/api/v1/conversations/{id}/events", produces=MediaType.TEXT_EVENT_STREAM_VALUE)
     String events(@PathVariable UUID id, @RequestHeader(value="Last-Event-ID", required=false) String last, HttpServletRequest request) {
         query(request, "cursor");
         if (last != null && request.getParameter("cursor") != null) throw ApiException.bad();
         if (Collections.list(request.getHeaders("Last-Event-ID")).size() > 1) throw ApiException.bad();
-        return history.events(ApiController.session(request).owner(), id, last == null ? request.getParameter("cursor") : last);
+        return history.events(ApiController.session(request), id, last == null ? request.getParameter("cursor") : last);
     }
     private static int limit(HttpServletRequest request) {
         String value = request.getParameter("limit");

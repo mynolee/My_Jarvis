@@ -15,7 +15,18 @@ final class MockWorker {
     MockWorker(WorkflowService flow,@Value("${jarvis.worker.enabled:true}")boolean enabled){this.flow=flow;this.db=flow.db;this.tx=flow.tx;this.enabled=enabled;}
     @Scheduled(fixedDelay=500) void tick(){if(enabled){recover();runOne();}}
     Map<String,Object> claim(){return tx.execute(s->{
-        var rows=db.queryForList("WITH picked AS (SELECT id FROM jobs WHERE status='QUEUED' AND available_at<=now() ORDER BY available_at,created_at FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE jobs j SET status='RUNNING',lease_owner=?,lease_until=now()+interval '60 seconds',lease_generation=lease_generation+1,attempt_count=attempt_count+1 FROM picked WHERE j.id=picked.id RETURNING j.*",worker);return rows.isEmpty()?null:rows.getFirst();
+        // Discover without child locks; never hold a job while waiting on its parent owner.
+        var candidates=db.queryForList("SELECT j.id,j.owner_id,j.run_id FROM jobs j JOIN runs r ON r.owner_id=j.owner_id AND r.id=j.run_id JOIN conversations c ON c.owner_id=r.owner_id AND c.id=r.conversation_id WHERE j.status='QUEUED' AND j.available_at<=clock_timestamp() AND c.deleted_at IS NULL ORDER BY j.available_at,j.created_at,j.id LIMIT 100");
+        for(var candidate:candidates){
+            UUID owner=(UUID)candidate.get("owner_id"),run=(UUID)candidate.get("run_id");
+            if(db.queryForList("SELECT id FROM owners WHERE id=? FOR UPDATE SKIP LOCKED",owner).isEmpty())continue;
+            if(!flow.access.liveRun(owner,run))continue;
+            flow.access.requireRun(owner,run);
+            var rows=db.queryForList("SELECT * FROM jobs WHERE owner_id=? AND id=? AND status='QUEUED' AND available_at<=clock_timestamp() FOR UPDATE SKIP LOCKED",owner,candidate.get("id"));
+            if(rows.isEmpty())continue;
+            return db.queryForMap("UPDATE jobs SET status='RUNNING',lease_owner=?,lease_until=clock_timestamp()+interval '60 seconds',lease_generation=lease_generation+1,attempt_count=attempt_count+1 WHERE owner_id=? AND id=? AND status='QUEUED' RETURNING *",worker,owner,candidate.get("id"));
+        }
+        return null;
     });}
     boolean runOne(){var job=claim();if(job==null)return false;
         try {if("PLAN".equals(job.get("kind")))plan(job);else execute(job);}catch(RuntimeException e){
@@ -23,7 +34,7 @@ final class MockWorker {
             tx.executeWithoutResult(s->{flow.lockOwner((UUID)job.get("owner_id"));if(!current(job))return;int changed=db.update("UPDATE jobs SET status=CASE WHEN started_effect THEN 'UNKNOWN' ELSE 'FAILED' END WHERE id=? AND lease_owner=? AND lease_generation=? AND status='RUNNING'",job.get("id"),worker,job.get("lease_generation"));if(changed==1){var row=db.queryForMap("SELECT status FROM jobs WHERE id=?",job.get("id"));flow.setRun((UUID)job.get("owner_id"),(UUID)job.get("run_id"),(String)row.get("status"),null);flow.event((UUID)job.get("owner_id"),(UUID)job.get("run_id"),"WORKER_UNCERTAIN_OR_FAILED");}});
         }return true;
     }
-    private boolean current(Map<String,Object> job){return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM jobs WHERE id=? AND lease_owner=? AND lease_generation=? AND status='RUNNING' AND lease_until>clock_timestamp())",Boolean.class,job.get("id"),worker,job.get("lease_generation")));}
+    private boolean current(Map<String,Object> job){if(!flow.access.liveRun((UUID)job.get("owner_id"),(UUID)job.get("run_id")))return false;return Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM jobs WHERE id=? AND lease_owner=? AND lease_generation=? AND status='RUNNING' AND lease_until>clock_timestamp())",Boolean.class,job.get("id"),worker,job.get("lease_generation")));}
     private void plan(Map<String,Object> job){tx.executeWithoutResult(s->{UUID owner=(UUID)job.get("owner_id"),run=(UUID)job.get("run_id");flow.lockOwner(owner);if(!current(job))return;
         var o=flow.owned("owners",owner,owner);var r=flow.locked("runs",owner,run);if(Boolean.TRUE.equals(o.get("execution_paused"))||r.get("cancel_requested_at")!=null){finish(job,"CANCELLED",null);return;}
         var m=db.queryForMap("SELECT id,content_ref FROM messages WHERE owner_id=? AND run_id=? AND role='USER'",owner,run);String text=flow.vault.open(owner,(UUID)m.get("id"),"message",(String)m.get("content_ref"));
@@ -44,7 +55,7 @@ final class MockWorker {
         // Commit execution intent before invoking the adapter. A crash here is conservatively UNKNOWN.
         Boolean authorized=tx.execute(s->{UUID owner=(UUID)job.get("owner_id"),action=(UUID)job.get("action_id");flow.lockOwner(owner);if(!current(job))return false;
             var o=flow.owned("owners",owner,owner);var a=flow.locked("action_proposals",owner,action);var r=flow.owned("runs",owner,(UUID)job.get("run_id"));
-            var auth=db.queryForList("SELECT * FROM authorizations WHERE owner_id=? AND action_id=? AND valid_until>now()",owner,action);
+            var auth=db.queryForList("SELECT * FROM authorizations WHERE owner_id=? AND action_id=? AND valid_until>now() AND revoked_at IS NULL AND source_deleted_at IS NULL",owner,action);
             String snapshot=flow.vault.open(owner,action,"action",(String)a.get("payload_ref"));
             ToolPolicy.validateSnapshot(Json.parse(snapshot.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             boolean valid=auth.size()==1&&"calendar.event.create".equals(a.get("tool_id"))&&"1".equals(a.get("tool_version"))&&"QUEUED".equals(a.get("status"))&&!Boolean.TRUE.equals(o.get("execution_paused"))&&r.get("cancel_requested_at")==null&&((Number)o.get("security_epoch")).longValue()==((Number)a.get("security_epoch")).longValue()&&Json.equal(Json.hash(snapshot),(String)a.get("payload_hash"))&&Json.equal((String)auth.getFirst().get("payload_hash"),(String)a.get("payload_hash"));
@@ -64,13 +75,14 @@ final class MockWorker {
         });
         tx.executeWithoutResult(s->{flow.lockOwner((UUID)job.get("owner_id"));if(!current(job))return;UUID action=(UUID)job.get("action_id");db.update("UPDATE action_executions SET status=?,finished_at=now() WHERE action_id=? AND lease_generation=?",outcome,action,job.get("lease_generation"));db.update("UPDATE action_proposals SET status=?,version=version+1 WHERE id=?",outcome,action);finish(job,outcome,outcome.equals("SUCCEEDED")?"Verified synthetic mock effect. No external provider was called.":"Mock execution outcome is UNKNOWN. It was not sent again.");});
     }
-    private void finish(Map<String,Object> job,String runStatus,String result){String jobStatus=Set.of("WAITING_INPUT","WAITING_APPROVAL").contains(runStatus)?"SUCCEEDED":runStatus;int changed=db.update("UPDATE jobs SET status=? WHERE id=? AND lease_owner=? AND lease_generation=? AND status='RUNNING' AND lease_until>clock_timestamp()",jobStatus,job.get("id"),worker,job.get("lease_generation"));if(changed!=1)throw new LeaseLost();UUID owner=(UUID)job.get("owner_id"),run=(UUID)job.get("run_id");flow.setRun(owner,run,runStatus,result);flow.event(owner,run,"RUN_"+runStatus);}
+    private void finish(Map<String,Object> job,String runStatus,String result){flow.access.requireRun((UUID)job.get("owner_id"),(UUID)job.get("run_id"));String jobStatus=Set.of("WAITING_INPUT","WAITING_APPROVAL").contains(runStatus)?"SUCCEEDED":runStatus;int changed=db.update("UPDATE jobs SET status=? WHERE id=? AND lease_owner=? AND lease_generation=? AND status='RUNNING' AND lease_until>clock_timestamp()",jobStatus,job.get("id"),worker,job.get("lease_generation"));if(changed!=1)throw new LeaseLost();UUID owner=(UUID)job.get("owner_id"),run=(UUID)job.get("run_id");flow.setRun(owner,run,runStatus,result);flow.event(owner,run,"RUN_"+runStatus);}
     /** Roll back any preceding proposal/action writes when final lease settlement loses its fence. */
     private static final class LeaseLost extends RuntimeException {}
     void recover(){
-        var candidates=db.queryForList("SELECT id,owner_id FROM jobs WHERE status='RUNNING' AND lease_until<=now() ORDER BY created_at LIMIT 100");
+        var candidates=db.queryForList("SELECT id,owner_id,run_id FROM jobs WHERE status='RUNNING' AND lease_until<=now() ORDER BY created_at LIMIT 100");
         for(var candidate:candidates)tx.executeWithoutResult(s->{
             flow.lockOwner((UUID)candidate.get("owner_id"));
+            if(!flow.access.liveRun((UUID)candidate.get("owner_id"),(UUID)candidate.get("run_id")))return;
             var expired=db.queryForList("SELECT * FROM jobs WHERE id=? AND status='RUNNING' AND lease_until<=now() FOR UPDATE SKIP LOCKED",candidate.get("id"));
             if(expired.isEmpty())return;var j=expired.getFirst();String next=Boolean.TRUE.equals(j.get("started_effect"))?"UNKNOWN":"QUEUED";
             db.update("UPDATE jobs SET status=?,lease_owner=NULL,lease_until=NULL,lease_generation=lease_generation+1 WHERE id=?",next,j.get("id"));
@@ -78,5 +90,6 @@ final class MockWorker {
         });
     }
     /** Read-only reconciliation. Never calls the mock effect insertion path. */
-    Map<String,Object> reconcile(UUID owner,UUID run){return tx.execute(s->{flow.lockOwner(owner);if(Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM inference_reservations WHERE owner_id=? AND run_id=?)",Boolean.class,owner,run)))throw new ApiException(409,"LOCAL_RECONCILIATION_DISABLED");var r=flow.locked("runs",owner,run);if(!"UNKNOWN".equals(r.get("status")))throw new ApiException(409,"NOT_UNKNOWN");var rows=db.queryForList("SELECT a.id,a.payload_hash,e.payload_hash AS observed_hash FROM action_proposals a LEFT JOIN mock_effects e ON e.action_id=a.id AND e.owner_id=a.owner_id WHERE a.owner_id=? AND a.run_id=?",owner,run);if(rows.size()==1&&Json.equal((String)rows.getFirst().get("payload_hash"),(String)rows.getFirst().get("observed_hash"))){UUID action=(UUID)rows.getFirst().get("id");db.update("UPDATE action_proposals SET status='SUCCEEDED',version=version+1 WHERE id=?",action);db.update("UPDATE action_executions SET status='SUCCEEDED',finished_at=now() WHERE action_id=?",action);db.update("UPDATE jobs SET status='SUCCEEDED',lease_generation=lease_generation+1 WHERE owner_id=? AND action_id=? AND status='UNKNOWN'",owner,action);flow.setRun(owner,run,"SUCCEEDED","Read-only reconciliation verified the existing synthetic effect. No retry occurred.");flow.event(owner,run,"MOCK_RECONCILED");}return flow.run(owner,run);});}
+    Map<String,Object> reconcile(AuthService.Session session,UUID run){return tx.execute(s->{flow.access.requireRun(session,run);return reconcile(session.owner(),run);});}
+    Map<String,Object> reconcile(UUID owner,UUID run){return tx.execute(s->{flow.access.requireRun(owner,run);if(Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM inference_reservations WHERE owner_id=? AND run_id=?)",Boolean.class,owner,run)))throw new ApiException(409,"LOCAL_RECONCILIATION_DISABLED");var r=flow.locked("runs",owner,run);if(!"UNKNOWN".equals(r.get("status")))throw new ApiException(409,"NOT_UNKNOWN");var rows=db.queryForList("SELECT a.id,a.payload_hash,e.payload_hash AS observed_hash FROM action_proposals a LEFT JOIN mock_effects e ON e.action_id=a.id AND e.owner_id=a.owner_id WHERE a.owner_id=? AND a.run_id=?",owner,run);if(rows.size()==1&&Json.equal((String)rows.getFirst().get("payload_hash"),(String)rows.getFirst().get("observed_hash"))){UUID action=(UUID)rows.getFirst().get("id");db.update("UPDATE action_proposals SET status='SUCCEEDED',version=version+1 WHERE id=?",action);db.update("UPDATE action_executions SET status='SUCCEEDED',finished_at=now() WHERE action_id=?",action);db.update("UPDATE jobs SET status='SUCCEEDED',lease_generation=lease_generation+1 WHERE owner_id=? AND action_id=? AND status='UNKNOWN'",owner,action);flow.setRun(owner,run,"SUCCEEDED","Read-only reconciliation verified the existing synthetic effect. No retry occurred.");flow.event(owner,run,"MOCK_RECONCILED");}return flow.run(owner,run);});}
 }

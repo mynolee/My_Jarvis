@@ -11,6 +11,9 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.JsonNode;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -91,23 +94,36 @@ class AuditHistoryServiceTest extends ReminderTestSupport {
         assertTrue(item.path("run").isNull());
     }
 
-    @Test void otherOwnerEventsAndCurrentStateCannotLeakThroughPolymorphicReferences() {
+    @Test void otherOwnerEventsAndCurrentStateCannotLeakThroughPolymorphicReferences() throws Exception {
         UUID other = UUID.randomUUID(), conversation = UUID.randomUUID(), foreignRun = UUID.randomUUID();
-        db.execute("ALTER TABLE owners DROP CONSTRAINT owners_singleton_key");
+        var manager = context.getBean(PlatformTransactionManager.class);
+        var fixture = new TransactionTemplate(manager);
+        fixture.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        String singleton = db.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='owners'::regclass AND conname='owners_singleton_key'", String.class);
+        Map<String,String> before = databaseContents();
+        AuditHistoryService isolated = service(db);
         try {
-            db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,'other-audit-owner','unused')", other);
-            db.update("INSERT INTO conversations(id,owner_id,title) VALUES (?,?,'foreign-conversation-secret')", conversation, other);
-            db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'PARTIAL_SUCCESS')", foreignRun, other, conversation);
-            db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,'RUN_SUCCEEDED',?)", UUID.randomUUID(), other, foreignRun);
-            event("RUN_ACCEPTED", foreignRun, now());
-            JsonNode response = page(); assertEquals(1, response.path("items").size());
-            JsonNode item = response.path("items").get(0); assertTrue(item.path("run").isNull());
-            assertFalse(response.toString().contains("PARTIAL_SUCCESS")); assertFalse(response.toString().contains("foreign-conversation-secret"));
-        } finally {
-            db.update("DELETE FROM audit_events WHERE owner_id=?", other); db.update("DELETE FROM runs WHERE owner_id=?", other);
-            db.update("DELETE FROM conversations WHERE owner_id=?", other); db.update("DELETE FROM owners WHERE id=?", other);
-            db.execute("ALTER TABLE owners ADD CONSTRAINT owners_singleton_key UNIQUE(singleton)");
-        }
+            // Only this synthetic projection fixture joins its uncommitted setup. The real
+            // service keeps REQUIRES_NEW/read-only snapshots, covered independently below.
+            var read = (TransactionTemplate) Objects.requireNonNull(ReflectionTestUtils.getField(isolated, "readTx"));
+            read.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+            fixture.executeWithoutResult(transaction -> {
+                transaction.setRollbackOnly();
+                // A temporary second principal is local to this rollback-only transaction.
+                // Neither a source DELETE nor a disabled resurrection guard is needed.
+                db.execute("ALTER TABLE owners DROP CONSTRAINT owners_singleton_key");
+                db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,'other-audit-owner','unused')", other);
+                db.update("INSERT INTO conversations(id,owner_id,title) VALUES (?,?,'foreign-conversation-secret')", conversation, other);
+                db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'PARTIAL_SUCCESS')", foreignRun, other, conversation);
+                db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,'RUN_SUCCEEDED',?)", UUID.randomUUID(), other, foreignRun);
+                event("RUN_ACCEPTED", foreignRun, now());
+                JsonNode response = body(isolated.get(session, "ALL", null, 100)); assertEquals(1, response.path("items").size());
+                JsonNode item = response.path("items").get(0); assertTrue(item.path("run").isNull());
+                assertFalse(response.toString().contains("PARTIAL_SUCCESS")); assertFalse(response.toString().contains("foreign-conversation-secret"));
+            });
+        } finally { isolated.close(); }
+        assertEquals(before, databaseContents(), "Fixture rows and source versions must all roll back");
+        assertEquals(singleton, db.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='owners'::regclass AND conname='owners_singleton_key'", String.class), "Rollback must restore the singleton constraint");
     }
 
     @Test void secretsContentAndAuthenticationHashesNeverEnterProjectionOrCursor() {

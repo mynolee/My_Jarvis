@@ -3,29 +3,28 @@ package dev.myjarvis.core;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.TransactionDefinition;
 import tools.jackson.databind.JsonNode;
 import java.time.*;
 import java.util.*;
 
 @Service
 final class WorkflowService {
-    final JdbcTemplate db; final TransactionTemplate tx;final Vault vault; final ConversationReplyWriter replies;
+    final JdbcTemplate db; final TransactionTemplate tx;final Vault vault; final ConversationReplyWriter replies; final ConversationAccess access; private final TransactionTemplate reads;
     static final String POLICY="m0-v1";
-    WorkflowService(JdbcTemplate db,TransactionTemplate tx,Vault vault,ConversationReplyWriter replies){this.db=db;this.tx=tx;this.vault=vault;this.replies=replies;}
+    WorkflowService(JdbcTemplate db,TransactionTemplate tx,Vault vault,ConversationReplyWriter replies){this.db=db;this.tx=tx;this.vault=vault;this.replies=replies;this.access=new ConversationAccess(db);this.reads=new TransactionTemplate(Objects.requireNonNull(tx.getTransactionManager()));reads.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);reads.setTimeout(5);}
     Map<String,Object> createConversation(UUID owner,JsonNode body){
         Json.fields(body,"title","project_id");String title=Json.string(body,"title",200);UUID project=body.hasNonNull("project_id")?Json.uuid(body,"project_id"):null;
-        return tx.execute(s->{if(project!=null)owned("projects",owner,project);UUID id=UUID.randomUUID();db.update("INSERT INTO conversations(id,owner_id,project_id,title) VALUES (?,?,?,?)",id,owner,project,title);return conversation(owned("conversations",owner,id));});
+        return tx.execute(s->{access.lockOwner(owner);if(project!=null)owned("projects",owner,project);UUID id=UUID.randomUUID();db.update("INSERT INTO conversations(id,owner_id,project_id,title) VALUES (?,?,?,?)",id,owner,project,title);return conversation(owned("conversations",owner,id));});
     }
-    List<Map<String,Object>> conversations(UUID owner){return db.queryForList("SELECT * FROM conversations WHERE owner_id=? ORDER BY created_at DESC,id LIMIT 100",owner).stream().map(this::conversation).toList();}
+    Map<String,Object> createConversation(AuthService.Session session,JsonNode body){return tx.execute(s->{access.lockSession(session);return createConversation(session.owner(),body);});}
+    List<Map<String,Object>> conversations(UUID owner){return reads.execute(s->{access.lockOwner(owner);return db.queryForList("SELECT * FROM conversations WHERE owner_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id LIMIT 100",owner).stream().map(this::conversation).toList();});}
     private Map<String,Object> conversation(Map<String,Object> row){Map<String,Object> m=new LinkedHashMap<>();for(String k:List.of("id","title","project_id"))m.put(k,row.get(k));m.put("created_at",AuthService.instant(row.get("created_at")).toString());return m;}
     /** Authenticated HTTP admission cannot survive an account epoch change while waiting. */
     Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body){
         AuthService.requireOwner(session);
         return tx.execute(s->{
-            var owners=db.queryForList("SELECT security_epoch FROM owners WHERE id=? FOR UPDATE",session.owner());
-            if(owners.isEmpty()||session.epoch()!=((Number)owners.getFirst().get("security_epoch")).longValue())throw new ApiException(401,"SESSION_REVOKED");
-            if(db.queryForList("SELECT token_hash FROM sessions WHERE token_hash=? AND owner_id=? FOR UPDATE",session.hash(),session.owner()).isEmpty())throw new ApiException(401,"SESSION_REVOKED");
-            executionStatus(session);return accept(session.owner(),conversation,body);
+            access.requireLive(session,conversation);executionStatus(session);return accept(session.owner(),conversation,body);
         });
     }
     Map<String,Object> accept(UUID owner,UUID conversation,JsonNode body){
@@ -33,9 +32,10 @@ final class WorkflowService {
         if(!body.has("attachment_ids")||!body.get("attachment_ids").isArray()||!body.get("attachment_ids").isEmpty())throw new ApiException(400,"ATTACHMENTS_DISABLED");
         String hash=Json.hash(Json.canonical(Map.of("conversation_id",conversation.toString(),"body",body)));
         return tx.execute(s->{
-            lockOwner(owner);owned("conversations",owner,conversation);
-            var prior=db.queryForList("SELECT body_hash,run_id FROM messages WHERE owner_id=? AND client_message_id=?",owner,client);
+            access.requireLive(owner,conversation);
+            var prior=db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,client);
             if(!prior.isEmpty()){
+                if(prior.getFirst().get("content_deleted_at")!=null||prior.getFirst().get("body_hash")==null)throw new ApiException(409,"IDEMPOTENCY_CONFLICT");
                 if(!Json.equal(hash,(String)prior.getFirst().get("body_hash")))throw new ApiException(409,"IDEMPOTENCY_CONFLICT");
                 UUID run=(UUID)prior.getFirst().get("run_id");return Map.of("run_id",run,"status",owned("runs",owner,run).get("status"));
             }
@@ -47,28 +47,31 @@ final class WorkflowService {
             job(owner,run,null,"PLAN");event(owner,run,"RUN_ACCEPTED");return Map.of("run_id",run,"status","ACCEPTED");
         });
     }
-    List<Map<String,Object>> messages(UUID owner,UUID conversation){
-        owned("conversations",owner,conversation);
+    List<Map<String,Object>> messages(UUID owner,UUID conversation){return reads.execute(s->{
+        access.requireLive(owner,conversation);
         return db.queryForList("SELECT * FROM messages WHERE owner_id=? AND conversation_id=? ORDER BY created_at,id LIMIT 100",owner,conversation).stream().map(r->{Map<String,Object> m=new LinkedHashMap<>();for(String key:List.of("id","run_id","role"))m.put(key,r.get(key));m.put("text",vault.open(owner,(UUID)r.get("id"),"message",(String)r.get("content_ref")));m.put("created_at",AuthService.instant(r.get("created_at")).toString());return m;}).toList();
-    }
-    Map<String,Object> run(UUID owner,UUID id){
-        var r=owned("runs",owner,id);Map<String,Object> result=new LinkedHashMap<>();for(String k:List.of("id","status","version"))result.put(k,r.get(k));
+    });}
+    Map<String,Object> run(AuthService.Session session,UUID id){return reads.execute(s->{access.requireRun(session,id);return run(session.owner(),id);});}
+    Map<String,Object> run(UUID owner,UUID id){return reads.execute(s->{
+        var r=access.requireRun(owner,id);Map<String,Object> result=new LinkedHashMap<>();for(String k:List.of("id","status","version"))result.put(k,r.get(k));
         result.put("execution_mode",Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM inference_reservations WHERE owner_id=? AND run_id=?)",Boolean.class,owner,id))?"LOCAL_INFERENCE":"MOCK");
         result.put("result",r.get("result_ref")==null?null:vault.open(owner,id,"result",(String)r.get("result_ref")));
         result.put("approval_id",db.queryForList("SELECT p.id FROM approvals p JOIN action_proposals a ON a.id=p.action_id AND a.owner_id=p.owner_id WHERE a.owner_id=? AND a.run_id=? ORDER BY p.id LIMIT 1",owner,id).stream().findFirst().map(x->x.get("id")).orElse(null));
         result.put("job_id",db.queryForList("SELECT id FROM jobs WHERE owner_id=? AND run_id=? ORDER BY created_at DESC LIMIT 1",owner,id).stream().findFirst().map(x->x.get("id")).orElse(null));return result;
-    }
-    Map<String,Object> approval(UUID owner,UUID id){
-        var r=owned("approvals",owner,id);var a=owned("action_proposals",owner,(UUID)r.get("action_id"));
+    });}
+    Map<String,Object> approval(AuthService.Session session,UUID id){return reads.execute(s->{access.requireApproval(session,id);return approval(session.owner(),id);});}
+    List<Map<String,Object>> approvals(AuthService.Session session){return reads.execute(s->{access.lockSession(session);return db.queryForList("SELECT p.id FROM approvals p JOIN action_proposals a ON a.owner_id=p.owner_id AND a.id=p.action_id JOIN runs r ON r.owner_id=a.owner_id AND r.id=a.run_id JOIN conversations c ON c.owner_id=r.owner_id AND c.id=r.conversation_id WHERE p.owner_id=? AND p.status='PENDING' AND c.deleted_at IS NULL ORDER BY p.expires_at LIMIT 100",session.owner()).stream().map(r->approval(session.owner(),(UUID)r.get("id"))).toList();});}
+    Map<String,Object> approval(UUID owner,UUID id){return reads.execute(s->{
+        access.requireApproval(owner,id);var r=owned("approvals",owner,id);var a=owned("action_proposals",owner,(UUID)r.get("action_id"));
         Map<String,Object> out=new LinkedHashMap<>();for(String k:List.of("id","action_id","action_version","payload_hash","status"))out.put(k,r.get(k));out.put("expires_at",AuthService.instant(r.get("expires_at")).toString());
         out.put("payload",Json.parse(vault.open(owner,(UUID)a.get("id"),"action",(String)a.get("payload_ref")).getBytes(java.nio.charset.StandardCharsets.UTF_8)));return out;
-    }
+    });}
     Map<String,Object> decision(AuthService.Session session,UUID id,JsonNode body){
         Json.fields(body,"decision","expected_action_version","payload_hash");String decision=Json.string(body,"decision",7),hash=Json.string(body,"payload_hash",64);long version=Json.integer(body,"expected_action_version");
         if(!Set.of("APPROVE","REJECT").contains(decision)||!hash.matches("[a-f0-9]{64}"))throw ApiException.bad();
         AuthService.requireRecent(session);UUID owner=session.owner();
         return tx.execute(s->{
-            lockOwner(owner);var ownerRow=owned("owners",owner,owner);
+            var ownerRow=access.lockSession(session);access.requireApproval(session,id);
             validateSession(session,ownerRow);
             var r=locked("approvals",owner,id);var a=locked("action_proposals",owner,(UUID)r.get("action_id"));UUID action=(UUID)a.get("id"),run=(UUID)a.get("run_id");
             if(!"PENDING".equals(r.get("status")))throw new ApiException(409,"APPROVAL_NOT_PENDING");
@@ -85,7 +88,8 @@ final class WorkflowService {
             UUID job=job(owner,run,action,"EXECUTE");db.update("UPDATE action_proposals SET status='QUEUED',version=version+1 WHERE id=?",action);setRun(owner,run,"QUEUED",null);event(owner,run,"APPROVAL_CONSUMED");return Map.of("status","CONSUMED","job_id",job);
         });
     }
-    Map<String,Object> cancel(UUID owner,UUID run,long version){return tx.execute(s->{lockOwner(owner);var r=locked("runs",owner,run);if(((Number)r.get("version")).longValue()!=version)throw new ApiException(409,"PRECONDITION_CHANGED");
+    Map<String,Object> cancel(AuthService.Session session,UUID run,long version){return tx.execute(s->{access.requireRun(session,run);return cancel(session.owner(),run,version);});}
+    Map<String,Object> cancel(UUID owner,UUID run,long version){return tx.execute(s->{var r=access.requireRun(owner,run);if(((Number)r.get("version")).longValue()!=version)throw new ApiException(409,"PRECONDITION_CHANGED");
         if(Set.of("SUCCEEDED","PARTIAL_SUCCESS","FAILED","CANCELLED","EXPIRED","BLOCKED").contains(r.get("status")))return run(owner,run);
         boolean inFlight=Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM jobs WHERE owner_id=? AND run_id=? AND started_effect=true AND status IN ('RUNNING','UNKNOWN'))",Boolean.class,owner,run));
         db.update("UPDATE jobs SET status='CANCELLED',lease_generation=lease_generation+1 WHERE owner_id=? AND run_id=? AND started_effect=false AND status IN ('QUEUED','RUNNING')",owner,run);
@@ -158,12 +162,13 @@ final class WorkflowService {
         var rows=db.queryForList("SELECT token_hash FROM sessions WHERE token_hash=? AND owner_id=? AND revoked_at IS NULL AND security_epoch=? AND created_at>now()-interval '12 hours' AND last_seen_at>now()-interval '2 hours' AND reauthenticated_at>now()-interval '5 minutes' FOR UPDATE",session.hash(),session.owner(),ownerRow.get("security_epoch"));
         if(rows.isEmpty()||session.epoch()!=((Number)ownerRow.get("security_epoch")).longValue())throw new ApiException(401,"SESSION_REVOKED");
     }
-    UUID job(UUID owner,UUID run,UUID action,String kind){UUID id=UUID.randomUUID();db.update("INSERT INTO jobs(id,owner_id,kind,logical_key,run_id,action_id,status) VALUES (?,?,?,?,?,?,'QUEUED')",id,owner,kind,kind+":"+(action==null?run:action),run,action);return id;}
+    UUID job(UUID owner,UUID run,UUID action,String kind){access.requireRun(owner,run);UUID id=UUID.randomUUID();db.update("INSERT INTO jobs(id,owner_id,kind,logical_key,run_id,action_id,status) VALUES (?,?,?,?,?,?,'QUEUED')",id,owner,kind,kind+":"+(action==null?run:action),run,action);return id;}
     void setRun(UUID owner,UUID run,String status,String result){
+        access.requireRun(owner,run);
         int changed=db.update("UPDATE runs SET status=?,version=version+1,result_ref=COALESCE(?,result_ref) WHERE owner_id=? AND id=?",status,result==null?null:vault.seal(owner,run,"result",result),owner,run);
         if(changed==1 && result!=null && Set.of("SUCCEEDED","WAITING_INPUT").contains(status))replies.appendAccepted(owner,run);
     }
-    void event(UUID owner,UUID run,String type){db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),owner,type,run);db.update("INSERT INTO outbox_events(id,owner_id,aggregate_id,event_type) VALUES (?,?,?,?)",UUID.randomUUID(),owner,run,type);db.update("INSERT INTO stream_events(owner_id,conversation_id,run_id,event_type) SELECT owner_id,conversation_id,id,? FROM runs WHERE owner_id=? AND id=?",type,owner,run);}
+    void event(UUID owner,UUID run,String type){access.requireRun(owner,run);db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),owner,type,run);db.update("INSERT INTO outbox_events(id,owner_id,aggregate_id,event_type) VALUES (?,?,?,?)",UUID.randomUUID(),owner,run,type);db.update("INSERT INTO stream_events(owner_id,conversation_id,run_id,event_type) SELECT owner_id,conversation_id,id,? FROM runs WHERE owner_id=? AND id=?",type,owner,run);}
     void lockOwner(UUID owner){db.queryForObject("SELECT id FROM owners WHERE id=? FOR UPDATE",UUID.class,owner);}
     Map<String,Object> owned(String table,UUID owner,UUID id){return fetch(table,owner,id,false);}
     Map<String,Object> locked(String table,UUID owner,UUID id){return fetch(table,owner,id,true);}

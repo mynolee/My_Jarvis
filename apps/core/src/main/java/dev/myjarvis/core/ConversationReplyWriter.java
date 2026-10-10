@@ -18,9 +18,7 @@ final class ConversationReplyWriter {
         if (!TransactionSynchronizationManager.isActualTransactionActive()
                 || TransactionSynchronizationManager.isCurrentTransactionReadOnly())
             throw new IllegalStateException("Reply settlement requires a write transaction");
-        var rows = db.queryForList("SELECT * FROM runs WHERE owner_id=? AND id=? FOR UPDATE", owner, run);
-        if (rows.isEmpty()) throw ApiException.missing();
-        var row = rows.getFirst();
+        var row = new ConversationAccess(db).requireRun(owner, run);
         if (!RESPONDED.contains(row.get("status")) || row.get("result_ref") == null) return;
         if (Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM messages WHERE owner_id=? AND run_id=? AND role='ASSISTANT')", Boolean.class, owner, run))) return;
         String text = vault.open(owner, run, "result", (String) row.get("result_ref"));

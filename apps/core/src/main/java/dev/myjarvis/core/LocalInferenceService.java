@@ -28,12 +28,12 @@ final class LocalInferenceService {
         String canonical=Json.canonical(Map.of("conversation_id",conversation.toString(),"mode","LOCAL_INFERENCE","body",body));
         String hash=contexts.requestDigest(owner,canonical);
         // Idempotent repeats can inspect an existing run even if the model is currently unavailable.
-        var existing=flow.tx.execute(s->{contexts.authorize(session,conversation);var prior=flow.db.queryForList("SELECT body_hash,run_id FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);return prior.isEmpty()?null:prior(owner,hash,canonical,prior.getFirst());});
+        var existing=flow.tx.execute(s->{contexts.authorize(session,conversation);var prior=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);return prior.isEmpty()?null:prior(owner,hash,canonical,prior.getFirst());});
         if(existing!=null)return existing;
         if(!client.ready())throw new ApiException(503,"LOCAL_MODEL_UNAVAILABLE");
         return flow.tx.execute(s->{
             contexts.authorize(session,conversation);
-            var again=flow.db.queryForList("SELECT body_hash,run_id FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);
+            var again=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);
             if(!again.isEmpty())return prior(owner,hash,canonical,again.getFirst());
             var ownerRow=flow.owned("owners",owner,owner);if(Boolean.TRUE.equals(ownerRow.get("execution_paused")))throw new ApiException(409,"EXECUTION_PAUSED");
             long running=flow.db.queryForObject("SELECT count(*) FROM inference_reservations WHERE owner_id=? AND status IN ('QUEUED','STARTED','UNKNOWN')",Long.class,owner);
@@ -50,6 +50,7 @@ final class LocalInferenceService {
         });
     }
     private Map<String,Object> prior(UUID owner,String hash,String canonical,Map<String,Object> row){
+        if(row.get("content_deleted_at")!=null||row.get("body_hash")==null)throw new ApiException(409,"IDEMPOTENCY_CONFLICT");
         UUID run=(UUID)row.get("run_id");var existing=flow.owned("runs",owner,run);
         boolean matches=Json.equal(hash,(String)row.get("body_hash"));
         // Read-only recovery of pre-context requests; never enqueue or write a legacy digest.
@@ -72,25 +73,34 @@ final class LocalInferenceService {
     void recover(){
         for(var row:flow.db.queryForList("SELECT owner_id,run_id FROM inference_reservations WHERE status='STARTED' AND started_at<clock_timestamp()-interval '90 seconds'")){
             UUID owner=(UUID)row.get("owner_id"),run=(UUID)row.get("run_id");
-            flow.tx.executeWithoutResult(tx->{flow.lockOwner(owner);if(flow.db.queryForList("SELECT id FROM inference_reservations WHERE owner_id=? AND run_id=? AND status='STARTED' AND started_at<clock_timestamp()-interval '90 seconds' FOR UPDATE",owner,run).isEmpty())return;freshness.invalidateRun(owner,run);flow.event(owner,run,"LOCAL_INFERENCE_UNKNOWN");});
+            flow.tx.executeWithoutResult(tx->{flow.lockOwner(owner);if(!flow.access.liveRun(owner,run))return;if(flow.db.queryForList("SELECT id FROM inference_reservations WHERE owner_id=? AND run_id=? AND status='STARTED' AND started_at<clock_timestamp()-interval '90 seconds' FOR UPDATE",owner,run).isEmpty())return;freshness.invalidateRun(owner,run);flow.event(owner,run,"LOCAL_INFERENCE_UNKNOWN");});
         }
     }
     boolean runOne(){
-        var candidates=flow.db.queryForList("SELECT owner_id,id FROM inference_reservations WHERE status='QUEUED' ORDER BY created_at LIMIT 1");if(candidates.isEmpty())return false;
+        var candidates=flow.db.queryForList("SELECT i.owner_id,i.id FROM inference_reservations i JOIN runs r ON r.owner_id=i.owner_id AND r.id=i.run_id JOIN conversations c ON c.owner_id=r.owner_id AND c.id=r.conversation_id WHERE i.status='QUEUED' AND c.deleted_at IS NULL ORDER BY i.created_at LIMIT 1");if(candidates.isEmpty())return false;
         UUID owner=(UUID)candidates.getFirst().get("owner_id"),id=(UUID)candidates.getFirst().get("id");
         Dispatch dispatch;
         try { dispatch=flow.tx.execute(s->{
-            flow.lockOwner(owner);var rows=flow.db.queryForList("SELECT * FROM inference_reservations WHERE id=? AND status='QUEUED' FOR UPDATE",id);if(rows.isEmpty())return null;
-            var row=rows.getFirst();UUID run=(UUID)row.get("run_id");var o=flow.owned("owners",owner,owner);var r=flow.locked("runs",owner,run);
-            if(Boolean.TRUE.equals(o.get("execution_paused"))||r.get("cancel_requested_at")!=null||!o.get("security_epoch").equals(row.get("security_epoch"))){flow.db.update("UPDATE inference_reservations SET status='CANCELLED',completed_at=now() WHERE id=?",id);flow.setRun(owner,run,"CANCELLED",null);return null;}
+            flow.lockOwner(owner);
+            var identities=flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND id=? AND status='QUEUED'",owner,id);if(identities.isEmpty())return null;
+            UUID run=(UUID)identities.getFirst().get("run_id");
+            // Session and target are locked before the reservation or any other descendant.
             if(!freshness.valid(owner,run)){freshness.invalidateRun(owner,run);return null;}
+            var r=flow.access.requireRun(owner,run);
+            var rows=flow.db.queryForList("SELECT * FROM inference_reservations WHERE owner_id=? AND id=? AND status='QUEUED' FOR UPDATE",owner,id);if(rows.isEmpty())return null;
+            var row=rows.getFirst();var o=flow.owned("owners",owner,owner);
+            if(Boolean.TRUE.equals(o.get("execution_paused"))||r.get("cancel_requested_at")!=null||!o.get("security_epoch").equals(row.get("security_epoch"))){freshness.invalidateRun(owner,run);return null;}
             var m=flow.db.queryForMap("SELECT id,content_ref FROM messages WHERE owner_id=? AND run_id=? AND role='USER'",owner,run);
             String text=flow.vault.open(owner,(UUID)m.get("id"),"message",(String)m.get("content_ref"));
-            JsonNode request=request(row,text,contexts.prepare(owner,run));contexts.markDispatched(owner,run);flow.db.update("UPDATE inference_reservations SET status='STARTED',started_at=now(),body_hash=? WHERE id=?",contexts.requestDigest(owner,Json.canonical(request)),id);
+            JsonNode request=request(row,text,contexts.prepare(owner,run));
+            UUID contextId=dispatchContext(owner,run,id,request);
+            String digest=contexts.requestDigest(owner,Json.canonical(request));
+            contexts.markDispatched(owner,run);
+            if(flow.db.update("UPDATE inference_reservations SET status='STARTED',started_at=clock_timestamp(),body_hash=?,dispatch_context_id=?,dispatch_cache_policy='CONTEXT_V1_NO_RESPONSE_CACHE' WHERE owner_id=? AND id=? AND status='QUEUED' AND started_at IS NULL AND dispatch_context_id IS NULL AND dispatch_cache_policy IS NULL",digest,contextId,owner,id)!=1)throw new ApiException(409,"STALE_INFERENCE_CONTEXT");
             flow.setRun(owner,run,"RUNNING",null);flow.event(owner,run,"LOCAL_INFERENCE_STARTED");return new Dispatch(owner,run,id,request);
         });
         } catch(ApiException|IllegalStateException|java.time.DateTimeException invalidContext){
-            flow.tx.executeWithoutResult(tx->{flow.lockOwner(owner);var pending=flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND id=? AND status='QUEUED' FOR UPDATE",owner,id);if(!pending.isEmpty()){UUID run=(UUID)pending.getFirst().get("run_id");freshness.invalidateRun(owner,run);flow.setRun(owner,run,"BLOCKED",null);flow.event(owner,run,"LOCAL_CONTEXT_BLOCKED");}});
+            flow.tx.executeWithoutResult(tx->{flow.lockOwner(owner);var pending=flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND id=? AND status='QUEUED'",owner,id);if(!pending.isEmpty()){UUID run=(UUID)pending.getFirst().get("run_id");if(!flow.access.liveRun(owner,run))return;freshness.invalidateRun(owner,run);flow.setRun(owner,run,"BLOCKED",null);flow.event(owner,run,"LOCAL_CONTEXT_BLOCKED");}});
             return true;
         }
         if(dispatch==null)return true;
@@ -110,6 +120,18 @@ final class LocalInferenceService {
         return true;
     }
     record Dispatch(UUID owner,UUID run,UUID reservation,JsonNode body){}
+    private UUID dispatchContext(UUID owner,UUID run,UUID reservation,JsonNode request){
+        var rows=flow.db.queryForList("SELECT c.id,c.conversation_id,i.request_id,i.security_epoch,c.security_epoch AS context_security_epoch FROM inference_contexts c JOIN inference_reservations i ON i.owner_id=c.owner_id AND i.run_id=c.run_id WHERE c.owner_id=? AND c.run_id=? AND i.id=? AND c.state='PREPARED'",owner,run,reservation);
+        if(rows.size()!=1)throw new ApiException(409,"STALE_INFERENCE_CONTEXT");var row=rows.getFirst();var descriptor=request.path("context");
+        if(!descriptor.isObject()||!row.get("id").toString().equals(descriptor.path("id").asText())
+                ||!row.get("conversation_id").toString().equals(descriptor.path("conversation_id").asText())
+                ||!descriptor.path("revision").isIntegralNumber()||descriptor.path("revision").asLong()!=1
+                ||!run.toString().equals(request.path("run_id").asText())
+                ||!row.get("request_id").toString().equals(request.path("request_id").asText())
+                ||!reservation.toString().equals(request.path("budget").path("reservation_id").asText())
+                ||!Objects.equals(row.get("security_epoch"),row.get("context_security_epoch")))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");
+        return (UUID)row.get("id");
+    }
     JsonNode request(Map<String,Object> row,String text,Map<String,Object> selected){
         Map<String,Object> body=new LinkedHashMap<>();body.put("request_id",row.get("request_id").toString());body.put("run_id",row.get("run_id").toString());body.put("user_input",text);body.putAll(selected);
         for(String field:List.of("evidence","tool_results","allowed_tool_ids"))body.put(field,List.of());

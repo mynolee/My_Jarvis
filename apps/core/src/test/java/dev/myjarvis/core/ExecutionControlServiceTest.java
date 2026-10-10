@@ -225,10 +225,24 @@ class ExecutionControlServiceTest extends ReminderTestSupport {
         CountDownLatch checked=new CountDownLatch(1),release=new CountDownLatch(1);
         doAnswer(call->{Object result=call.callRealMethod();if(checks.incrementAndGet()==3){assertEquals(true,result);checked.countDown();assertTrue(release.await(10,TimeUnit.SECONDS));}return result;})
             .when(controlledDb).queryForObject(startsWith("SELECT EXISTS(SELECT 1 FROM jobs WHERE id="),eq(Boolean.class),any(Object[].class));
+        // Shorten the synthetic lease within its own claim transaction. Parent-aware source
+        // guards intentionally forbid mutating a child from another transaction while its
+        // owner is locked. Let the real database clock expire the committed lease instead.
+        doAnswer(call->{
+            @SuppressWarnings("unchecked") var claimed=(Map<String,Object>)call.callRealMethod();
+            controlledDb.update("UPDATE jobs SET lease_until=clock_timestamp()+interval '5 seconds' WHERE id=?",claimed.get("id"));
+            return claimed;
+        }).when(controlledDb).queryForMap(startsWith("UPDATE jobs SET status='RUNNING',lease_owner="),any(Object[].class));
         MockWorker worker=new MockWorker(new WorkflowService(controlledDb,flow.tx,flow.vault,flow.replies),false);
         try(var pool=Executors.newSingleThreadExecutor()){
             Future<Boolean> running=pool.submit(worker::runOne);
-            try{assertTrue(checked.await(10,TimeUnit.SECONDS));db.update("UPDATE jobs SET lease_until=clock_timestamp() WHERE kind='EXECUTE'");}
+            try{
+                assertTrue(checked.await(10,TimeUnit.SECONDS));
+                long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
+                while(!Boolean.TRUE.equals(db.queryForObject("SELECT lease_until<=clock_timestamp() FROM jobs WHERE kind='EXECUTE'",Boolean.class))){
+                    assertTrue(System.nanoTime()<deadline,"Synthetic lease must expire by database time");Thread.sleep(10);
+                }
+            }
             finally{release.countDown();}
             assertTrue(running.get(15,TimeUnit.SECONDS));
         }
