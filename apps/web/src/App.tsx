@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { Api, ApiError } from './api';
+import { TasksPanel } from './TasksPanel';
 import { can_decide, decision_body, terminal, UUID, valid_snapshot, type Approval, type Conversation, type Message, type Run } from './domain';
 import { watch_events } from './events';
 import { read_runtime, type LocalRuntime } from './runtime';
@@ -8,6 +9,7 @@ import { read_runtime, type LocalRuntime } from './runtime';
 export function App({ api = new Api() }: { api?: Api }) {
   const client = useRef(api).current;
   const [authenticated, set_authenticated] = useState(false);
+  const [tasks_open, set_tasks_open] = useState(false);
   const [ready, set_ready] = useState(false);
   const [runtime, set_runtime] = useState<LocalRuntime | null>(null);
   const [runtime_checked_at, set_runtime_checked_at] = useState(0);
@@ -25,7 +27,7 @@ export function App({ api = new Api() }: { api?: Api }) {
   const [text, set_text] = useState('');
   const [now, set_now] = useState(Date.now());
   const refresh_lock = useRef(false);
-  const clear_private = useCallback(() => { generation.current++; client.clear(); set_authenticated(false); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); set_messages([]); set_run(null); set_approval(null); set_text(''); set_stream('OFFLINE'); set_uncertain(false); set_reauth_required(false); }, [client]);
+  const clear_private = useCallback(() => { generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); set_messages([]); set_run(null); set_approval(null); set_text(''); set_stream('OFFLINE'); set_uncertain(false); set_reauth_required(false); }, [client]);
   const fail = useCallback((error: unknown) => { if (error instanceof ApiError) { if (error.status === 401) clear_private(); if (error.uncertain) set_uncertain(true); if (error.code === 'REAUTHENTICATION_REQUIRED') set_reauth_required(true); if (error.status === 409) set_approval(null); if (error.code === 'MODEL_UNAVAILABLE' || error.code === 'LOCAL_MODEL_UNAVAILABLE') set_runtime(null); set_notice(error.uncertain ? 'UNKNOWN: The request may have reached the server. Writes are paused. Reconcile server state; do not resend.' : /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code) ? error.code : 'REQUEST_REJECTED'); } else set_notice('BLOCKED: Invalid server data or unavailable operation.'); }, [clear_private]);
   const refresh = useCallback(async () => {
     if (refresh_lock.current) return;
@@ -71,6 +73,8 @@ export function App({ api = new Api() }: { api?: Api }) {
     {notice && <div className="notice" role="alert">{notice}</div>}
     {!authenticated ? <section className="panel login"><h2>Owner sign in</h2><p>Use an owner account provisioned through the server’s local administration flow.</p><form onSubmit={login}><label>Login name<input name="login_name" autoComplete="username" required maxLength={128} disabled={!ready || busy}/></label><label>Password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={!ready || busy}/></label><button disabled={!ready || busy}>{ready ? 'Sign in' : 'Connecting securely…'}</button></form></section> : <>
       <nav aria-label="Session controls"><span>Session active · Events: {stream}</span><button className="secondary" disabled={busy} onClick={() => void refresh()}>Refresh server state</button><button className="secondary" disabled={busy} onClick={logout}>Sign out</button></nav>
+      <button className="secondary" disabled={tasks_open} onClick={() => set_tasks_open(true)}>Open internal tasks</button>
+      {tasks_open && <TasksPanel api={client} onUnauthorized={clear_private} writesPaused={writes_paused}/>}
       <section className="panel" aria-label="Local model runtime"><h2>Local model runtime</h2><span className="badge" role="status">{runtime?.status === 'READY' && !local_ready ? 'UNKNOWN' : runtime?.status ?? 'UNKNOWN'}</span><p>{local_ready ? 'The server reports the local worker is ready. Responses are generated only after you send a message.' : runtime?.status === 'LOADING' ? 'The local model is loading. Sending is disabled until the server confirms readiness.' : runtime?.status === 'DISABLED' ? 'Local inference is disabled on this server.' : runtime?.status === 'UNAVAILABLE' ? 'MODEL_UNAVAILABLE: the local runtime is unavailable.' : 'Runtime state could not be confirmed. Local sending is disabled.'}</p><p className="hint">No external AI fallback. Download, loading, and successful inference are separate states. No training progress is reported.</p></section>
       {reauth_required && <section className="panel"><h2>Confirm your identity</h2><p>Approval requires a recent password confirmation. The decision will not be retried automatically.</p><form onSubmit={reauthenticate}><label>Confirm password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={busy || writes_paused}/></label><button disabled={busy || writes_paused}>Confirm identity</button></form></section>}
       {writes_paused && <section className="notice"><strong>Writes paused</strong><p>Refresh checks the canonical server state without repeating the request. Do not resend while the outcome is unknown. A new sign-in does not cancel a running request.</p></section>}
