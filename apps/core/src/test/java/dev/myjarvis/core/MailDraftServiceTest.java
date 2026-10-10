@@ -21,9 +21,40 @@ class MailDraftServiceTest extends ReminderTestSupport {
     Map<String,Object> createDraft() { return drafts.create(session, UUID.randomUUID(), body(editable())); }
     @SuppressWarnings("unchecked") Map<String,Object> record(Map<String,Object> result) { return (Map<String,Object>) result.get("draft"); }
     UUID draftId(Map<String,Object> result) { return (UUID) record(result).get("id"); }
-    AuthService.Session foreign() {
-        UUID id = UUID.randomUUID(); db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,?,?)", id, "foreign-" + id, "synthetic-unused");
-        return auth.find(auth.issue(id, true, null).token());
+    void withForeign(java.util.function.Consumer<AuthService.Session> action) {
+        UUID id = UUID.randomUUID();
+        // Isolated synthetic fixture only; production singleton ownership remains unchanged.
+        db.execute("ALTER TABLE owners DROP CONSTRAINT owners_singleton_key");
+        try {
+            db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,?,?)", id, "foreign-" + id, "synthetic-unused");
+            action.accept(auth.find(auth.issue(id, true, null).token()));
+        } finally {
+            try {
+                try { db.update("DELETE FROM mail_draft_mutations WHERE owner_id=?", id); }
+                finally {
+                    try { db.update("DELETE FROM mail_drafts WHERE owner_id=?", id); }
+                    finally { db.update("DELETE FROM audit_events WHERE owner_id=?", id); }
+                }
+            } finally {
+                try { db.update("DELETE FROM sessions WHERE owner_id=?", id); }
+                finally {
+                    try { db.update("DELETE FROM owners WHERE id=?", id); }
+                    finally { db.execute("ALTER TABLE owners ADD CONSTRAINT owners_singleton_key UNIQUE(singleton)"); }
+                }
+            }
+        }
+    }
+    @Test void foreignFixtureRestoresSingletonAndDependenciesAfterAssertionFailure() {
+        long sessions = count("sessions");
+        assertThrows(AssertionError.class, () -> withForeign(foreign -> {
+            drafts.create(foreign, UUID.randomUUID(), body(editable()));
+            throw new AssertionError("synthetic fixture cleanup probe");
+        }));
+        assertEquals(1, count("owners")); assertEquals(sessions, count("sessions"));
+        for (String table : List.of("mail_drafts", "mail_draft_mutations", "audit_events")) assertEquals(0, count(table));
+        assertEquals(1L, db.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='owners'::regclass AND conname='owners_singleton_key' AND contype='u'", Long.class));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,?,?)", UUID.randomUUID(), "blocked-second-owner", "synthetic-unused"));
+        assertEquals(1, count("owners"));
     }
     UUID project(boolean active) { UUID id = UUID.randomUUID(); db.update("INSERT INTO projects(id,owner_id,name,active) VALUES (?,?,?,?)", id, owner, "Synthetic", active); return id; }
     @Test void encryptedCreateDetailMetadataAndReceipt() {
@@ -71,9 +102,11 @@ class MailDraftServiceTest extends ReminderTestSupport {
         assertEquals(2L, drafts.get(session, id).get("version")); assertEquals(2, count("mail_draft_mutations"));
     }
     @Test void liveOwnerAndOriginalSessionAreRequiredForReplayAndReconciliation() {
-        UUID key = UUID.randomUUID(); var request = body(editable()); var created = drafts.create(session, key, request); UUID id = draftId(created); var foreign = foreign();
-        code("NOT_FOUND", () -> drafts.get(foreign, id)); code("NOT_FOUND", () -> drafts.patch(foreign, id, UUID.randomUUID(), body(Map.of("expected_version", 1, "body", "x"))));
-        assertEquals(List.of(), drafts.list(foreign, null, null, 20).get("items")); assertEquals("NOT_OBSERVED", drafts.reconcile(foreign, key).get("status"));
+        UUID key = UUID.randomUUID(); var request = body(editable()); var created = drafts.create(session, key, request); UUID id = draftId(created);
+        withForeign(foreign -> {
+            code("NOT_FOUND", () -> drafts.get(foreign, id)); code("NOT_FOUND", () -> drafts.patch(foreign, id, UUID.randomUUID(), body(Map.of("expected_version", 1, "body", "x"))));
+            assertEquals(List.of(), drafts.list(foreign, null, null, 20).get("items")); assertEquals("NOT_OBSERVED", drafts.reconcile(foreign, key).get("status"));
+        });
         var newSession = auth.find(auth.issue(owner, true, null).token()); assertEquals(record(created), drafts.get(newSession, id));
         code("MUTATION_SESSION_CHANGED", () -> drafts.create(newSession, key, request)); code("MUTATION_SESSION_CHANGED", () -> drafts.reconcile(newSession, key));
         db.update("UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=?", session.hash());
@@ -104,7 +137,7 @@ class MailDraftServiceTest extends ReminderTestSupport {
         assertEquals(1, ((List<?>) drafts.list(session, project, null, 20).get("items")).size()); assertNotNull(drafts.get(session, id));
         code("INVALID_REQUEST", () -> drafts.create(session, UUID.randomUUID(), body(value))); code("INVALID_REQUEST", () -> drafts.patch(session, id, UUID.randomUUID(), body(Map.of("expected_version", 1, "subject", "x"))));
         var clear = new LinkedHashMap<String,Object>(); clear.put("expected_version", 1); clear.put("project_id", null); assertNull(record(drafts.patch(session, id, UUID.randomUUID(), body(clear))).get("project_id"));
-        var foreign = foreign(); code("NOT_FOUND", () -> drafts.list(foreign, project, null, 20)); value.put("project_id", UUID.randomUUID().toString()); code("NOT_FOUND", () -> drafts.create(session, UUID.randomUUID(), body(value)));
+        withForeign(foreign -> code("NOT_FOUND", () -> drafts.list(foreign, project, null, 20))); value.put("project_id", UUID.randomUUID().toString()); code("NOT_FOUND", () -> drafts.create(session, UUID.randomUUID(), body(value)));
     }
     @SuppressWarnings("unchecked")
     @Test void paginationIsStableAndOwnerFilterAndSignatureBound() {
@@ -112,8 +145,8 @@ class MailDraftServiceTest extends ReminderTestSupport {
         db.update("UPDATE mail_drafts SET created_at='2026-01-01T00:00:00Z'");
         Set<Object> ids = new HashSet<>(); String cursor = null, first = null;
         do { var page = drafts.list(session, project, cursor, 2); for (var item : (List<Map<String,Object>>) page.get("items")) assertTrue(ids.add(item.get("id"))); cursor = (String) page.get("next_cursor"); if (first == null) first = cursor; } while (cursor != null);
-        assertEquals(7, ids.size()); String valid = first; var foreign = foreign();
-        code("INVALID_REQUEST", () -> drafts.list(foreign, project, valid, 2)); code("INVALID_REQUEST", () -> drafts.list(session, null, valid, 2)); code("INVALID_REQUEST", () -> drafts.list(session, project, "x" + valid, 2));
+        assertEquals(7, ids.size()); String valid = first;
+        withForeign(foreign -> code("INVALID_REQUEST", () -> drafts.list(foreign, project, valid, 2))); code("INVALID_REQUEST", () -> drafts.list(session, null, valid, 2)); code("INVALID_REQUEST", () -> drafts.list(session, project, "x" + valid, 2));
         for (int limit : new int[]{0, -1, 101}) code("INVALID_REQUEST", () -> drafts.list(session, null, null, limit));
     }
     @Test void strictValidationAndMergedRecipientLimit() {

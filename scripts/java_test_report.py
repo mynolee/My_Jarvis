@@ -45,6 +45,7 @@ CONTEXT_ENV = {"checkout_sha": "REPORT_CHECKOUT_SHA", "pr_head_sha": "REPORT_PR_
 # Reviewed source names only. Do not learn output identities from XML attributes.
 ALLOWED_TESTS = {
     "MailDraftServiceTest": (
+        "foreignFixtureRestoresSingletonAndDependenciesAfterAssertionFailure",
         "encryptedCreateDetailMetadataAndReceipt",
         "patchPreservesOmittedFieldsAndOriginalReceiptReplaysCurrentRecord",
         "concurrentSameKeyCommitsOneDraft",
@@ -66,6 +67,9 @@ ALLOWED_TESTS = {
         "sharedCreateAndPatchFixturesMatchRuntimeShapeValidation",
     ),
     "MailDraftHttpTest": (
+        "missingResourceExceptionHasSanitized404",
+        "unexpectedServiceFailureRemainsSanitized500",
+        "unmappedReadIsSanitizedWithoutBypassingAuthentication",
         "createAndPatchUseOwnerSessionAndExactBodyWithNoStore",
         "authenticationOriginAndCsrfFailBeforeService",
         "missingDuplicateAndNonCanonicalKeysFail",

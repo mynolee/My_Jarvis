@@ -304,7 +304,7 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 299)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 303)
 
     def test_workflow_keeps_verification_status_and_always_reports(self):
         workflow = (report.ROOT / '.github/workflows/m0.yml').read_text()

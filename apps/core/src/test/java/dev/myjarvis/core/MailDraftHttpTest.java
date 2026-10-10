@@ -74,7 +74,43 @@ class MailDraftHttpTest {
         when(drafts.get(session, id)).thenThrow(new ApiException(401, "SESSION_REVOKED"));
         var response = http.perform(get("/api/v1/mail-drafts/" + id).cookie(cookie)).andReturn().getResponse(); assertEquals(401, response.getStatus());
         var error = Json.parse(response.getContentAsByteArray()).path("error"); assertEquals("SESSION_REVOKED", error.path("code").asText()); assertTrue(error.path("details").isEmpty());
-        assertEquals(404, http.perform(post("/api/v1/mail-drafts/" + id + "/send").cookie(cookie).header("Origin", "https://localhost:8443").header("X-CSRF-Token", "synthetic-csrf").contentType("application/json").content("{}")).andReturn().getResponse().getStatus());
+        var missing = http.perform(post("/api/v1/mail-drafts/" + id + "/send").cookie(cookie).header("Origin", "https://localhost:8443").header("X-CSRF-Token", "synthetic-csrf").contentType("application/json").content("{}")).andReturn().getResponse();
+        assertEquals(404, missing.getStatus()); assertEquals("no-store", missing.getHeader("Cache-Control"));
+        var missingError = Json.parse(missing.getContentAsByteArray()).path("error"); assertEquals("NOT_FOUND", missingError.path("code").asText()); assertTrue(missingError.path("details").isEmpty());
+        assertFalse(missing.getContentAsString().contains(id.toString())); assertFalse(missing.getContentAsString().contains("/send"));
         verify(drafts).get(session, id); verifyNoMoreInteractions(drafts);
     }
+    @Test void unmappedReadIsSanitizedWithoutBypassingAuthentication() throws Exception {
+        String path = "/api/v1/unmapped-synthetic-private-sentinel";
+        assertEquals(401, http.perform(get(path)).andReturn().getResponse().getStatus());
+        var response = http.perform(get(path).cookie(cookie)).andReturn().getResponse();
+        assertEquals(404, response.getStatus()); assertEquals("no-store", response.getHeader("Cache-Control"));
+        var envelope = Json.parse(response.getContentAsByteArray()); assertEquals("NOT_FOUND", envelope.path("error").path("code").asText());
+        assertTrue(envelope.path("error").path("details").isEmpty()); assertFalse(envelope.path("request_id").asText().isEmpty());
+        assertFalse(response.getContentAsString().contains("private-sentinel")); verifyNoInteractions(drafts);
+    }
+    @org.springframework.web.bind.annotation.RestController
+    static final class MissingResourceFixture {
+        @org.springframework.web.bind.annotation.GetMapping("/api/v1/synthetic-missing-resource")
+        void missing() throws org.springframework.web.servlet.resource.NoResourceFoundException {
+            var exception = mock(org.springframework.web.servlet.resource.NoResourceFoundException.class);
+            when(exception.getMessage()).thenReturn("synthetic-resource-private-sentinel"); throw exception;
+        }
+    }
+    @Test void missingResourceExceptionHasSanitized404() throws Exception {
+        var resourceHttp = MockMvcBuilders.standaloneSetup(new MissingResourceFixture()).setControllerAdvice(new ApiErrors())
+                .addFilters(new WebSecurity(auth, "https://localhost:8443", false)).build();
+        var response = resourceHttp.perform(get("/api/v1/synthetic-missing-resource").cookie(cookie)).andReturn().getResponse();
+        assertEquals(404, response.getStatus()); assertEquals("no-store", response.getHeader("Cache-Control"));
+        var error = Json.parse(response.getContentAsByteArray()).path("error"); assertEquals("NOT_FOUND", error.path("code").asText()); assertTrue(error.path("details").isEmpty());
+        assertFalse(response.getContentAsString().contains("private-sentinel")); verifyNoInteractions(drafts);
+    }
+    @Test void unexpectedServiceFailureRemainsSanitized500() throws Exception {
+        when(drafts.get(session, id)).thenThrow(new IllegalStateException("synthetic-server-private-sentinel"));
+        var response = http.perform(get("/api/v1/mail-drafts/" + id).cookie(cookie)).andReturn().getResponse();
+        assertEquals(500, response.getStatus()); assertEquals("no-store", response.getHeader("Cache-Control"));
+        var error = Json.parse(response.getContentAsByteArray()).path("error"); assertEquals("INTERNAL_ERROR", error.path("code").asText()); assertTrue(error.path("details").isEmpty());
+        assertFalse(response.getContentAsString().contains("private-sentinel")); verify(drafts).get(session, id); verifyNoMoreInteractions(drafts);
+    }
+
 }
