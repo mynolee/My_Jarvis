@@ -179,7 +179,7 @@ class MailDraftServiceTest extends ReminderTestSupport {
     @Test void frozenCommitmentAndCursorVectorMatches() throws Exception {
         var vector = Json.parse(Files.readAllBytes(Path.of("../../packages/contracts/fixtures/mail-drafts/commitment-vector.json")));
         Path file = Files.createTempFile("mail-vector-", ".key"); Files.setPosixFilePermissions(file, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")); Files.write(file, HexFormat.of().parseHex(vector.path("synthetic_key_hex").asText()));
-        MailDraftKeyCodec codec = new MailDraftKeyCodec(file);
+        MailDraftKeyCodec codec = new MailDraftKeyCodec(file.toString());
         try {
             UUID owner = UUID.fromString(vector.path("owner_id").asText());
             assertEquals(vector.path("request_digest").asText(), codec.request(owner, vector.path("method").asText(), vector.path("target").asText(), vector.get("body")));
