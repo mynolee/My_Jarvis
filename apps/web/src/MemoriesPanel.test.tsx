@@ -147,3 +147,11 @@ describe('explicit memory forms and approvals', () => {
   });
 
 });
+
+it('describes eligible context as data with explicit-only writes and unverified native quality', async () => {
+  const api = new Api(); standard(api); render(<MemoriesPanel {...props(api)}/>); await screen.findByText(memory.value);
+  expect(screen.getByText(/Eligible global and selected-project memories can be included as data/)).toBeTruthy();
+  expect(screen.getByText(/Chats do not automatically write memories/)).toBeTruthy();
+  expect(screen.getByText(/Older history without that ordering remains visible in the transcript/)).toBeTruthy();
+  expect(screen.getByText(/late output is discarded and may be UNKNOWN while computation may continue/)).toBeTruthy();
+});

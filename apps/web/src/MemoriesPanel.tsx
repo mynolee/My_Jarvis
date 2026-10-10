@@ -95,7 +95,8 @@ export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthoriz
   }
   const blocked = busy || pending !== null || writesPaused;
   function edit(update: Partial<Draft>) { invalidate(); setDraft({ ...draft, ...update }); if ('key' in update) { setKeyState(null); setRevive(false); } }
-  return <section className="panel memories" aria-label="Explicit memories"><h2>Explicit memories</h2><p>Only information you enter and confirm here is saved. This panel does not extract memories from chats or promise that saved memories are used by the model.</p>
+  return <section className="panel memories" aria-label="Explicit memories"><h2>Explicit memories</h2><p>Only information you enter and confirm here is saved. Eligible global and selected-project memories can be included as data in contextual local-model requests when the runtime is ready. Chats do not automatically write memories. Inclusion does not guarantee the model will use the information correctly; native model answer quality has not been verified.</p>
+    <p>Context includes only newer history with known causal order. Older history without that ordering remains visible in the transcript but is excluded from model context. Memory changes invalidate an active context; late output is discarded and may be UNKNOWN while computation may continue until cancellation is observed.</p>
     {notice && <p role="alert">{notice}</p>}
     <label>Memory scope<select value={scope} disabled={busy || pending !== null || selectionDisabled} onChange={e => setScope(e.target.value as MemoryScope)}><option value="GLOBAL">Global</option><option value="PROJECT" disabled={!selectedProjectId}>Selected project</option></select></label>
     {scope === 'PROJECT' && <p>Project: {selectedProjectId ?? 'Select a project first'}</p>}

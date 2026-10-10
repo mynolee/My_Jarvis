@@ -29,7 +29,7 @@ describe('saved timezone instant previews', () => {
   it('keeps the saved zone and server instant visible when browser support fails', () => { vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => { throw new RangeError(); }); expect(profile_time_preview(profile.server_time, 'Asia/Seoul')).toBe(`${profile.server_time} (UTC fallback: this browser cannot format saved timezone Asia/Seoul)`); });
 });
 describe('owner settings lifecycle', () => {
-  it('renders server choices, isolated plain text and truthful non-live effects', async () => { const api = new Api(); standard(api, (path, body) => path === '/me' && !body ? { ...profile, display_name: '<script>example</script>' } : undefined); const { container } = render(<ProfilePanel {...props(api)}/>); await ready(); expect(container.querySelector('script')).toBeNull(); expect(screen.getByText(/snapshot, not a live clock/)).toBeTruthy(); expect(screen.getByText(/Inference still uses UTC/)).toBeTruthy(); expect([...screen.getByLabelText<HTMLSelectElement>('Timezone').options].map(o => o.value)).toEqual(options.timezones); });
+  it('renders server choices, isolated plain text and truthful non-live effects', async () => { const api = new Api(); standard(api, (path, body) => path === '/me' && !body ? { ...profile, display_name: '<script>example</script>' } : undefined); const { container } = render(<ProfilePanel {...props(api)}/>); await ready(); expect(container.querySelector('script')).toBeNull(); expect(screen.getByText(/snapshot, not a live clock/)).toBeTruthy(); expect(screen.getByText(/contextual local-model requests when the runtime is ready/)).toBeTruthy(); expect([...screen.getByLabelText<HTMLSelectElement>('Timezone').options].map(o => o.value)).toEqual(options.timezones); });
   it('sends one partial PATCH with current version and UUID, acquiring pending synchronously', async () => { const api = new Api(), p = props(api); let pending = false; p.onPendingChange.mockImplementation(v => { pending = v; }); const request = standard(api, (path, body) => { if (body) expect(pending).toBe(true); return undefined; }); render(<ProfilePanel {...p}/>); await ready(); edit(); click('Save settings'); await screen.findByText(/Save committed at version 2/); const writes = request.mock.calls.filter(c => c[1]); expect(writes).toHaveLength(1); expect(writes[0]).toEqual(['/me', { expected_version: 1, display_name: 'Synthetic new name' }, expect.stringMatching(/^[0-9a-f-]{36}$/), 'PATCH']); });
   it('clears display name with null and does not trim submitted Unicode', async () => { const api = new Api(), request = standard(api); render(<ProfilePanel {...props(api)}/>); await ready(); click('Clear display name'); click('Save settings'); await waitFor(() => expect(request.mock.calls.some(c => (c[1] as { display_name?: unknown })?.display_name === null)).toBe(true)); });
   it('blocks unknown saves through NOT_OBSERVED and reconciles metadata with a separate current read', async () => { const api = new Api(); let checks = 0, reads = 0; const request = standard(api, (path, body) => { if (body) throw new ApiError('UNKNOWN', true); if (path.startsWith('/profile-mutations/')) return ++checks === 1 ? notObserved : receipt; if (path === '/me') return ++reads === 1 ? profile : { ...profile, version: 5, display_name: 'Later settings' }; }); render(<ProfilePanel {...props(api)}/>); await ready(); edit(); click('Save settings'); await screen.findByRole('region', { name: 'Unknown profile outcome' }); click('Check profile outcome'); await screen.findByText(/Not observed yet is inconclusive/); expect((screen.getByRole('button', { name: 'Save settings' }) as HTMLButtonElement).closest('fieldset')?.disabled).toBe(true); click('Check profile outcome'); await screen.findByText('Current version: 5'); expect(screen.getByText(/Save committed at version 2/)).toBeTruthy(); expect(request.mock.calls.filter(c => c[1])).toHaveLength(1); });
@@ -59,4 +59,22 @@ describe('profile receipt binding and committed refresh recovery', () => {
     click('Refresh current settings'); await waitFor(() => expect(reads).toBe(4)); await waitFor(() => expect(screen.queryByRole('status')).toBeNull()); expect(screen.queryByText('Current version: 4')).toBeNull();
     click('Refresh current settings'); await screen.findByText('Current version: 3'); expect(screen.getByLabelText<HTMLInputElement>('Display name').value).toBe('Confirmed current settings'); expect(request.mock.calls.filter(c => c[1])).toHaveLength(1);
   });
+});
+
+it('requires inference timezone to equal the exact saved server timezone', () => {
+  for (const timezone of ['Asia/Seoul', 'Etc/UTC', 'America/New_York']) {
+    const value = { ...profile, timezone, profile_effects: { ...profile.profile_effects, inference_timezone: timezone } };
+    expect(read_profile(value, options).profile_effects.inference_timezone).toBe(timezone);
+    expect(() => read_profile({ ...value, profile_effects: profile.profile_effects }, options)).toThrow();
+    expect(() => read_profile_result({ profile: { ...value, version: 2 }, mutation: receipt }, options)).not.toThrow();
+  }
+});
+
+it('describes context eligibility and conservative invalidation without a native-quality or immediate-stop claim', async () => {
+  const api = new Api(); standard(api, (path, body) => path === '/me' && !body ? { ...profile, timezone: 'Asia/Seoul', profile_effects: { ...profile.profile_effects, inference_timezone: 'Asia/Seoul' } } : undefined);
+  render(<ProfilePanel {...props(api)}/>); await ready();
+  expect(screen.getByText(/Display name and locale are not sent for chat personalization/)).toBeTruthy();
+  expect(screen.getByText(/does not promise an immediate stop/)).toBeTruthy();
+  expect(screen.getByText(/Native model answer quality has not been verified/)).toBeTruthy();
+  expect(screen.getByText(/UTC\+09:00 \[Asia\/Seoul\]/)).toBeTruthy();
 });
