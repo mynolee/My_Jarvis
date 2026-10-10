@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/schedule-disable-request.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "type": "object",
+  "properties": {
+    "expected_version": {
+      "$ref": "#/$defs/version"
+    }
+  },
+  "required": [
+    "expected_version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    }
+  }
+}

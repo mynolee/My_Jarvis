@@ -1,0 +1,69 @@
+{
+  "checked_at": "2030-01-01T00:01:00Z",
+  "scope": "ALL",
+  "items": [
+    {
+      "id": "00000000-0000-4000-8000-000000000108",
+      "event_type": "RUN_UNKNOWN",
+      "happened_at": "2030-01-01T00:00:06Z",
+      "resource_kind": "RUN",
+      "resource_id": "00000000-0000-4000-8000-000000000013",
+      "run": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000106",
+      "event_type": "RUN_SUCCEEDED",
+      "happened_at": "2030-01-01T00:00:04Z",
+      "resource_kind": "RUN",
+      "resource_id": "00000000-0000-4000-8000-000000000012",
+      "run": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000105",
+      "event_type": "OTHER",
+      "happened_at": "2030-01-01T00:00:03Z",
+      "resource_kind": "OTHER",
+      "resource_id": null,
+      "run": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000104",
+      "event_type": "REMINDER_INBOX_CREATED",
+      "happened_at": "2030-01-01T00:00:02.123456Z",
+      "resource_kind": "NOTIFICATION",
+      "resource_id": "00000000-0000-4000-8000-000000000030",
+      "run": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000103",
+      "event_type": "APPROVAL_CONSUMED",
+      "happened_at": "2030-01-01T00:00:02.123456Z",
+      "resource_kind": "RUN",
+      "resource_id": "00000000-0000-4000-8000-000000000011",
+      "run": {
+        "id": "00000000-0000-4000-8000-000000000011",
+        "current_status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000102",
+      "event_type": "TASK_CREATED",
+      "happened_at": "2030-01-01T00:00:01Z",
+      "resource_kind": "TASK",
+      "resource_id": "00000000-0000-4000-8000-000000000020",
+      "run": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000101",
+      "event_type": "RUN_ACCEPTED",
+      "happened_at": "2030-01-01T00:00:00Z",
+      "resource_kind": "RUN",
+      "resource_id": "00000000-0000-4000-8000-000000000011",
+      "run": {
+        "id": "00000000-0000-4000-8000-000000000011",
+        "current_status": "UNKNOWN"
+      }
+    }
+  ],
+  "next_cursor": null
+}

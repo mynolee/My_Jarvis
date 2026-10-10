@@ -1,0 +1,16 @@
+{
+  "payload": {
+    "tool_id": "task.create",
+    "target_id": "10000000-0000-4000-8000-000000000001",
+    "arguments": {
+      "title": "Synthetic study task",
+      "description": "Solve a sample exercise.",
+      "project_id": null,
+      "due_at": "2030-01-01T10:00:00Z",
+      "priority": "NORMAL",
+      "estimated_minutes": 30
+    }
+  },
+  "canonical": "{\"arguments\":{\"description\":\"Solve a sample exercise.\",\"due_at\":\"2030-01-01T10:00:00Z\",\"estimated_minutes\":30,\"priority\":\"NORMAL\",\"project_id\":null,\"title\":\"Synthetic study task\"},\"target_id\":\"10000000-0000-4000-8000-000000000001\",\"tool_id\":\"task.create\"}",
+  "sha256": "033e4d73ee348e940e27161f8f9e06a039389c3185d0c01911df424beeeb04db"
+}
