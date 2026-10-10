@@ -17,6 +17,8 @@ function fixture() {
     else if (path === '/local-model/status') result = { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
     else if (path === '/auth/logout') { authenticated = false; }
     else if (path === '/me') { if (!authenticated) throw new ApiError('UNAUTHENTICATED', false, 401); }
+    else if (path === '/projects') result = { items: [{ id: '55555555-5555-4555-8555-555555555555', name: 'Project One', description: '', active: true, version: 1, created_at: '2026-10-10T00:00:00Z' }], next_cursor: null };
+    else if (path === '/projects/55555555-5555-4555-8555-555555555555') result = { id: '55555555-5555-4555-8555-555555555555', name: 'Project One', description: '', active: true, version: 1, created_at: '2026-10-10T00:00:00Z' };
     else if (path === '/conversations' && body) result = { id: conversation_id, title: 'Mock', project_id: null, created_at: '2026-10-09T00:00:00Z' };
     else if (path === '/conversations') result = { items: [{ id: conversation_id, title: 'Mock', project_id: null, created_at: '2026-10-09T00:00:00Z' }], next_cursor: null };
     else if (path.endsWith('/messages')) { if (body) { sent = true; result = { run_id, status: state }; } else result = { items: sent ? [{ id: run_id, text: '<img src="https://example.invalid/steal">', role: 'USER', run_id, execution_mode: 'MOCK', created_at: '2026-10-09T00:00:00Z' }] : [], next_cursor: null, stream_cursor: null, current_run: sent ? { id: run_id, status: state, version: 1, execution_mode: 'MOCK', result: state === 'SUCCEEDED' ? 'MOCK verified synthetic result' : null, approval_id, job_id: null } : null }; }
@@ -44,4 +46,19 @@ it('cancel sends the server run version', async () => { const { api, calls } = f
 it('uncertain approval disables writes and does not replay during read-only refresh', async () => {
   const { api, calls } = fixture(); const request = vi.mocked(api.request).getMockImplementation()!; vi.spyOn(api, 'request').mockImplementation(async <T,>(path: string, body?: unknown): Promise<T> => { if (path.endsWith('/decision')) { calls.push({ path, body }); throw new ApiError('UNKNOWN', true); } return await request(path, body) as T; });
   render(<App api={api}/>); await login(); await send(); fireEvent.click(screen.getByRole('button', { name: 'Approve exact action' })); await screen.findByText('Writes paused'); expect((screen.getByRole('button', { name: 'Approve exact action' }) as HTMLButtonElement).disabled).toBe(true); fireEvent.click(screen.getByRole('button', { name: 'Refresh server state' })); expect(calls.filter(call => call.path.endsWith('/decision'))).toHaveLength(1);
+});
+
+it('uses a verified project only for a new conversation and never changes an existing conversation', async () => {
+  const { api, calls } = fixture(); render(<App api={api}/>); await login(); await send();
+  const before = calls.filter(call => call.path === '/conversations' && call.body).length;
+  fireEvent.click(screen.getByRole('button', { name: 'Choose project for a new conversation' }));
+  await screen.findByRole('option', { name: 'Project One' }); fireEvent.change(screen.getByLabelText('New conversation project'), { target: { value: '55555555-5555-4555-8555-555555555555' } });
+  await waitFor(() => expect(screen.getByText(/Next new conversation project:/).textContent).toContain('Project One'));
+  expect(calls.filter(call => call.path === '/conversations' && call.body)).toHaveLength(before);
+  expect(calls.some(call => /conversations\/[^/]+$/.test(call.path) && call.body)).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Start new conversation' }));
+  fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'New project conversation' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send mock message' }));
+  await waitFor(() => expect(calls.filter(call => call.path === '/conversations' && call.body)).toHaveLength(before + 1));
+  expect(calls.filter(call => call.path === '/conversations' && call.body).at(-1)?.body).toEqual({ title: 'Operator session', project_id: '55555555-5555-4555-8555-555555555555' });
 });
