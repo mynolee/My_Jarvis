@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/runtime-readiness.schema.json",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": [
+        "MODEL_UNAVAILABLE",
+        "READY"
+      ]
+    },
+    "download_complete": {
+      "type": "boolean"
+    },
+    "integrity_verified": {
+      "type": "boolean"
+    },
+    "runtime_ready": {
+      "type": "boolean"
+    },
+    "inference_verified": {
+      "type": "boolean"
+    },
+    "integration_verified": {
+      "type": "boolean"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "model_id": {
+      "const": "local-mlx-v1"
+    },
+    "model_manifest_hash": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "download_complete",
+    "integrity_verified",
+    "runtime_ready",
+    "inference_verified",
+    "integration_verified",
+    "ready",
+    "model_id",
+    "model_manifest_hash"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ready": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "runtime_ready": {
+            "const": true
+          },
+          "status": {
+            "const": "READY"
+          },
+          "integrity_verified": {
+            "const": true
+          },
+          "download_complete": {
+            "const": true
+          },
+          "model_manifest_hash": {
+            "type": "string"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "runtime_ready": {
+            "const": false
+          },
+          "status": {
+            "const": "MODEL_UNAVAILABLE"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "integration_verified": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "inference_verified": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

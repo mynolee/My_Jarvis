@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/owner-profile-options.schema.json",
+  "$comment": "Wire shape only. Server must enforce authenticated owner/live session and epoch, Origin/CSRF, exact Java TZDB membership, strict integer-only JSON, duplicate-key/header/query rejection, canonical request cap 4096 bytes, transactional versioning and session-bound HMAC idempotency. No scheduling, translation or inference personalization is enabled.",
+  "type": "object",
+  "properties": {
+    "locales": {
+      "const": [
+        "ko-KR",
+        "en-US"
+      ]
+    },
+    "timezones": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^(?:UTC|(?!SystemV/)[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$(?![\\s\\S])",
+        "description": "ASCII lexical candidate only. Exact case-sensitive membership in server startup set is mandatory: UTC plus Java ZoneId available IDs containing / except SystemV/. Preserve aliases exactly. Neither regex nor ZoneId.of alone proves support."
+      },
+      "contains": {
+        "const": "UTC"
+      }
+    },
+    "tzdb_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9._+-]+$(?![\\s\\S])"
+    }
+  },
+  "required": [
+    "locales",
+    "timezones",
+    "tzdb_version"
+  ],
+  "additionalProperties": false
+}

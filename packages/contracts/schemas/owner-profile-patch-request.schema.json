@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/owner-profile-patch-request.schema.json",
+  "$comment": "Wire shape only. Server must enforce authenticated owner/live session and epoch, Origin/CSRF, exact Java TZDB membership, strict integer-only JSON, duplicate-key/header/query rejection, canonical request cap 4096 bytes, transactional versioning and session-bound HMAC idempotency. No scheduling, translation or inference personalization is enabled.",
+  "type": "object",
+  "properties": {
+    "expected_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "display_name": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "not": {
+            "pattern": "[\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]"
+          },
+          "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+          "description": "Exact unnormalized Unicode scalar text; 1..80 codepoints, at most 320 UTF-8 bytes; no ISO controls, not entirely Unicode White_Space plus FEFF. Null explicitly clears."
+        }
+      ]
+    },
+    "locale": {
+      "enum": [
+        "ko-KR",
+        "en-US"
+      ]
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^(?:UTC|(?!SystemV/)[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$(?![\\s\\S])",
+      "description": "ASCII lexical candidate only. Exact case-sensitive membership in server startup set is mandatory: UTC plus Java ZoneId available IDs containing / except SystemV/. Preserve aliases exactly. Neither regex nor ZoneId.of alone proves support."
+    }
+  },
+  "required": [
+    "expected_version"
+  ],
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "display_name"
+      ]
+    },
+    {
+      "required": [
+        "locale"
+      ]
+    },
+    {
+      "required": [
+        "timezone"
+      ]
+    }
+  ]
+}
