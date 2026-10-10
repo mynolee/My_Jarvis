@@ -110,7 +110,9 @@ class ConversationDeletionBarriersTest {
         deleted(()->flow.tx.executeWithoutResult(s->flow.job(owner,run,null,"PLAN")));
         deleted(()->flow.tx.executeWithoutResult(s->flow.event(owner,run,"RUN_SUCCEEDED")));
         assertEquals(nonces,count("crypto_nonces"),"Tombstone must precede result encryption and nonce reservation");
-        assertFalse(flow.tx.execute(s->freshness.valid(owner,run)));
+        Boolean valid=flow.tx.execute(s->freshness.valid(owner,run));
+        assertNotNull(valid);
+        assertFalse(valid.booleanValue());
         flow.tx.executeWithoutResult(s->freshness.invalidateRun(owner,run));
         UUID other=conversation();failure(()->flow.accept(session,other,input),409,"IDEMPOTENCY_CONFLICT");
         failure(()->local.accept(session,other,node(Map.of("client_message_id",clientId,"text","Synthetic question sentinel"))),409,"IDEMPOTENCY_CONFLICT");
