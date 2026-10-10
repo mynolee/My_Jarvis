@@ -1,3 +1,4 @@
+import { parse_deletion_json } from './conversation-deletion-json';
 /** No credentials or private data are persisted in browser storage. */
 export class ApiError extends Error {
   constructor(readonly code: string, readonly uncertain = false, readonly status = 0, readonly details: unknown = null) { super(code); }
@@ -16,6 +17,7 @@ export class Api {
   async request<T>(path: string, body?: unknown, idempotency_key?: string, method: 'POST' | 'PATCH' = 'POST'): Promise<T> {
     if (!/^\/[a-z0-9/_-]+(?:\?[a-z0-9=&_%:.,+~-]*)?$/i.test(path) || path.split('?')[0].includes('//') || path.split('?')[0].includes('..') || path.length > 4096) throw new ApiError('INVALID_PATH');
     if (body !== undefined && !this.csrf) throw new ApiError('CSRF_REQUIRED');
+    const deletion_route = /^\/(?:conversations\/[0-9a-f-]{36}\/(?:deletion-state|delete-preparations)|conversation-delete-preparations\/[0-9a-f-]{36}\/confirm|conversation-deletions\/requests\/[0-9a-f-]{36})$(?![\s\S])/.test(path);
     const serialized = body === undefined ? undefined : JSON.stringify(body);
     if (serialized && new TextEncoder().encode(serialized).length > 65536) throw new ApiError('REQUEST_TOO_LARGE');
     const request_revision = this.credential_revision;
@@ -26,14 +28,18 @@ export class Api {
       const response = await fetch(`/api/v1${path}`, { method: body === undefined ? 'GET' : method, credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal, headers: { Accept: 'application/json', ...(serialized !== undefined ? { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf } : {}), ...(idempotency_key ? { 'Idempotency-Key': idempotency_key } : {}) }, body: serialized });
       response_status = response.status;
       if (response.status === 401) { if (request_revision === this.credential_revision) this.clear(); throw new ApiError('UNAUTHENTICATED', false, 401); }
+      if (deletion_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
+      if (deletion_route && (response.redirected || response.type === 'opaqueredirect' || !JSON_CONTENT_TYPE.test(response.headers.get('content-type') ?? ''))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       if (!response.headers.get('content-type')?.includes('application/json')) throw new ApiError('INVALID_RESPONSE', body !== undefined, response.status);
       const reader = response.body?.getReader();
       if (!reader) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       const chunks: Uint8Array[] = []; let length = 0;
       for (;;) { const { value, done } = await reader.read(); if (done) break; length += value.length; if (length > LIMIT) { await reader.cancel(); throw new ApiError('RESPONSE_TOO_LARGE', body !== undefined, response_status); } chunks.push(value); }
       const bytes = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-      let envelope; try { envelope = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status); }
+      let envelope; try { const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes); envelope = deletion_route ? parse_deletion_json(decoded) : JSON.parse(decoded); } catch { throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status); }
+      if (deletion_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
       if (!response.ok) throw new ApiError(typeof envelope?.error?.code === 'string' ? envelope.error.code : 'REQUEST_REJECTED', body !== undefined && response.status >= 500, response.status, envelope?.error?.details);
+      if (deletion_route && (response.status !== 200 || !envelope || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== 'data,request_id' || typeof envelope.request_id !== 'string' || !EXPORT_UUID.test(envelope.request_id))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       if (!envelope || !Object.hasOwn(envelope, 'data')) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       return envelope.data as T;
     } catch (error) {

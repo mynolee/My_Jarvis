@@ -19,3 +19,86 @@ describe('saved conversation interface',()=>{
   it('does not let an unmounted prior session 401 clear a new session',async()=>{const oldApi=new Api();let rejectOld!:(error:unknown)=>void;vi.spyOn(oldApi,'request').mockImplementation(async path=>path.startsWith('/conversations?')?{items:[conversation()],next_cursor:null}:new Promise((_,reject)=>{rejectOld=reject;}));const oldUnauthorized=vi.fn();const old=render(<ConversationHistoryPanel api={oldApi} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onUnauthorized={oldUnauthorized}/>);await waitFor(()=>expect(rejectOld).toBeTruthy());old.unmount();const api=new Api();vi.spyOn(api,'request').mockImplementation(async path=>path.startsWith('/conversations?')?{items:[conversation(other)],next_cursor:null}:{...page,items:[{...message(other),text:'New session transcript'}]});const onUnauthorized=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={other} onSelect={vi.fn()} onSnapshot={vi.fn()} onUnauthorized={onUnauthorized}/>);await screen.findByText('New session transcript');await act(async()=>{rejectOld(new ApiError('UNAUTHENTICATED',false,401));});expect(oldUnauthorized).not.toHaveBeenCalled();expect(onUnauthorized).not.toHaveBeenCalled();expect(screen.getByText('New session transcript')).toBeTruthy();});
   it('clears history and notifies the parent exactly once on unauthorized reads',async()=>{const api=new Api();vi.spyOn(api,'request').mockRejectedValue(new ApiError('UNAUTHENTICATED',false,401));const onUnauthorized=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onUnauthorized={onUnauthorized}/>);await waitFor(()=>expect(onUnauthorized).toHaveBeenCalledTimes(1));expect(screen.queryByText(message().text)).toBeNull();expect(watch_history_events).not.toHaveBeenCalled();});
 });
+
+describe('remote conversation deletion barriers',()=>{
+  it('clears visible private content and fences deferred pages, list reads and stream callbacks',async()=>{
+    const api=new Api();let latest=0,lists=0;let resolveOlder!:(value:unknown)=>void,resolveList!:(value:unknown)=>void;
+    vi.spyOn(api,'request').mockImplementation(async path=>{
+      if(path.startsWith('/conversations?')){if(++lists===2)return new Promise(resolve=>{resolveList=resolve;});return {items:[conversation(),conversation(other)],next_cursor:null};}
+      if(path.includes('cursor=older'))return new Promise(resolve=>{resolveOlder=resolve;});
+      if(++latest===1)return {...page,next_cursor:'older'};
+      throw new ApiError('CONVERSATION_DELETED',false,410);
+    });
+    const onDeleted=vi.fn(),onSnapshot=vi.fn(),onUnauthorized=vi.fn();
+    render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={onSnapshot} onDeleted={onDeleted} onUnauthorized={onUnauthorized}/>);
+    await screen.findByText(message().text);await waitFor(()=>expect(watch_history_events).toHaveBeenCalledTimes(1));
+    const options=vi.mocked(watch_history_events).mock.calls[0][0],stop=vi.mocked(watch_history_events).mock.results[0].value;
+    fireEvent.click(screen.getByRole('button',{name:'Load older messages'}));fireEvent.click(screen.getByRole('button',{name:'Refresh conversations'}));
+    await waitFor(()=>{expect(resolveOlder).toBeTruthy();expect(resolveList).toBeTruthy();});
+    await act(async()=>{options.onUpdate();});await waitFor(()=>expect(onDeleted).toHaveBeenCalledExactlyOnceWith(id));
+    expect(screen.queryByText(message().text)).toBeNull();expect(screen.queryByRole('button',{name:'First saved chat'})).toBeNull();
+    expect(screen.queryByRole('button',{name:/Load older messages|Loading older messages/})).toBeNull();expect(stop).toHaveBeenCalledTimes(1);expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(screen.getByRole('button',{name:'Second saved chat'})).toBeTruthy();expect(screen.getByText('This conversation was deleted.')).toBeTruthy();
+    await act(async()=>{resolveOlder({...page,items:[{...message(other),text:'Deferred private older sentinel'}]});resolveList({items:[conversation()],next_cursor:null});});
+    expect(screen.queryByText('Deferred private older sentinel')).toBeNull();expect(screen.queryByRole('button',{name:'First saved chat'})).toBeNull();expect(onSnapshot).toHaveBeenCalledTimes(1);
+    const calls=vi.mocked(api.request).mock.calls.length;await act(async()=>{options.onUpdate();options.onState('CONNECTED');});expect(api.request).toHaveBeenCalledTimes(calls);
+    fireEvent.click(screen.getByRole('button',{name:'Refresh conversations'}));await waitFor(()=>expect(api.request).toHaveBeenCalledTimes(calls+1));
+    expect(screen.queryByRole('button',{name:'First saved chat'})).toBeNull();expect(onDeleted).toHaveBeenCalledTimes(1);
+  });
+  it('handles exact deletion from an older-page read without retaining its visible transcript',async()=>{
+    const api=new Api();vi.spyOn(api,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation()],next_cursor:null};if(path.includes('cursor=older'))throw new ApiError('CONVERSATION_DELETED',false,410);return {...page,next_cursor:'older'};});
+    const onDeleted=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onDeleted={onDeleted} onUnauthorized={vi.fn()}/>);
+    await screen.findByText(message().text);fireEvent.click(screen.getByRole('button',{name:'Load older messages'}));await waitFor(()=>expect(onDeleted).toHaveBeenCalledExactlyOnceWith(id));
+    expect(screen.queryByText(message().text)).toBeNull();expect(screen.queryByRole('button',{name:'First saved chat'})).toBeNull();
+  });
+  it('handles a refresh deletion even without a parent callback and cannot reload a known deleted target',async()=>{
+    const api=new Api();let reads=0;vi.spyOn(api,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation()],next_cursor:null};if(++reads===1)return page;throw new ApiError('CONVERSATION_DELETED',false,410);});
+    const props={api,conversationId:id,onSelect:vi.fn(),onSnapshot:vi.fn(),onUnauthorized:vi.fn()};const view=render(<ConversationHistoryPanel {...props}/>);
+    await screen.findByText(message().text);view.rerender(<ConversationHistoryPanel {...props} refreshKey={1}/>);await screen.findByText('This conversation was deleted.');
+    expect(screen.queryByText(message().text)).toBeNull();expect(screen.queryByRole('button',{name:'First saved chat'})).toBeNull();
+    view.rerender(<ConversationHistoryPanel {...props} conversationId={null} refreshKey={1}/>);view.rerender(<ConversationHistoryPanel {...props} refreshKey={1}/>);
+    await screen.findByText('This conversation was deleted.');expect(reads).toBe(2);expect(screen.queryByText(message().text)).toBeNull();
+  });
+  it('verifies a blocked stream with one canonical read before recognizing deletion',async()=>{
+    const api=new Api();let reads=0;vi.spyOn(api,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation()],next_cursor:null};if(++reads===1)return page;throw new ApiError('CONVERSATION_DELETED',false,410);});
+    const onDeleted=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onDeleted={onDeleted} onUnauthorized={vi.fn()}/>);
+    await screen.findByText(message().text);await waitFor(()=>expect(watch_history_events).toHaveBeenCalledTimes(1));const options=vi.mocked(watch_history_events).mock.calls[0][0];
+    await act(async()=>{options.onState('BLOCKED');});await waitFor(()=>expect(onDeleted).toHaveBeenCalledExactlyOnceWith(id));expect(reads).toBe(2);expect(screen.queryByText(message().text)).toBeNull();
+  });
+  it('routes a gap recovery deletion through the same private-state fence',async()=>{
+    const api=new Api();let reads=0;vi.spyOn(api,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation()],next_cursor:null};if(++reads===1)return page;throw new ApiError('CONVERSATION_DELETED',false,410);});
+    const onDeleted=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onDeleted={onDeleted} onUnauthorized={vi.fn()}/>);
+    await screen.findByText(message().text);await waitFor(()=>expect(watch_history_events).toHaveBeenCalledTimes(1));const options=vi.mocked(watch_history_events).mock.calls[0][0];
+    await act(async()=>{await expect(options.onGap()).rejects.toMatchObject({code:'CONVERSATION_DELETED',status:410});});
+    expect(onDeleted).toHaveBeenCalledExactlyOnceWith(id);expect(screen.queryByText(message().text)).toBeNull();
+  });
+  it.each([[404,'NOT_FOUND'],[410,'EVENT_CURSOR_UNAVAILABLE'],[404,'CONVERSATION_DELETED']] as const)('never treats %s/%s as proof of target deletion',async(status,code)=>{
+    const api=new Api();let reads=0;vi.spyOn(api,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation()],next_cursor:null};if(++reads===1)return page;throw new ApiError(code,false,status);});
+    const onDeleted=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onDeleted={onDeleted} onUnauthorized={vi.fn()}/>);
+    await screen.findByText(message().text);await waitFor(()=>expect(watch_history_events).toHaveBeenCalledTimes(1));await act(async()=>{vi.mocked(watch_history_events).mock.calls[0][0].onUpdate();});
+    await screen.findByText(code);expect(onDeleted).not.toHaveBeenCalled();expect(screen.getByText(message().text)).toBeTruthy();
+  });
+  it('does not clear a new selection when a delayed old-target read reports deletion',async()=>{
+    const api=new Api();let oldReads=0;let rejectOld!:(error:unknown)=>void;
+    vi.spyOn(api,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation(),conversation(other)],next_cursor:null};if(path.includes(other))return {...page,items:[{...message(other),text:'Current unrelated private sentinel'}]};if(++oldReads===1)return page;return new Promise((_,reject)=>{rejectOld=reject;});});
+    const onDeleted=vi.fn(),onSnapshot=vi.fn();const props={api,onSelect:vi.fn(),onSnapshot,onDeleted,onUnauthorized:vi.fn()};const view=render(<ConversationHistoryPanel {...props} conversationId={id}/>);
+    await screen.findByText(message().text);await waitFor(()=>expect(watch_history_events).toHaveBeenCalledTimes(1));await act(async()=>{vi.mocked(watch_history_events).mock.calls[0][0].onUpdate();});await waitFor(()=>expect(rejectOld).toBeTruthy());
+    view.rerender(<ConversationHistoryPanel {...props} conversationId={other}/>);await screen.findByText('Current unrelated private sentinel');
+    await act(async()=>{rejectOld(new ApiError('CONVERSATION_DELETED',false,410));});
+    expect(onDeleted).not.toHaveBeenCalled();expect(screen.getByText('Current unrelated private sentinel')).toBeTruthy();expect(screen.queryByText('This conversation was deleted.')).toBeNull();
+  });
+  it('does not carry old-session deletion observations across an API/session change',async()=>{
+    const oldApi=new Api();let reads=0;let rejectOld!:(error:unknown)=>void;vi.spyOn(oldApi,'request').mockImplementation(async path=>{if(path.startsWith('/conversations?'))return {items:[conversation()],next_cursor:null};if(++reads===1)return page;return new Promise((_,reject)=>{rejectOld=reject;});});
+    const onDeleted=vi.fn();const props={conversationId:id,onSelect:vi.fn(),onSnapshot:vi.fn(),onDeleted,onUnauthorized:vi.fn()};const view=render(<ConversationHistoryPanel {...props} api={oldApi}/>);
+    await screen.findByText(message().text);await waitFor(()=>expect(watch_history_events).toHaveBeenCalledTimes(1));await act(async()=>{vi.mocked(watch_history_events).mock.calls[0][0].onUpdate();});await waitFor(()=>expect(rejectOld).toBeTruthy());
+    const api=new Api();vi.spyOn(api,'request').mockImplementation(async path=>path.startsWith('/conversations?')?{items:[conversation()],next_cursor:null}:{...page,items:[{...message(),text:'New authenticated session sentinel'}]});view.rerender(<ConversationHistoryPanel {...props} api={api}/>);
+    await screen.findByText('New authenticated session sentinel');await act(async()=>{rejectOld(new ApiError('CONVERSATION_DELETED',false,410));});
+    expect(onDeleted).not.toHaveBeenCalled();expect(screen.getByText('New authenticated session sentinel')).toBeTruthy();
+  });
+  it('does not infer a selected target from a list-only 410 response',async()=>{
+    const api=new Api();let lists=0;vi.spyOn(api,'request').mockImplementation(async path=>{if(!path.startsWith('/conversations?'))return page;if(++lists===1)return {items:[conversation()],next_cursor:null};throw new ApiError('CONVERSATION_DELETED',false,410);});
+    const onDeleted=vi.fn();render(<ConversationHistoryPanel api={api} conversationId={id} onSelect={vi.fn()} onSnapshot={vi.fn()} onDeleted={onDeleted} onUnauthorized={vi.fn()}/>);
+    await screen.findByText(message().text);fireEvent.click(screen.getByRole('button',{name:'Refresh conversations'}));await screen.findByText('CONVERSATION_DELETED');
+    expect(onDeleted).not.toHaveBeenCalled();expect(screen.getByText(message().text)).toBeTruthy();
+  });
+});
