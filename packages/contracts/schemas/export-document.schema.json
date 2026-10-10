@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/export-document.schema.json",
+  "$comment": "Wire shape only. Runtime validates current owner/session/epoch, recent reauthentication, transaction ordering, exact scope, byte/deadline bounds and current-data release. No public bearer URL or stored export artifact.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "EXPLICIT_MEMORIES"
+    },
+    "scope": {
+      "enum": [
+        "GLOBAL",
+        "PROJECT"
+      ]
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "export_job_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    },
+    "semantics": {
+      "const": "CURRENT_AT_DOWNLOAD"
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{0,95}$(?![\\s\\S])"
+          },
+          "kind": {
+            "enum": [
+              "PROFILE",
+              "PREFERENCE"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "not": {
+              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+            },
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+            "description": "Exact Unicode scalar text, nonblank, no NUL. Runtime UTF-8 bound: 8000 bytes. No normalization."
+          },
+          "change_reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "not": {
+              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+            },
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+            "description": "Exact Unicode scalar text, nonblank, no NUL. Runtime UTF-8 bound: 1200 bytes. No normalization."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+            "description": "Server UTC timestamp; valid calendar date, years 0001..9999, at most six fractional digits."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+            "description": "Server UTC timestamp; valid calendar date, years 0001..9999, at most six fractional digits."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+            "description": "Server UTC timestamp; valid calendar date, years 0001..9999, at most six fractional digits."
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "EXPLICIT_OWNER_FORM"
+              },
+              "submitted_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+              }
+            },
+            "required": [
+              "type",
+              "submitted_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "kind",
+          "value",
+          "change_reason",
+          "version",
+          "confirmed_at",
+          "created_at",
+          "updated_at",
+          "source"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "scope",
+    "project_id",
+    "export_job_id",
+    "exported_at",
+    "semantics",
+    "items"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "GLOBAL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "project_id": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          }
+        }
+      }
+    }
+  ]
+}
