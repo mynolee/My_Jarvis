@@ -16,10 +16,10 @@ import tools.jackson.databind.JsonNode;
 @Service
 final class MemoryService {
     static final long MAX=9007199254740991L;
-    final JdbcTemplate db; final Vault vault; final MemoryKeyCodec keys;
+    final JdbcTemplate db; final Vault vault; final MemoryKeyCodec keys; final InferenceContextFreshness contexts;
     final TransactionTemplate writeTx,readTx;
-    MemoryService(JdbcTemplate db,Vault vault,MemoryKeyCodec keys,PlatformTransactionManager manager){
-        this.db=db;this.vault=vault;this.keys=keys;writeTx=new TransactionTemplate(manager);writeTx.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);writeTx.setTimeout(15);
+    MemoryService(JdbcTemplate db,Vault vault,MemoryKeyCodec keys,PlatformTransactionManager manager,InferenceContextFreshness contexts){
+        this.db=db;this.vault=vault;this.keys=keys;this.contexts=contexts;writeTx=new TransactionTemplate(manager);writeTx.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);writeTx.setTimeout(15);
         readTx=new TransactionTemplate(manager);readTx.setReadOnly(true);readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);readTx.setTimeout(15);
     }
     static void exact(JsonNode body,String... fields){if(body==null)throw ApiException.bad();Json.validate(body);Json.fields(body,fields);if(body.size()!=fields.length)throw ApiException.bad();if(Json.canonical(body).getBytes(StandardCharsets.UTF_8).length>16384)throw new ApiException(413,"BODY_TOO_LARGE");}
@@ -82,7 +82,7 @@ final class MemoryService {
     Map<String,Object> prior(AuthService.Session s,UUID key,String digest){var rows=db.queryForList("SELECT * FROM memory_mutations WHERE owner_id=? AND idempotency_key=?",s.owner(),key);if(rows.isEmpty())return null;var row=rows.getFirst();binding(s,row);if(!Json.equal(digest,(String)row.get("request_digest")))throw new ApiException(409,"IDEMPOTENCY_CONFLICT");return receipt(s.owner(),row);}
     Map<String,Object> reconcile(AuthService.Session s,UUID key){return read(s,()->{var rows=db.queryForList("SELECT * FROM memory_mutations WHERE owner_id=? AND idempotency_key=?",s.owner(),key);return receipt(s.owner(),rows.isEmpty()?null:rows.getFirst());});}
     void mutation(AuthService.Session s,UUID key,String digest,UUID authority,UUID id,long version,long generation,String operation){db.update("INSERT INTO memory_mutations(owner_id,idempotency_key,session_hash,security_epoch,request_digest,authority_id,memory_id,version,generation,operation) VALUES (?,?,?,?,?,?,?,?,?,?)",s.owner(),key,s.hash(),s.epoch(),digest,authority,id,version,generation,operation);}
-    void event(UUID owner,UUID memory,long version,String type){db.update("INSERT INTO memory_invalidation_outbox(id,owner_id,memory_id,version,event_type) VALUES (?,?,?,?,?)",UUID.randomUUID(),owner,memory,version,type);audit(owner,"MEMORY_"+type,memory);}
+    void event(UUID owner,UUID memory,long version,String type){contexts.invalidateOwner(owner,"DELETED".equals(type));db.update("INSERT INTO memory_invalidation_outbox(id,owner_id,memory_id,version,event_type) VALUES (?,?,?,?,?)",UUID.randomUUID(),owner,memory,version,type);audit(owner,"MEMORY_"+type,memory);}
     void audit(UUID owner,String type,UUID id){db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),owner,type,id);}
     Map<String,Object> save(AuthService.Session s,UUID key,UUID target,JsonNode body,boolean create){
         exact(body,"intent_id","arguments");UUID intentId=Json.uuid(body,"intent_id");JsonNode args=body.get("arguments");arguments(args,create);String operation=create?"CREATE":"REVISE";

@@ -32,6 +32,7 @@ final class WorkflowService {
             var ownerRow=owned("owners",owner,owner);if(Boolean.TRUE.equals(ownerRow.get("execution_paused")))throw new ApiException(409,"EXECUTION_PAUSED");
             UUID run=UUID.randomUUID(),message=UUID.randomUUID();
             db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'ACCEPTED')",run,owner,conversation);
+            db.update("UPDATE runs SET history_epoch=? WHERE owner_id=? AND id=?",ownerRow.get("history_epoch"),owner,run);
             db.update("INSERT INTO messages(id,owner_id,conversation_id,run_id,client_message_id,body_hash,content_ref,role,trust) VALUES (?,?,?,?,?,?,?,'USER','USER_DIRECT')",message,owner,conversation,run,client,hash,vault.seal(owner,message,"message",text));
             job(owner,run,null,"PLAN");event(owner,run,"RUN_ACCEPTED");return Map.of("run_id",run,"status","ACCEPTED");
         });

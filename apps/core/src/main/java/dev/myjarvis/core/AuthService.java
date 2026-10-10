@@ -12,10 +12,10 @@ import java.util.concurrent.Semaphore;
 final class AuthService {
     record Session(String hash,UUID owner,Instant reauth,long epoch) {}
     record Issued(String token,String csrf) {}
-    private final JdbcTemplate db;private final TransactionTemplate tx;
+    private final JdbcTemplate db;private final TransactionTemplate tx;private final InferenceContextFreshness contexts;
     private final Argon2PasswordEncoder encoder=new Argon2PasswordEncoder(16,32,1,19456,2);
     private final Semaphore hashing=new Semaphore(4,true);
-    AuthService(JdbcTemplate db,TransactionTemplate tx){this.db=db;this.tx=tx;}
+    AuthService(JdbcTemplate db,TransactionTemplate tx,InferenceContextFreshness contexts){this.db=db;this.tx=tx;this.contexts=contexts;}
     Session find(String token) {
         if(token==null||token.length()!=43)return null;
         var rows=db.queryForList("SELECT s.* FROM sessions s LEFT JOIN owners o ON o.id=s.owner_id WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.created_at>now()-interval '12 hours' AND s.last_seen_at>now()-interval '2 hours' AND (s.owner_id IS NULL OR s.security_epoch=o.security_epoch)",Json.hash(token));
@@ -28,7 +28,7 @@ final class AuthService {
         return tx.execute(status->{
             if(owner!=null)db.queryForObject("SELECT id FROM owners WHERE id=? FOR UPDATE",UUID.class,owner);
             String token=Vault.token(),csrf=Vault.token();Long epoch=owner==null?null:db.queryForObject("SELECT security_epoch FROM owners WHERE id=?",Long.class,owner);
-            if(previous!=null)db.update("UPDATE sessions SET revoked_at=now() WHERE token_hash=?",previous);
+            if(previous!=null){db.update("UPDATE sessions SET revoked_at=now() WHERE token_hash=?",previous);if(owner!=null)contexts.invalidateSession(owner,previous);}
             db.update("INSERT INTO sessions(token_hash,owner_id,csrf_hash,reauthenticated_at,security_epoch) VALUES (?,?,?,CASE WHEN ? THEN now() ELSE NULL END,?)",Json.hash(token),owner,Json.hash(csrf),reauth,epoch);
             return new Issued(token,csrf);
         });
@@ -67,7 +67,7 @@ final class AuthService {
         if(!matches(password,encoded)){throw new ApiException(401,"LOGIN_FAILED");}
         db.update("DELETE FROM login_limits WHERE key_hash=?",Json.hash(key));
     }
-    void logout(Session s){tx.executeWithoutResult(status->{if(s.owner!=null)db.queryForObject("SELECT id FROM owners WHERE id=? FOR UPDATE",UUID.class,s.owner);db.update("UPDATE sessions SET revoked_at=now() WHERE token_hash=?",s.hash);});}
+    void logout(Session s){tx.executeWithoutResult(status->{if(s.owner!=null)db.queryForObject("SELECT id FROM owners WHERE id=? FOR UPDATE",UUID.class,s.owner);db.update("UPDATE sessions SET revoked_at=now() WHERE token_hash=?",s.hash);if(s.owner!=null)contexts.invalidateSession(s.owner,s.hash);});}
     static void requireOwner(Session s){if(s==null||s.owner==null)throw new ApiException(401,"AUTHENTICATION_REQUIRED");}
     static void requireRecent(Session s){requireOwner(s);if(s.reauth==null||s.reauth.isBefore(Instant.now().minusSeconds(300)))throw new ApiException(403,"REAUTHENTICATION_REQUIRED");}
     /** Atomic per-key reservation happens before hashing; concurrent bursts cannot bypass five attempts. */

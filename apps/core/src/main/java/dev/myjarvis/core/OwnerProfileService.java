@@ -19,11 +19,11 @@ final class OwnerProfileService {
     static final long MAX=9007199254740991L;
     static final List<String> FIELDS=List.of("display_name","locale","timezone");
     static final Set<String> LOCALES=Set.of("ko-KR","en-US");
-    private final JdbcTemplate db;private final Vault vault;private final OwnerProfileKeyCodec keys;
+    private final JdbcTemplate db;private final Vault vault;private final OwnerProfileKeyCodec keys;private final InferenceContextFreshness contexts;
     final TransactionTemplate writeTx,readTx;
     private final Set<String> zones;private final String tzdbVersion;
-    OwnerProfileService(JdbcTemplate db,Vault vault,OwnerProfileKeyCodec keys,PlatformTransactionManager manager){
-        this.db=db;this.vault=vault;this.keys=keys;
+    OwnerProfileService(JdbcTemplate db,Vault vault,OwnerProfileKeyCodec keys,PlatformTransactionManager manager,InferenceContextFreshness contexts){
+        this.db=db;this.vault=vault;this.keys=keys;this.contexts=contexts;
         writeTx=new TransactionTemplate(manager);writeTx.setTimeout(15);writeTx.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         readTx=new TransactionTemplate(manager);readTx.setReadOnly(true);readTx.setTimeout(15);readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         TreeSet<String> supported=new TreeSet<>();supported.add("UTC");
@@ -56,7 +56,7 @@ final class OwnerProfileService {
     private Map<String,Object> view(Map<String,Object> owner){
         Map<String,Object> result=new LinkedHashMap<>(profile(owner));for(String field:List.of("id","login_name","execution_paused","version"))result.put(field,owner.get(field));
         result.put("mode","MOCK");result.put("profile_updated_at",owner.get("profile_updated_at")==null?null:AuthService.instant(owner.get("profile_updated_at")).toString());result.put("server_time",now().toString());
-        result.put("profile_effects",Map.of("settings_time_preview",true,"ui_translation",false,"chat_personalization",false,"inference_timezone","UTC","scheduling",false));return result;
+        result.put("profile_effects",Map.of("settings_time_preview",true,"ui_translation",false,"chat_personalization",false,"inference_timezone",result.get("timezone"),"scheduling",false));return result;
     }
     Map<String,Object> get(AuthService.Session session){return readTx.execute(tx->view(session(session,false)));}
     Map<String,Object> options(AuthService.Session session){return read(session,()->Map.of("locales",List.of("ko-KR","en-US"),"timezones",List.copyOf(zones),"tzdb_version",tzdbVersion));}
@@ -74,6 +74,7 @@ final class OwnerProfileService {
             String encrypted=vault.seal(session.owner(),session.owner(),"owner-profile",Json.MAPPER.writeValueAsString(content));Instant updated=now();
             db.update("UPDATE owners SET profile_ref=?,profile_updated_at=?,version=version+1 WHERE id=?",encrypted,Timestamp.from(updated),session.owner());
             db.update("INSERT INTO owner_profile_mutations(owner_id,idempotency_key,session_hash,security_epoch,request_digest,result_version,submitted_display_name,submitted_locale,submitted_timezone) VALUES (?,?,?,?,?,?,?,?,?)",session.owner(),key,session.hash(),session.epoch(),digest,version+1,body.has("display_name"),body.has("locale"),body.has("timezone"));
+            contexts.invalidateOwner(session.owner(),false);
             db.update("INSERT INTO audit_events(id,owner_id,event_type,resource_id) VALUES (?,?,?,?)",UUID.randomUUID(),session.owner(),"OWNER_PROFILE_UPDATED",session.owner());
             var current=db.queryForMap("SELECT * FROM owners WHERE id=?",session.owner());var mutation=db.queryForMap("SELECT * FROM owner_profile_mutations WHERE owner_id=? AND idempotency_key=?",session.owner(),key);return Map.of("profile",view(current),"mutation",receipt(mutation));
         });
