@@ -7,6 +7,8 @@ export class Api {
   private csrf = '';
   private credential_revision = 0;
   clear() { this.credential_revision++; this.csrf = ''; }
+  /** Isolate obsolete in-flight responses while retaining the initiating session's CSRF. */
+  fence_requests() { this.credential_revision++; }
   set_csrf(value: string) { if (!value || value.length > 4096) throw new ApiError('INVALID_CSRF'); this.credential_revision++; this.csrf = value; }
   async request<T>(path: string, body?: unknown, idempotency_key?: string, method: 'POST' | 'PATCH' = 'POST'): Promise<T> {
     if (!/^\/[a-z0-9/_-]+(?:\?[a-z0-9=&_%:.,+~-]*)?$/i.test(path) || path.split('?')[0].includes('//') || path.split('?')[0].includes('..') || path.length > 4096) throw new ApiError('INVALID_PATH');

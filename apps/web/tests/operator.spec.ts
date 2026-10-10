@@ -16,6 +16,7 @@ test('mocked HTTP UI flow: login, text-only snapshot, approve once, reload, logo
     else if (path === '/auth/login') { authenticated = true; data = { csrf_token: 'csrf-test' }; }
     else if (path === '/me') { if (!authenticated) { await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { code: 'UNAUTHENTICATED' } }) }); return; } data = { login_name: 'owner' }; }
     else if (path === '/local-model/status') data = { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
+    else if (path === '/execution' && method === 'GET') data = { execution_paused: false, version: 1, checked_at: '2026-10-10T15:00:00Z' };
     else if (path === '/auth/logout') authenticated = false;
     else if (path === '/conversations' && method === 'POST') data = { id: conversation_id, title: 'Test', project_id: null, created_at: '2026-10-09T00:00:00Z' };
     else if (path === '/conversations') data = { items: [{ id: conversation_id, title: 'Test', project_id: null, created_at: '2026-10-09T00:00:00Z' }] };

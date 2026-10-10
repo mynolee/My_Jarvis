@@ -17,6 +17,7 @@ function fixture(initial: unknown = ready) {
   vi.spyOn(api, 'request').mockImplementation(async <T,>(path: string, body?: unknown): Promise<T> => {
     calls.push({ path, body }); path = path.split('?')[0]; let result: unknown = {};
     if (path === '/me') result = {};
+    else if (path === '/execution') result = { execution_paused: false, version: 1, checked_at: '2026-10-10T00:00:00Z' };
     else if (path === '/local-model/status') { if (state.hold_status) await state.hold_status; if (state.runtime instanceof Error) throw state.runtime; result = state.runtime; }
     else if (path === '/conversations') result = { items: [{ id: conversation_id, title: 'Fixture', project_id: null, created_at: '2026-10-10T00:00:00Z' }], next_cursor: null };
     else if (path.endsWith('/local-inference')) { if (state.hold_send) await state.hold_send; if (state.unknown_send) throw new ApiError('UNKNOWN', true); if (state.reject_send) throw new ApiError('INFERENCE_CAPACITY_RESERVED', false, 429); state.status = 'QUEUED'; result = { run_id, status: state.status }; }

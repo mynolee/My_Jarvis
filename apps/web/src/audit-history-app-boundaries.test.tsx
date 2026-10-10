@@ -13,9 +13,9 @@ vi.mock('./conversation-history-events', () => ({ watch_history_events: vi.fn(()
 function fixture(authenticated = true) {
   const api = new Api(); vi.spyOn(api, 'bootstrap_csrf').mockResolvedValue();
   const request = vi.spyOn(api, 'request').mockImplementation(async path => {
-    if (path === '/me') { if (!authenticated) throw new Error('Unavailable'); return {}; }
+    if (path === '/execution') return { execution_paused: false, version: 1, checked_at: '2026-10-10T00:00:00Z' }; if (path === '/me') { if (!authenticated) throw new Error('Unavailable'); return {}; }
     if (path === '/auth/logout') return {};
-    if (path === '/auth/reauthenticate') return { csrf_token: 'synthetic-test-token' };
+    if (path === '/auth/reauthenticate') return { csrf_token: 'synthetic-test-token', authenticated: true };
     if (path === '/local-model/status') return { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
     if (path.startsWith('/conversations?')) return { items: [], next_cursor: null };
     throw new Error('Unexpected test route');

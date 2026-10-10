@@ -9,6 +9,7 @@ it('retains mutation uncertainty if the user switches conversations while sendin
  const api=new Api();let rejectSend!:(e:unknown)=>void;
  vi.spyOn(api,'bootstrap_csrf').mockResolvedValue();
  vi.spyOn(api,'request').mockImplementation(async (path,body)=>{
+  if(path==='/execution')return {execution_paused:false,version:1,checked_at:'2026-10-10T00:00:00Z'};
   if(path==='/me')return {};
   if(path==='/local-model/status')return {mode:'LOCAL_MLX',model_id:'local-mlx-v1',ready:false,status:'DISABLED'};
   if(path.startsWith('/conversations?'))return {items:[{id:a,title:'A',project_id:null,created_at:'2026-10-10T00:00:00Z'},{id:b,title:'B',project_id:null,created_at:'2026-10-10T00:00:00Z'}],next_cursor:null};
@@ -30,6 +31,7 @@ it('clears the same session when an earlier selection approval read returns 401'
  const api=new Api();let rejectApproval!:(e:unknown)=>void;
  vi.spyOn(api,'bootstrap_csrf').mockResolvedValue();
  vi.spyOn(api,'request').mockImplementation(async (path)=>{
+  if(path==='/execution')return {execution_paused:false,version:1,checked_at:'2026-10-10T00:00:00Z'};
   if(path==='/me')return {};
   if(path==='/local-model/status')return {mode:'LOCAL_MLX',model_id:'local-mlx-v1',ready:false,status:'DISABLED'};
   if(path.startsWith('/conversations?'))return {items:[{id:a,title:'A',project_id:null,created_at:'2026-10-10T00:00:00Z'},{id:b,title:'B',project_id:null,created_at:'2026-10-10T00:00:00Z'}],next_cursor:null};

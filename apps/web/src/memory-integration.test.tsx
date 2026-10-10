@@ -13,8 +13,8 @@ function fixture(override: (path: string, body?: unknown) => unknown = () => und
   const api = new Api(); vi.spyOn(api, 'bootstrap_csrf').mockResolvedValue();
   const request = vi.spyOn(api, 'request').mockImplementation(async (path, body) => {
     const overridden = override(path, body); if (overridden !== undefined) return overridden;
-    if (path === '/me' || path === '/auth/logout') return {};
-    if (path === '/auth/reauthenticate') return { csrf_token: 'fresh-session-token' };
+    if (path === '/execution') return { execution_paused: false, version: 1, checked_at: '2026-10-10T00:00:00Z' }; if (path === '/me' || path === '/auth/logout') return {};
+    if (path === '/auth/reauthenticate') return { csrf_token: 'fresh-session-token', authenticated: true };
     if (path === '/local-model/status') return { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
     if (path.startsWith('/conversations?')) return { items: [{ id, title: 'Project conversation', project_id: project, created_at: time }, { id: second, title: 'Personal conversation', project_id: null, created_at: time }], next_cursor: null };
     if (path.includes('/messages?')) return { items: [], next_cursor: null, stream_cursor: null, current_run: null };

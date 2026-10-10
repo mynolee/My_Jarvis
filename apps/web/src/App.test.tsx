@@ -14,6 +14,7 @@ function fixture() {
   vi.spyOn(api, 'request').mockImplementation(async <T,>(path: string, body?: unknown): Promise<T> => {
     calls.push({ path, body }); path = path.split('?')[0]; let result: unknown = {};
     if (path === '/auth/login') { authenticated = true; result = { csrf_token: 'fixture-token' }; }
+    else if (path === '/execution') result = { execution_paused: false, version: 1, checked_at: '2026-10-10T00:00:00Z' };
     else if (path === '/local-model/status') result = { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
     else if (path === '/auth/logout') { authenticated = false; }
     else if (path === '/me') { if (!authenticated) throw new ApiError('UNAUTHENTICATED', false, 401); }

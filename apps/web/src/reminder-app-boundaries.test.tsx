@@ -13,8 +13,8 @@ const time = '2030-01-01T00:00:00Z';
 function fixture() {
   const api = new Api(); vi.spyOn(api, 'bootstrap_csrf').mockResolvedValue();
   const request = vi.spyOn(api, 'request').mockImplementation(async path => {
-    if (path === '/me' || path === '/auth/logout') return {};
-    if (path === '/auth/reauthenticate' || path === '/auth/login') return { csrf_token: 'synthetic-test-token' };
+    if (path === '/execution') return { execution_paused: false, version: 1, checked_at: '2026-10-10T00:00:00Z' }; if (path === '/me' || path === '/auth/logout') return {};
+    if (path === '/auth/reauthenticate' || path === '/auth/login') return { csrf_token: 'synthetic-test-token', authenticated: true };
     if (path === '/local-model/status') return { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
     if (path.startsWith('/conversations?')) return { items: [{ id, title: 'Synthetic conversation', project_id: null, created_at: time }], next_cursor: null };
     if (path.includes('/messages?')) return { items: [], next_cursor: null, stream_cursor: null, current_run: null };
