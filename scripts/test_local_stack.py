@@ -24,6 +24,19 @@ class LifecycleTest(unittest.TestCase):
         path.chmod(0o600)
         return path
 
+    def test_optional_reminder_worker_switch_is_closed_and_core_only(self):
+        with tempfile.TemporaryDirectory() as root:
+            baseline = stack.read_environment(self.write_env(root))
+            self.assertNotIn('JARVIS_REMINDER_WORKER_ENABLED', baseline)
+            for value in ('true', 'false'):
+                supplied = {**self.values(), 'JARVIS_REMINDER_WORKER_ENABLED': value}
+                parsed = stack.read_environment(self.write_env(root, supplied))
+                self.assertEqual(stack.child_environment(parsed, 'core')['JARVIS_REMINDER_WORKER_ENABLED'], value)
+                self.assertNotIn('JARVIS_REMINDER_WORKER_ENABLED', stack.child_environment(parsed, 'intelligence'))
+            for value in ('TRUE', '1', ' false', 'false ', '$(false)', 'true;false'):
+                with self.assertRaises(stack.Blocked):
+                    stack.read_environment(self.write_env(root, {**self.values(), 'JARVIS_REMINDER_WORKER_ENABLED': value}))
+
     def test_environment_closed_no_shell_expansion(self):
         with tempfile.TemporaryDirectory() as root:
             values=self.values(); values['JARVIS_DB_PASSWORD']='$(touch /never-execute);"${SECRET}"'

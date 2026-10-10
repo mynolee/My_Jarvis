@@ -63,3 +63,39 @@ artifact checks and worker termination are enforced in the Python boundary.
 Static checks, synthetic tests, native model output, fresh-process reload, resource
 measurements and full application integration are separate evidence categories.
 Mac/Metal inference is NOT_RUN until tested on the actual supported hardware.
+
+## Internal reminders and inbox
+
+The reminder panel supports explicit one-time or bounded recurring reminders to
+the signed-in owner's internal inbox. Preparation is inert: review the exact
+content, timezone, next occurrence, missed-time policy and authorization bounds,
+then confirm after recent reauthentication. A confirmed authorization expires
+within 30 days and permits at most 31 deliveries. No reminder is inferred from a
+chat, and no model, provider, email, push notification or generic tool is invoked.
+
+A dedicated PostgreSQL queue uses database time, occurrence uniqueness and lease
+fencing. Both the global worker switch and `JARVIS_REMINDER_WORKER_ENABLED` must
+allow polling; disabling a worker is not a substitute for revoking a reminder.
+The private environment file may optionally set that switch to exact lowercase
+`true` or `false`; omission retains the application default. Keep all actual
+environment values in the ignored private file.
+Disabling or replacing a reminder fences old pending deliveries. Pausing the
+owner invalidates the old authorization even after execution resumes; renewed
+confirmation is required. Profile timezone edits do not retime saved reminders.
+
+The inbox labels records CREATED or OPENED, not delivered to a device. Reading a
+list or detail does not mark it opened. Missed occurrences over one hour are kept
+as skipped metadata; among distinct in-grace overdue slots only the latest may
+create an inbox record. Earlier superseded slots remain visible as cancelled.
+These are documented application policies, not proof of external delivery.
+
+Unknown write outcomes are reconciled through metadata reads without automatic
+resubmission. Sign-out or disposal clears private recovery identifiers and
+content; a nonidentifying warning can prompt review of saved data on a later
+sign-in. Cross-session automatic recovery and replay are not claimed.
+
+Synthetic contracts, component tests, PostgreSQL execution, browser layout and
+actual deployment are separate checks. The contracts alone do not establish
+transactional safety or native notification delivery. CI's sanitized Java report
+must have its complete matching trailer, sequence/count checks and digest before
+individual method outcomes are used; declared method inventories are not passes.

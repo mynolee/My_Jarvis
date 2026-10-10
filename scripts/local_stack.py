@@ -27,6 +27,7 @@ LAUNCH_KEYS = {'JARVIS_PYTHON_PATH', 'JARVIS_JAVA_PATH', 'JARVIS_CORE_JAR_PATH',
                'JARVIS_CACHE_KEY_FILE', 'JARVIS_LEDGER_FILE', 'JARVIS_TLS_CERT_FILE',
                'JARVIS_TLS_KEY_FILE', 'JARVIS_TLS_CA_FILE', 'JARVIS_CORE_CERT_SHA256'}
 KEYS = CORE_KEYS | LAUNCH_KEYS
+OPTIONAL_CORE_KEYS = {'JARVIS_REMINDER_WORKER_ENABLED'}
 
 class Blocked(ValueError):
     pass
@@ -60,12 +61,14 @@ def read_environment(path):
         if not line or line.startswith('#'):
             continue
         key, separator, value = line.partition('=')
-        if not separator or key not in KEYS or key in values or not value or '\x00' in value:
+        if not separator or key not in KEYS | OPTIONAL_CORE_KEYS or key in values or not value or '\x00' in value:
             raise Blocked('INVALID_ENVIRONMENT')
         # Intentionally not shell syntax: no quote removal, interpolation or eval.
         values[key] = value
-    if set(values) != KEYS:
+    if not KEYS <= set(values):
         raise Blocked('INCOMPLETE_ENVIRONMENT')
+    if any(values[key] not in {'true', 'false'} for key in OPTIONAL_CORE_KEYS if key in values):
+        raise Blocked('INVALID_ENVIRONMENT')
     if values['JARVIS_LOCAL_URL'] != 'https://localhost:9443' or values['JARVIS_ORIGIN'] != 'https://localhost:8443':
         raise Blocked('LOOPBACK_TLS_REQUIRED')
     if not values['JARVIS_DB_URL'].startswith('jdbc:postgresql://127.0.0.1:'):
@@ -98,6 +101,7 @@ def child_environment(values, service):
     env = {key: os.environ[key] for key in ('PATH', 'HOME', 'TMPDIR', 'LANG') if key in os.environ}
     if service == 'core':
         env.update({key: values[key] for key in CORE_KEYS})
+        env.update({key: values[key] for key in OPTIONAL_CORE_KEYS if key in values})
         env.update(JARVIS_LOCAL_ENABLED='true', JARVIS_WEB_ENABLED='true', SERVER_ADDRESS='127.0.0.1', SERVER_PORT='8443',
                    SERVER_SSL_ENABLED='true', SERVER_FORWARD_HEADERS_STRATEGY='none')
     else:
@@ -323,7 +327,7 @@ def main():
             value = {'manifest_hash': verify_artifacts(config), 'integrity_verified': True}
             verify_dependencies(config)
         elif args.command == 'setup':
-            value = {'status': 'CONFIGURATION_REQUIRED', 'required_environment_keys': sorted(KEYS),
+            value = {'status': 'CONFIGURATION_REQUIRED', 'required_environment_keys': sorted(KEYS), 'optional_environment_keys': sorted(OPTIONAL_CORE_KEYS),
                      'installed': False, 'downloaded': False, 'inference': 'NOT_RUN'}
         else:
             if args.env_file is None:
