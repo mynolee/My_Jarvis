@@ -1,0 +1,16 @@
+{
+  "jobs": [
+    {"id":"queued-job","status":"QUEUED","started_effect":false},
+    {"id":"claimed-job","status":"RUNNING","started_effect":false},
+    {"id":"in-flight-job","status":"RUNNING","started_effect":true},
+    {"id":"uncertain-job","status":"UNKNOWN","started_effect":true},
+    {"id":"finished-job","status":"SUCCEEDED","started_effect":true}
+  ],
+  "approvals": [{"status":"PENDING"},{"status":"CONSUMED"},{"status":"REJECTED"}],
+  "runs": ["QUEUED","RUNNING","UNKNOWN","SUCCEEDED","CANCELLED"],
+  "authority": [
+    {"kind":"TYPED_INTENT","security_epoch":3},
+    {"kind":"ACTION_AUTHORIZATION","security_epoch":3},
+    {"kind":"SCHEDULE_AUTHORIZATION","security_epoch":3}
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/message-request.schema.json",
+  "type": "object",
+  "properties": {
+    "client_message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16000
+    },
+    "attachment_ids": {
+      "type": "array",
+      "maxItems": 0
+    }
+  },
+  "required": [
+    "client_message_id",
+    "text",
+    "attachment_ids"
+  ],
+  "additionalProperties": false
+}
