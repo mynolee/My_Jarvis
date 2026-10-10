@@ -1,0 +1,85 @@
+{
+  "revision": "m0-v1",
+  "run_states": [
+    "ACCEPTED",
+    "PLANNING",
+    "WAITING_INPUT",
+    "WAITING_APPROVAL",
+    "QUEUED",
+    "RUNNING",
+    "SUCCEEDED",
+    "PARTIAL_SUCCESS",
+    "FAILED",
+    "CANCEL_REQUESTED",
+    "CANCELLED",
+    "UNKNOWN",
+    "EXPIRED",
+    "BLOCKED"
+  ],
+  "action_transitions": {
+    "PROPOSED": [
+      "PREPARED",
+      "BLOCKED",
+      "CANCELLED"
+    ],
+    "PREPARED": [
+      "WAITING_APPROVAL",
+      "AUTHORIZED",
+      "BLOCKED",
+      "CANCELLED",
+      "EXPIRED"
+    ],
+    "WAITING_APPROVAL": [
+      "AUTHORIZED",
+      "CANCELLED",
+      "EXPIRED",
+      "BLOCKED"
+    ],
+    "AUTHORIZED": [
+      "QUEUED",
+      "BLOCKED",
+      "EXPIRED",
+      "CANCELLED"
+    ],
+    "QUEUED": [
+      "EXECUTING",
+      "BLOCKED",
+      "EXPIRED",
+      "CANCELLED"
+    ],
+    "EXECUTING": [
+      "VERIFYING",
+      "UNKNOWN",
+      "FAILED"
+    ],
+    "VERIFYING": [
+      "SUCCEEDED",
+      "FAILED",
+      "UNKNOWN"
+    ],
+    "UNKNOWN": [
+      "VERIFYING"
+    ],
+    "SUCCEEDED": [],
+    "FAILED": [],
+    "CANCELLED": [],
+    "EXPIRED": [],
+    "BLOCKED": []
+  },
+  "approval_states": [
+    "PENDING",
+    "CONSUMED",
+    "REJECTED",
+    "EXPIRED",
+    "REVOKED"
+  ],
+  "trust_levels": [
+    "USER_DIRECT",
+    "USER_GRANTED",
+    "SYSTEM_POLICY",
+    "EXTERNAL_UNTRUSTED",
+    "MODEL_PROPOSAL",
+    "TOOL_RESULT"
+  ],
+  "unknown_retry_policy": "reconcile_only"
+}
