@@ -364,6 +364,28 @@ class LocalRuntime:
                 self._serial.release()
 
 
+def _worker_request_loop(pipe, adapter, cancel):
+    """Release completed turn references before waiting for another request."""
+    while True:
+        request = result = response = None
+        try:
+            request = pipe.recv()
+            try:
+                result = adapter.generate(request, cancel)
+                response = {'request_id': request['request_id'], **result}
+                pipe.send(response)
+            except RuntimeFailure as exc:
+                response = {'request_id': request['request_id'], 'error': exc.code}
+                pipe.send(response)
+            except Exception:
+                response = {'request_id': request['request_id'], 'error': 'MODEL_OUTPUT_INVALID'}
+                pipe.send(response)
+        finally:
+            # A warm worker may block in recv indefinitely. Drop Python references
+            # on every path; this does not promise physical RAM/GPU zeroization.
+            request = result = response = None
+
+
 def _worker_main(pipe, config, cancel, owner_handle):
     """All MLX imports and model ownership live in this child, never in ASGI."""
     owner_fd = owner_handle
@@ -394,15 +416,7 @@ def _worker_main(pipe, config, cancel, owner_handle):
         from .mlx_adapter import MLXAdapter
         adapter = MLXAdapter(config)
         pipe.send({'ready': True})
-        while True:
-            request = pipe.recv()
-            try:
-                result = adapter.generate(request, cancel)
-                pipe.send({'request_id': request['request_id'], **result})
-            except RuntimeFailure as exc:
-                pipe.send({'request_id': request['request_id'], 'error': exc.code})
-            except Exception:
-                pipe.send({'request_id': request['request_id'], 'error': 'MODEL_OUTPUT_INVALID'})
+        _worker_request_loop(pipe, adapter, cancel)
     except BaseException:
         try:
             pipe.send({'ready': False})
