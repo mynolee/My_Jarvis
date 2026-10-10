@@ -1,4 +1,4 @@
-import { configure, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { configure, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { Api, ApiError } from './api';
@@ -8,19 +8,19 @@ const conversation_id = '11111111-1111-4111-8111-111111111111';
 const run_id = '22222222-2222-4222-8222-222222222222';
 const ready = { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: true, status: 'READY' };
 class Source { onopen = null; onerror = null; addEventListener() {} close() {} }
-beforeEach(() => vi.stubGlobal('EventSource', Source));
+beforeEach(() => { vi.stubGlobal('EventSource', Source); vi.stubGlobal('fetch', vi.fn(async () => new Response('retry: 2000\n\n', { headers: { 'Content-Type': 'text/event-stream' } }))); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function fixture(initial: unknown = ready) {
   const state = { runtime: initial, status: '', result: null as string | null, reject_send: false, unknown_send: false, hold_send: null as Promise<void> | null, hold_cancel: null as Promise<void> | null, hold_status: null as Promise<void> | null, cancel_status: 'CANCELLED' };
   const calls: Array<{ path: string; body?: unknown }> = [];
   const api = new Api(); vi.spyOn(api, 'bootstrap_csrf').mockResolvedValue();
   vi.spyOn(api, 'request').mockImplementation(async <T,>(path: string, body?: unknown): Promise<T> => {
-    calls.push({ path, body }); let result: unknown = {};
+    calls.push({ path, body }); path = path.split('?')[0]; let result: unknown = {};
     if (path === '/me') result = {};
     else if (path === '/local-model/status') { if (state.hold_status) await state.hold_status; if (state.runtime instanceof Error) throw state.runtime; result = state.runtime; }
-    else if (path === '/conversations') result = { items: [{ id: conversation_id, title: 'Fixture', project_id: null, created_at: '2026-10-10T00:00:00Z' }] };
+    else if (path === '/conversations') result = { items: [{ id: conversation_id, title: 'Fixture', project_id: null, created_at: '2026-10-10T00:00:00Z' }], next_cursor: null };
     else if (path.endsWith('/local-inference')) { if (state.hold_send) await state.hold_send; if (state.unknown_send) throw new ApiError('UNKNOWN', true); if (state.reject_send) throw new ApiError('INFERENCE_CAPACITY_RESERVED', false, 429); state.status = 'QUEUED'; result = { run_id, status: state.status }; }
-    else if (path.endsWith('/messages')) result = { items: state.status ? [{ id: run_id, text: 'Question', role: 'user', run_id, created_at: '2026-10-10T00:00:00Z' }] : [] };
+    else if (path.endsWith('/messages')) result = { items: state.status ? [{ id: run_id, text: 'Question', role: 'USER', run_id, execution_mode: 'LOCAL_INFERENCE', created_at: '2026-10-10T00:00:00Z' }] : [], next_cursor: null, stream_cursor: null, current_run: state.status ? { id: run_id, status: state.status, version: 3, execution_mode: 'LOCAL_INFERENCE', result: state.result, approval_id: null, job_id: null } : null };
     else if (path === `/runs/${run_id}`) result = { id: run_id, status: state.status, version: 3, execution_mode: 'LOCAL_INFERENCE', result: state.result, approval_id: null, job_id: null };
     else if (path.endsWith('/cancel')) { if (state.hold_cancel) await state.hold_cancel; state.status = state.cancel_status; }
     else if (path === '/auth/logout') result = {};
@@ -29,7 +29,7 @@ function fixture(initial: unknown = ready) {
   });
   return { api, state, calls };
 }
-async function open(api: Api) { const view = render(<App api={api}/>); await screen.findByRole('heading', { name: 'Conversation' }); await waitFor(() => expect(screen.getByRole('status').textContent).not.toBe('UNKNOWN')); return view; }
+async function open(api: Api) { const view = render(<App api={api}/>); await screen.findByRole('heading', { name: 'Conversation' }); await waitFor(() => expect(within(screen.getByRole('region', { name: 'Local model runtime' })).getByRole('status').textContent).not.toBe('UNKNOWN')); return view; }
 function enter() { fireEvent.change(screen.getByLabelText('Message'), { target: { value: '한국어로 답해 주세요.' } }); }
 async function send() { enter(); fireEvent.click(screen.getByRole('button', { name: 'Send to local model' })); await screen.findByText('QUEUED'); }
 for (const status of ['DISABLED', 'UNAVAILABLE', 'LOADING']) it(`disables local sending for server ${status} without hiding the explicit mock boundary`, async () => {
@@ -69,3 +69,28 @@ it('shows an explicit input limit and accepts multibyte text within the code-poi
 it('blocks a stale ready snapshot even before the next polling render', async () => { const { api, calls } = fixture(); await open(api); enter(); const later = Date.now() + 10001; vi.spyOn(Date, 'now').mockReturnValue(later); fireEvent.click(screen.getByRole('button', { name: 'Send to local model' })); await screen.findByText('Runtime status is stale. Refresh server state before sending.'); expect(calls.filter(call => call.path.endsWith('/local-inference'))).toHaveLength(0); });
 
 it('pagehide during a local send discards late acknowledgment without claiming cancellation or replaying', async () => { const { api, state, calls } = fixture(); await open(api); let finish!: () => void; state.hold_send = new Promise(resolve => { finish = resolve; }); enter(); fireEvent.click(screen.getByRole('button', { name: 'Send to local model' })); fireEvent(window, new Event('pagehide')); finish(); await screen.findByRole('heading', { name: 'Owner sign in' }); await new Promise(resolve => setTimeout(resolve, 0)); expect(screen.queryByText('QUEUED')).toBeNull(); expect(screen.queryByText('CANCELLED')).toBeNull(); expect(calls.filter(call => call.path.endsWith('/local-inference'))).toHaveLength(1); expect(calls.filter(call => call.path.endsWith('/cancel'))).toHaveLength(0); });
+
+it('blocks conversation switching during a pending write and retains an uncertain outcome', async () => {
+  const { api, state, calls } = fixture();
+  const original = vi.mocked(api.request).getMockImplementation()!;
+  vi.spyOn(api, 'request').mockImplementation(async <T,>(path: string, body?: unknown): Promise<T> => {
+    const result = await original(path, body);
+    if (path.split('?')[0] === '/conversations' && body === undefined) return {
+      ...(result as object), items: [
+        { id: conversation_id, title: 'Fixture', project_id: null, created_at: '2026-10-10T00:00:00Z' },
+        { id: '44444444-4444-4444-8444-444444444444', title: 'Other conversation', project_id: null, created_at: '2026-10-09T00:00:00Z' }
+      ]
+    } as T;
+    return result as T;
+  });
+  await open(api);
+  let finish!: () => void;
+  state.hold_send = new Promise(resolve => { finish = resolve; }); state.unknown_send = true;
+  enter(); fireEvent.click(screen.getByRole('button', { name: 'Send to local model' }));
+  const other = await screen.findByRole('button', { name: 'Other conversation' });
+  expect((other as HTMLButtonElement).disabled).toBe(true); fireEvent.click(other);
+  expect(calls.some(call => call.path.includes('44444444-4444-4444-8444-444444444444'))).toBe(false);
+  finish(); await screen.findByText('Writes paused');
+  expect((screen.getByRole('button', { name: 'Send to local model' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(calls.filter(call => call.path.endsWith('/local-inference'))).toHaveLength(1);
+});

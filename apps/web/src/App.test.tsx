@@ -5,21 +5,21 @@ import { Api, ApiError } from './api';
 configure({ asyncUtilTimeout: 5000 });
 const conversation_id = '11111111-1111-4111-8111-111111111111', run_id = '22222222-2222-4222-8222-222222222222', approval_id = '33333333-3333-4333-8333-333333333333';
 class FakeSource { static instances: FakeSource[] = []; closed = false; onopen = null; onerror = null; constructor() { FakeSource.instances.push(this); } addEventListener() {} close() { this.closed = true; } }
-beforeEach(() => { FakeSource.instances = []; vi.stubGlobal('EventSource', FakeSource); });
+beforeEach(() => { FakeSource.instances = []; vi.stubGlobal('EventSource', FakeSource); vi.stubGlobal('fetch', vi.fn(async () => new Response('retry: 2000\n\n', { headers: { 'Content-Type': 'text/event-stream' } }))); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function fixture() {
   let authenticated = false, sent = false, state = 'WAITING_APPROVAL';
   const api = new Api(); const calls: Array<{ path: string; body?: unknown }> = [];
   vi.spyOn(api, 'bootstrap_csrf').mockResolvedValue(undefined);
   vi.spyOn(api, 'request').mockImplementation(async <T,>(path: string, body?: unknown): Promise<T> => {
-    calls.push({ path, body }); let result: unknown = {};
+    calls.push({ path, body }); path = path.split('?')[0]; let result: unknown = {};
     if (path === '/auth/login') { authenticated = true; result = { csrf_token: 'fixture-token' }; }
     else if (path === '/local-model/status') result = { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', ready: false, status: 'DISABLED' };
     else if (path === '/auth/logout') { authenticated = false; }
     else if (path === '/me') { if (!authenticated) throw new ApiError('UNAUTHENTICATED', false, 401); }
     else if (path === '/conversations' && body) result = { id: conversation_id, title: 'Mock', project_id: null, created_at: '2026-10-09T00:00:00Z' };
-    else if (path === '/conversations') result = { items: [{ id: conversation_id, title: 'Mock', project_id: null, created_at: '2026-10-09T00:00:00Z' }] };
-    else if (path.endsWith('/messages')) { if (body) { sent = true; result = { run_id, status: state }; } else result = { items: sent ? [{ id: run_id, text: '<img src="https://example.invalid/steal">', role: 'user', run_id, created_at: '2026-10-09T00:00:00Z' }] : [] }; }
+    else if (path === '/conversations') result = { items: [{ id: conversation_id, title: 'Mock', project_id: null, created_at: '2026-10-09T00:00:00Z' }], next_cursor: null };
+    else if (path.endsWith('/messages')) { if (body) { sent = true; result = { run_id, status: state }; } else result = { items: sent ? [{ id: run_id, text: '<img src="https://example.invalid/steal">', role: 'USER', run_id, execution_mode: 'MOCK', created_at: '2026-10-09T00:00:00Z' }] : [], next_cursor: null, stream_cursor: null, current_run: sent ? { id: run_id, status: state, version: 1, execution_mode: 'MOCK', result: state === 'SUCCEEDED' ? 'MOCK verified synthetic result' : null, approval_id, job_id: null } : null }; }
     else if (path === `/runs/${run_id}`) result = { id: run_id, status: state, version: 1, result: state === 'SUCCEEDED' ? 'MOCK verified synthetic result' : null, approval_id, job_id: null };
     else if (path.endsWith('/decision')) { state = (body as {decision:string}).decision === 'APPROVE' ? 'SUCCEEDED' : 'CANCELLED'; }
     else if (path.endsWith('/cancel')) { state = 'CANCELLED'; }
