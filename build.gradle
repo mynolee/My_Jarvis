@@ -1,3 +1,17 @@
+// Keep the Spring Boot plugin's transitive Lang dependency outside CVE-2025-48924.
+// Configure the child buildscript before its plugins are resolved.
+project(':apps:core') {
+    buildscript {
+        dependencies {
+            constraints {
+                classpath('org.apache.commons:commons-lang3:3.20.0') {
+                    because 'Avoid CVE-2025-48924 in the Spring Boot plugin dependency graph'
+                }
+            }
+        }
+    }
+}
+
 allprojects {
     group = 'io.myjarvis'
     version = '0.1.0-SNAPSHOT'
@@ -6,6 +20,7 @@ allprojects {
 
 // Explicit review-only bootstrap. Ordinary verification never regenerates locks.
 tasks.register('resolveDependencyGraph') {
+    dependsOn ':apps:core:buildEnvironment'
     doLast {
         allprojects.each { project ->
             project.configurations.findAll { it.canBeResolved }.each { it.resolve() }
