@@ -5,15 +5,14 @@ import stat
 import ssl
 from pathlib import Path
 
-import uvicorn
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from .app import Settings, create_app
-from .local_runtime import LocalConfig
-from .tls import MutualTLSProtocol
+from .restore_guard import check_restore_launch, RestoreBlocked
 
 
 def main():
+    try:
+        check_restore_launch(os.environ)
+    except RestoreBlocked:
+        raise SystemExit('RESTORE_LAUNCH_BLOCKED') from None
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-loopback-mock-without-mtls", action="store_true")
     parser.add_argument("--core-public-key", type=Path, required=True)
@@ -27,6 +26,17 @@ def main():
     parser.add_argument("--tls-ca", type=Path)
     parser.add_argument("--core-cert-sha256")
     args = parser.parse_args()
+    try:
+        check_restore_launch(os.environ, ledger=args.ledger)
+    except RestoreBlocked:
+        raise SystemExit('RESTORE_LAUNCH_BLOCKED') from None
+    # Only admitted ordinary launches can import runtime, crypto or ASGI modules.
+    import uvicorn
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from .app import Settings, create_app
+    from .local_runtime import LocalConfig
+    from .tls import MutualTLSProtocol
     if args.local_config:
         if args.allow_loopback_mock_without_mtls or not all((args.tls_cert, args.tls_key, args.tls_ca, args.core_cert_sha256)):
             parser.error("local inference requires mTLS certificate, key, CA and Core certificate fingerprint")
@@ -45,7 +55,7 @@ def main():
     if not isinstance(key, Ed25519PublicKey):
         parser.error("Core public key must be Ed25519")
     local = LocalConfig.from_file(args.local_config) if args.local_config else None
-    app = create_app(Settings(args.ledger.resolve(), cache_key, {args.core_key_id: key},
+    app = create_app(Settings(args.ledger.absolute(), cache_key, {args.core_key_id: key},
                               allow_loopback_mock_without_mtls=local is None,
                               core_certificate_fingerprints=frozenset([args.core_cert_sha256]) if local else frozenset(),
                               mode="local_mlx" if local else "mock", local_config=local))
