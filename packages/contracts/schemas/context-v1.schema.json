@@ -1,0 +1,577 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/context-v1.schema.json",
+  "$comment": "Data-only internal context shape, not proof of source provenance, ownership, freshness or authorization. Reference semantic and byte-bound validation is in tests/context_reference.py; production Core/Python must enforce equivalent checks.",
+  "type": "object",
+  "properties": {
+    "context": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "revision": {
+          "const": 1
+        },
+        "conversation_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "context_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "history_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "profile_version": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "conversation_id",
+        "context_epoch",
+        "history_epoch",
+        "profile_version"
+      ],
+      "additionalProperties": false
+    },
+    "project_context": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "memories": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "scope": {
+            "enum": [
+              "GLOBAL",
+              "PROJECT"
+            ]
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "PROFILE",
+              "PREFERENCE"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{0,95}$(?![\\s\\S])"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "not": {
+              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+            },
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+            "description": "Exact Unicode scalar text, nonblank, no NUL. Runtime UTF-8 bound: 8000 bytes. No normalization."
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+            "description": "Server UTC timestamp; valid calendar date, years 0001..9999, at most six fractional digits."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+            "description": "Server UTC timestamp; valid calendar date, years 0001..9999, at most six fractional digits."
+          }
+        },
+        "required": [
+          "source_id",
+          "id",
+          "version",
+          "generation",
+          "scope",
+          "project_id",
+          "kind",
+          "key",
+          "value",
+          "confirmed_at",
+          "updated_at"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "scope": {
+                  "const": "GLOBAL"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "project_id": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "history": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/contextHistoryMessage"
+      },
+      "prefixItems": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contextHistoryMessage"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "ASSISTANT"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "not": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        },
+        {
+          "not": {
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        {
+          "not": {
+            "minItems": 5,
+            "maxItems": 5
+          }
+        },
+        {
+          "not": {
+            "minItems": 7,
+            "maxItems": 7
+          }
+        },
+        {
+          "not": {
+            "minItems": 9,
+            "maxItems": 9
+          }
+        },
+        {
+          "not": {
+            "minItems": 11,
+            "maxItems": 11
+          }
+        },
+        {
+          "not": {
+            "minItems": 13,
+            "maxItems": 13
+          }
+        },
+        {
+          "not": {
+            "minItems": 15,
+            "maxItems": 15
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "context",
+    "project_context",
+    "memories",
+    "history"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "contextHistoryMessage": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "run_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "role": {
+          "enum": [
+            "USER",
+            "ASSISTANT"
+          ]
+        },
+        "trust": {
+          "enum": [
+            "USER_DIRECT",
+            "MODEL_PROPOSAL"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16000,
+          "not": {
+            "pattern": "[\\u0000\\uD800-\\uDFFF]"
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+          "description": "Server UTC timestamp; valid calendar date, years 0001..9999, at most six fractional digits."
+        }
+      },
+      "required": [
+        "source_id",
+        "id",
+        "run_id",
+        "role",
+        "trust",
+        "text",
+        "created_at"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "const": "USER"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "trust": {
+                "const": "USER_DIRECT"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "trust": {
+                "const": "MODEL_PROPOSAL"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
