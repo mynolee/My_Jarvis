@@ -1,0 +1,8 @@
+{
+  "verified_at": "2026-10-09",
+  "java": {"version": "21.0.12.1+1", "vendor": "Eclipse Temurin", "source": "https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=linux", "linux_x64_tar_sha256": "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"},
+  "gradle": {"version": "8.14.6", "source": "https://gradle.org/release-checksums/", "distribution_sha256": "7988ed071b2a07900e2ec715fca15c6ab72bce6db433af301fa7fa7e9407bd24", "wrapper_sha256": "ad16bca46cb71bb5887c546860d93992aeee35c1fdaf4a242b0a612375d937e0"},
+  "spring_boot": {"version": "4.1.1", "source": "https://docs.spring.io/spring-boot/system-requirements.html", "java_21_supported": true},
+  "uv": {"version": "0.12.23", "source": "https://github.com/astral-sh/uv/releases"},
+  "notes": "Version and checksum verification establishes identity and compatibility, not a clean vulnerability audit. Application lockfiles and independent scan evidence remain required."
+}
