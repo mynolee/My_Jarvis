@@ -96,7 +96,7 @@ class OwnerProfileServiceTest {
     @Test void integratedGetMeUsesPersistedProfileAndStrictQuery() throws Exception{
         patch(1,"timezone","Asia/Seoul");
         var http=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(context.getBean(ApiController.class),context.getBean(OwnerProfileController.class)).setControllerAdvice(new ApiErrors()).addFilters(context.getBean(WebSecurity.class)).build();
-        var cookie=new jakarta.servlet.http.Cookie(WebSecurity.COOKIE,token);var response=http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/me").cookie(cookie)).andReturn().getResponse();assertEquals(200,response.getStatus());var data=Json.parse(response.getContentAsByteArray()).get("data");assertEquals("Asia/Seoul",data.get("timezone").asText());assertEquals(2,data.get("version").asLong());assertEquals("UTC",data.get("profile_effects").get("inference_timezone").asText());
+        var cookie=new jakarta.servlet.http.Cookie(WebSecurity.COOKIE,token);var response=http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/me").cookie(cookie)).andReturn().getResponse();assertEquals(200,response.getStatus());var data=Json.parse(response.getContentAsByteArray()).get("data");assertEquals("Asia/Seoul",data.get("timezone").asText());assertEquals(2,data.get("version").asLong());assertEquals("Asia/Seoul",data.get("profile_effects").get("inference_timezone").asText());
         assertEquals(400,http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/me?scope=GLOBAL").cookie(cookie)).andReturn().getResponse().getStatus());assertEquals(1,count("owner_profile_mutations"));
     }
 
