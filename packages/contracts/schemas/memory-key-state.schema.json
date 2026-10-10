@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/memory-key-state.schema.json",
+  "$comment": "Wire-shape validation only. Ownership, recent database reauthentication, server session/epoch, payload binding, single-use approval, expiry and transaction atomicity require server enforcement. Parse with strict integer-only JSON and cap canonical request bodies at 16384 bytes before accepting.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "ABSENT"
+        },
+        "generation": {
+          "const": 0,
+          "type": "integer"
+        },
+        "memory_id": {
+          "type": "null"
+        },
+        "version": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "generation",
+        "memory_id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "ACTIVE"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "memory_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "status",
+        "generation",
+        "memory_id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "DELETED"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "memory_id": {
+          "type": "null"
+        },
+        "version": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "generation",
+        "memory_id",
+        "version"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
