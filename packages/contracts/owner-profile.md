@@ -32,7 +32,7 @@ time. These are product defaults, not inferred personal preferences.
 Portable schema checks cover closed object shapes, nullability, exact locales,
 safe integer bounds, Unicode scalar/control/nonblank/codepoint constraints,
 syntactic timezone candidates, content-free receipt status variants, sorted
-nonempty submitted-field combinations, and fixed effect flags. Consumers must
+nonempty submitted-field combinations, and fixed boolean effect flags. The inference timezone must equal the saved timezone; consumers enforce this sibling-field equality semantically. Consumers must
 activate `uuid` and `date-time` format assertions and validate actual dates.
 UTC timestamps use `Z`, years 0001..9999 and at most six fractional digits.
 
@@ -77,9 +77,18 @@ is 403 `MUTATION_SESSION_CHANGED`; an unsupported timezone is 400
 `INVALID_TIMEZONE`. Runtime tests, not these schemas, establish those errors and
 ordering guarantees.
 
-The saved timezone affects only the settings timestamp preview in this slice.
-The effect flags explicitly retain false for UI translation, chat
-personalization and scheduling, and `UTC` for inference timezone. No task
+The saved timezone affects the settings timestamp preview and contextual local-model
+requests when the runtime is ready. `profile_effects.inference_timezone` equals
+the enclosing `timezone` exactly, including aliases. The other effect flags retain
+false for UI translation, display-name/locale chat personalization, and scheduling.
+Explicit memories and newer, causally ordered history are eligible context data;
+that does not promise correct model use or establish native answer quality.
+No memory is automatically written from a chat. Pre-context history with unknown
+causal order stays visible in the transcript but is excluded from model context.
+Settings and memory edits conservatively invalidate active context without
+changing the security epoch. Late output is discarded and may be UNKNOWN;
+computation can continue until cancellation is observed, so no immediate stop
+is promised. No task
 instants are rewritten, local wall times created, schedules moved or permissions
 changed. A preview formats a known server UTC instant and shows the selected ID
 and numeric offset, including across DST. Unsupported browser formatting must
@@ -90,8 +99,7 @@ live clock.
 ## Tests
 
 Run `.venv/bin/python -m unittest discover -s tests -v` from this package.
-`tests/test_owner_profile_contracts.py` adds 12 independent wire regressions to
-the 54 existing tests. Fixtures cover defaults, partial writes, explicit clear,
+`tests/test_owner_profile_contracts.py` adds independent wire regressions alongside the existing contracts. Fixtures cover defaults, partial writes, explicit clear,
 first success, current-profile replay with a newer version, both receipt states,
 options, empty query, headers and path. Runtime concurrency, encryption, audit
 rollback, session races, authoritative TZDB membership, inference regression and

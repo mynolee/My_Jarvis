@@ -41,7 +41,7 @@
         "settings_time_preview": true,
         "ui_translation": false,
         "chat_personalization": false,
-        "inference_timezone": "UTC",
+        "inference_timezone": "Etc/UTC",
         "scheduling": false
       }
     },
@@ -138,7 +138,7 @@
           "settings_time_preview": true,
           "ui_translation": false,
           "chat_personalization": false,
-          "inference_timezone": "UTC",
+          "inference_timezone": "Etc/UTC",
           "scheduling": false
         }
       },
@@ -174,7 +174,7 @@
           "settings_time_preview": true,
           "ui_translation": false,
           "chat_personalization": false,
-          "inference_timezone": "UTC",
+          "inference_timezone": "Etc/UTC",
           "scheduling": false
         }
       },

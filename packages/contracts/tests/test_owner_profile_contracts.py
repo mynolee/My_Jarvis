@@ -32,6 +32,11 @@ def strict_patch(validator, body):
     return encoded
 
 
+def profile_effects_match(body):
+    profile = body.get('profile', body)
+    return profile['profile_effects']['inference_timezone'] == profile['timezone']
+
+
 class OwnerProfileContractsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -51,6 +56,8 @@ class OwnerProfileContractsTest(unittest.TestCase):
         for case in self.cases:
             with self.subTest(case=case['name']):
                 self.assertEqual(self.validators[case['schema']].is_valid(case['instance']), case['valid'])
+                if case['valid'] and case['schema'] in ['owner-profile', 'owner-profile-patch-result']:
+                    self.assertTrue(profile_effects_match(case['instance']))
 
     def test_closed_objects_recursively(self):
         def walk(value):
@@ -132,9 +139,28 @@ class OwnerProfileContractsTest(unittest.TestCase):
         for field,value in self.samples['default-profile']['profile_effects'].items():
             body = copy.deepcopy(self.samples['default-profile'])
             body['profile_effects'][field] = 'Europe/Paris' if isinstance(value,str) else not value
-            self.assertFalse(v.is_valid(body),field)
+            if field == 'inference_timezone':
+                self.assertTrue(v.is_valid(body))  # Shape permits a supported-looking zone.
+                self.assertFalse(profile_effects_match(body))  # Equality is semantic.
+            else:
+                self.assertFalse(v.is_valid(body),field)
         for field in ['security_epoch','password_hash','profile_ref']:
             self.assertFalse(v.is_valid({**self.samples['default-profile'],field:'forbidden'}))
+
+
+    def test_saved_zone_and_inference_effect_agree_in_full_and_patch_profiles(self):
+        for timezone in ['Asia/Seoul', 'Etc/UTC', 'America/New_York']:
+            body = copy.deepcopy(self.samples['default-profile'])
+            body['timezone'] = timezone
+            body['profile_effects']['inference_timezone'] = timezone
+            self.validator().validate(body)
+            self.assertTrue(profile_effects_match(body))
+            for invalid in ['UTC+09:00', 'CST', 'Asia/Seoul\n', 'SystemV/EST5']:
+                changed = copy.deepcopy(body)
+                changed['profile_effects']['inference_timezone'] = invalid
+                self.assertFalse(self.validator().is_valid(changed))
+            body['profile_effects']['inference_timezone'] = 'UTC'
+            self.assertFalse(profile_effects_match(body))
 
     def test_receipts_are_content_free_and_status_disjoint(self):
         v = self.validator('-mutation-receipt')

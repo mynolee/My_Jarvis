@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://my-jarvis.invalid/contracts/owner-profile-options.schema.json",
-  "$comment": "Wire shape only. Server must enforce authenticated owner/live session and epoch, Origin/CSRF, exact Java TZDB membership, strict integer-only JSON, duplicate-key/header/query rejection, canonical request cap 4096 bytes, transactional versioning and session-bound HMAC idempotency. No scheduling, translation or inference personalization is enabled.",
+  "$comment": "Wire shape only. Server must enforce authenticated owner/live session and epoch, Origin/CSRF, exact Java TZDB membership, strict integer-only JSON, duplicate-key/header/query rejection, canonical request cap 4096 bytes, transactional versioning and session-bound HMAC idempotency. Saved timezone is eligible for contextual local inference; no scheduling, UI translation or display-name/locale chat personalization is enabled. Native answer quality is unverified.",
   "type": "object",
   "properties": {
     "locales": {
