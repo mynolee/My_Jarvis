@@ -1,0 +1,64 @@
+{
+  "request_id": "10000000-0000-4000-8000-000000000001",
+  "run_id": "10000000-0000-4000-8000-000000000001",
+  "user_input": "Synthetic example",
+  "current_time": "2030-01-01T00:00:00Z",
+  "timezone": "UTC",
+  "project_context": null,
+  "memories": [
+    {
+      "source_id": "00000000-0000-4000-8000-000000000020",
+      "id": "00000000-0000-4000-8000-000000000021",
+      "version": 1,
+      "generation": 1,
+      "scope": "GLOBAL",
+      "project_id": null,
+      "kind": "PREFERENCE",
+      "key": "color",
+      "value": "blue",
+      "confirmed_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "evidence": [],
+  "tool_results": [],
+  "allowed_tool_ids": [],
+  "budget": {
+    "reservation_id": "10000000-0000-4000-8000-000000000001",
+    "max_compute_ms": 60000,
+    "max_input_tokens": 4096,
+    "max_output_tokens": 512,
+    "max_model_calls": 1
+  },
+  "model_id": "local-mlx-v1",
+  "model_manifest_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "prompt_revision": "local-v1",
+  "context": {
+    "id": "00000000-0000-4000-8000-000000000010",
+    "revision": 1,
+    "conversation_id": "00000000-0000-4000-8000-000000000011",
+    "context_epoch": 1,
+    "history_epoch": 1,
+    "profile_version": null
+  },
+  "history": [
+    {
+      "source_id": "00000000-0000-4000-8000-000000000030",
+      "id": "00000000-0000-4000-8000-000000000040",
+      "run_id": "00000000-0000-4000-8000-000000000050",
+      "role": "USER",
+      "trust": "USER_DIRECT",
+      "text": "Blue or green?",
+      "created_at": "2026-01-01T00:00:00Z"
+    },
+    {
+      "source_id": "00000000-0000-4000-8000-000000000031",
+      "id": "00000000-0000-4000-8000-000000000041",
+      "run_id": "00000000-0000-4000-8000-000000000050",
+      "role": "ASSISTANT",
+      "trust": "MODEL_PROPOSAL",
+      "text": "Blue.",
+      "created_at": "2026-01-01T00:00:01Z"
+    }
+  ]
+}

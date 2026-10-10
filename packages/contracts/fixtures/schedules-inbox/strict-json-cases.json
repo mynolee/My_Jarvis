@@ -1,0 +1,34 @@
+[
+  {
+    "name": "duplicate-key",
+    "raw": "{\"expected_version\":1,\"expected_version\":2}"
+  },
+  {
+    "name": "float",
+    "raw": "{\"expected_version\":1.0}"
+  },
+  {
+    "name": "exponent",
+    "raw": "{\"expected_version\":1e0}"
+  },
+  {
+    "name": "unsafe",
+    "raw": "{\"expected_version\":9007199254740992}"
+  },
+  {
+    "name": "nan",
+    "raw": "{\"expected_version\":NaN}"
+  },
+  {
+    "name": "infinity",
+    "raw": "{\"expected_version\":Infinity}"
+  },
+  {
+    "name": "surrogate",
+    "raw": "{\"text\":\"\\ud800\"}"
+  },
+  {
+    "name": "nested-duplicate",
+    "raw": "{\"definition\":{\"text\":\"a\",\"text\":\"b\"}}"
+  }
+]
