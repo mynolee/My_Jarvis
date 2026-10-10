@@ -105,6 +105,9 @@ def _validate_output(output, turn, *, measured=None):
             usage[key] = value
         if usage["input_tokens"] + 512 > 4096 or usage["input_tokens"] > turn.budget.max_input_tokens or usage["output_tokens"] > min(512, turn.budget.max_output_tokens):
             raise ContractViolation("measured budget exceeded")
+    if getattr(turn, 'context', None) is not None:
+        if output.get('kind') not in {'ANSWER', 'NEED_INPUT', 'ERROR'} or output.get('cited_source_ids', []) != []:
+            raise ContractViolation('context output authority exceeded')
     complete = {**output, "usage": usage}
     validate("turn-response", complete)
     if complete["kind"] == "TOOL_PROPOSALS":
@@ -191,7 +194,7 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
         if duration <= 0:
             return reject(401, "INVALID_CAPABILITY")
         try:
-            replay = ledger.begin(claims, clock(), duration)
+            replay = ledger.begin(claims, clock(), duration, cache_response=turn.context is None)
         except ReplayConflict:
             return reject(409, "REPLAY_CONFLICT")
         except LedgerFull:
@@ -237,21 +240,21 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
             else:
                 # After generation starts, uncertain usage keeps the durable
                 # reservation conservative, rather than returning invented zeros.
-                ledger.unknown(claims)
+                ledger.unknown(claims, cache_response=turn.context is None)
                 return reject(409, exc.code if exc.code in {"GENERATION_TIMEOUT", "CANCELLED", "MODEL_OUTPUT_INVALID"} else "INFERENCE_UNKNOWN")
         except (ContractViolation, ValidationError, ValueError, TypeError):
             if local is not None:
-                ledger.unknown(claims)
+                ledger.unknown(claims, cache_response=turn.context is None)
                 return reject(409, "MODEL_OUTPUT_INVALID")
             response = _error(turn, "CONTRACT_VIOLATION")
         except (TimeoutError, asyncio.CancelledError):
-            ledger.unknown(claims)
+            ledger.unknown(claims, cache_response=turn.context is None)
             return reject(409, "INFERENCE_UNKNOWN")
         except Exception:
-            ledger.unknown(claims)
+            ledger.unknown(claims, cache_response=turn.context is None)
             return reject(503, "INFERENCE_UNKNOWN")
         try:
-            ledger.complete(claims, response, clock())
+            ledger.complete(claims, response, clock(), cache_response=turn.context is None)
         except (sqlite3.Error, ReplayConflict, ValueError):
             return reject(503, "INFERENCE_UNKNOWN")
         return JSONResponse(response, headers={"Cache-Control": "no-store"})

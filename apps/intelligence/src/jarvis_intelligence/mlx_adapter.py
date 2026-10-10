@@ -64,23 +64,53 @@ class MLXAdapter:
         self.stream = stream_generate
 
     def generate(self, request, cancel):
-        messages = [{'role': 'system', 'content': self.system + '\n' + canonical(output_schema(request['allowed_tool_ids'])).decode() + '\n' + canonical({'current_time': request['current_time'], 'timezone': request['timezone']}).decode()},
-                    {'role': 'user', 'content': request['user_input']}]
-        prompt = self.render(self.processor, self.config, messages,
-                             add_generation_prompt=True, tokenize=False, enable_thinking=False)
-        if not isinstance(prompt, str):
-            raise RuntimeFailure('MODEL_UNAVAILABLE')
-        inputs = self.prepare(self.processor, prompts=prompt, images=None, audio=None, videos=None,
-                              image_token_index=getattr(self.model.config, 'image_token_index', None),
-                              add_special_tokens=self.special(self.model.config.model_type, self.processor))
-        input_ids = inputs['input_ids']
-        count = admit(input_ids, request['max_input_tokens'], request['max_output_tokens'])
-        if cancel.is_set():
-            raise RuntimeFailure('CANCELLED')
+        start = time.monotonic()
+        deadline = min(start + 60, request.get('deadline_monotonic', start + 60))
+
+        def checkpoint():
+            if cancel.is_set():
+                raise RuntimeFailure('CANCELLED')
+            if time.monotonic() >= deadline:
+                raise RuntimeFailure('GENERATION_TIMEOUT')
+
+        memories = list(request.get('memories', []))
+        history = list(request.get('history', []))
+        # At most 28 removals; final candidate still uses the actual preparation path.
+        for attempt in range(29):
+            checkpoint()
+            messages = [{'role': 'system', 'content': self.system + '\n' + canonical(output_schema(request['allowed_tool_ids'])).decode() + '\n' + canonical({'current_time': request['current_time'], 'timezone': request['timezone']}).decode()}]
+            if request.get('context') is not None:
+                data = {key: request[key] for key in ('context', 'project_context', 'evidence', 'tool_results')}
+                data.update(memories=memories, history=[{key: value for key, value in item.items() if key != 'text'} for item in history])
+                messages.append({'role': 'user', 'content': canonical(data).decode()})
+                messages.extend({'role': item['role'].lower(), 'content': item['text']} for item in history)
+            messages.append({'role': 'user', 'content': request['user_input']})
+            prompt = self.render(self.processor, self.config, messages,
+                                 add_generation_prompt=True, tokenize=False, enable_thinking=False)
+            checkpoint()
+            if not isinstance(prompt, str):
+                raise RuntimeFailure('MODEL_UNAVAILABLE')
+            inputs = self.prepare(self.processor, prompts=prompt, images=None, audio=None, videos=None,
+                                  image_token_index=getattr(self.model.config, 'image_token_index', None),
+                                  add_special_tokens=self.special(self.model.config.model_type, self.processor))
+            checkpoint()
+            input_ids = inputs['input_ids']
+            try:
+                count = admit(input_ids, request['max_input_tokens'], request['max_output_tokens'])
+                break
+            except RuntimeFailure:
+                if request.get('context') is None or attempt == 28:
+                    raise
+                if memories:
+                    memories.pop()
+                elif history:
+                    del history[:2]
+                else:
+                    raise
+        checkpoint()
         # Pass the SAME tensors that were admitted. No second tokenizer path.
         kwargs = {k: v for k, v in inputs.items() if k not in ('input_ids', 'attention_mask', 'pixel_values')}
         self.mx.reset_peak_memory()
-        start = time.monotonic()
         stream = self.stream(self.model, self.processor, prompt, input_ids=input_ids,
                              mask=inputs.get('attention_mask'), pixel_values=inputs.get('pixel_values'),
                              max_tokens=request['max_output_tokens'], temperature=0.0, **kwargs)
@@ -89,8 +119,7 @@ class MLXAdapter:
             for result in stream:
                 if cancel.is_set():
                     raise RuntimeFailure('CANCELLED')
-                if time.monotonic() - start > 60:
-                    raise RuntimeFailure('GENERATION_TIMEOUT')
+                checkpoint()
                 # generation_tokens includes hidden/control tokens and EOS.
                 output_tokens = int(result.generation_tokens)
                 if output_tokens > request['max_output_tokens']:

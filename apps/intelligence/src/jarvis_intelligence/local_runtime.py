@@ -319,12 +319,21 @@ class LocalRuntime:
                 raise RuntimeFailure('MODEL_UNAVAILABLE')
             self._active = turn.request_id
             self._cancel.clear()
-            self._pipe.send({'request_id': turn.request_id, 'user_input': turn.user_input,
-                             'allowed_tool_ids': list(turn.allowed_tool_ids),
-                             'current_time': turn.current_time, 'timezone': turn.timezone,
-                             'max_input_tokens': turn.budget.max_input_tokens,
-                             'max_output_tokens': turn.budget.max_output_tokens})
             duration = min(60, turn.budget.max_compute_ms / 1000, deadline_epoch - time.time())
+            if duration <= 0:
+                raise RuntimeFailure('GENERATION_TIMEOUT')
+            worker_request = {'request_id': turn.request_id, 'user_input': turn.user_input,
+                              'allowed_tool_ids': list(turn.allowed_tool_ids),
+                              'current_time': turn.current_time, 'timezone': turn.timezone,
+                              'max_input_tokens': turn.budget.max_input_tokens,
+                              'max_output_tokens': turn.budget.max_output_tokens,
+                              'deadline_monotonic': time.monotonic() + duration}
+            if getattr(turn, 'context', None) is not None:
+                wire = turn.model_dump(mode='json', exclude_unset=True)
+                worker_request.update({key: wire[key] for key in
+                                       ('context', 'project_context', 'memories', 'history',
+                                        'evidence', 'tool_results')})
+            self._pipe.send(worker_request)
             try:
                 message = await self._receive(time.monotonic() + max(0, duration))
             except (EOFError, OSError):

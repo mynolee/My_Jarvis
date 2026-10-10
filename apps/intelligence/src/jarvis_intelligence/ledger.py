@@ -9,6 +9,7 @@ Restoring stale storage cannot restore the latest replay/nonce authority safely.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -62,11 +63,13 @@ class Ledger:
                     salt = domain[0]
                 key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt,
                            info=b"jarvis-inference-response-cache/v1\x00" + os.fsencode(path.resolve())).derive(cache_key)
+                self.binding_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt,
+                                        info=b"jarvis-context-binding/v1\x00" + os.fsencode(path.resolve())).derive(cache_key)
                 self.aes = AESGCM(key)
                 self.key_id = hashlib.sha256(b"jarvis-response-cache-key\x00" + key).hexdigest()
                 columns = {row[1] for row in db.execute("PRAGMA table_info(replay)")}
                 for name, declaration in (("cache_key_id", "TEXT"), ("aad_version", "INTEGER NOT NULL DEFAULT 0"),
-                                          ("account_id", "TEXT")):
+                                          ("account_id", "TEXT"), ("cache_response", "INTEGER NOT NULL DEFAULT 1")):
                     if name not in columns:
                         db.execute(f"ALTER TABLE replay ADD COLUMN {name} {declaration}")
                 db.execute("""CREATE TABLE IF NOT EXISTS cache_key_usage (
@@ -107,15 +110,23 @@ class Ledger:
         return canonical({**identity, "account_id": claims.get("account_id"),
                           "purpose": "jarvis-inference-response-cache", "format_version": version})
 
-    def begin(self, claims, now, duration):
+    def _bound_claims(self, claims, cache_response):
+        if cache_response:
+            return claims
+        return {**claims, 'body_hash': hmac.new(self.binding_key, claims['body_hash'].encode('ascii'), hashlib.sha256).hexdigest()}
+
+    def begin(self, claims, now, duration, *, cache_response=True):
+        claims = self._bound_claims(claims, cache_response)
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             try:
-                row = db.execute("SELECT owner_id,reservation_id,run_id,body_hash,state,cache_until,nonce,response,account_id,cache_key_id,aad_version FROM replay WHERE request_id=?", (claims["request_id"],)).fetchone()
+                row = db.execute("SELECT owner_id,reservation_id,run_id,body_hash,state,cache_until,nonce,response,account_id,cache_key_id,aad_version,cache_response FROM replay WHERE request_id=?", (claims["request_id"],)).fetchone()
                 if row:
                     if tuple(row[:4]) != tuple(claims[k] for k in ("owner_id", "reservation_id", "run_id", "body_hash")) or row[8] != claims.get("account_id"):
                         raise ReplayConflict("request identity changed")
-                    if row[4] == "COMPLETED" and row[5] > now and row[7] is not None:
+                    if bool(row[11]) != cache_response:
+                        raise ReplayConflict("cache policy changed")
+                    if row[4] == "COMPLETED" and row[5] is not None and row[5] > now and row[7] is not None and cache_response:
                         if row[9] != self.key_id:
                             raise ReplayConflict("cache key mismatch")
                         result = parse_json(self.aes.decrypt(row[6], row[7], self._aad(claims, row[10])))
@@ -134,8 +145,8 @@ class Ledger:
                 active = db.execute("SELECT COUNT(*) FROM replay WHERE state='STARTED'").fetchone()[0]
                 if total >= self.max_rows or active >= self.max_concurrency:
                     raise LedgerFull("ledger capacity exceeded")
-                db.execute("INSERT INTO replay(owner_id,request_id,reservation_id,run_id,body_hash,state,deadline,account_id) VALUES (?,?,?,?,?,'STARTED',?,?)",
-                           tuple(claims[k] for k in ("owner_id", "request_id", "reservation_id", "run_id", "body_hash")) + (now + duration, claims.get("account_id")))
+                db.execute("INSERT INTO replay(owner_id,request_id,reservation_id,run_id,body_hash,state,deadline,account_id,cache_response) VALUES (?,?,?,?,?,'STARTED',?,?,?)",
+                           tuple(claims[k] for k in ("owner_id", "request_id", "reservation_id", "run_id", "body_hash")) + (now + duration, claims.get("account_id"), int(cache_response)))
                 db.commit()
                 return None
             except BaseException:
@@ -153,7 +164,7 @@ class Ledger:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             try:
-                if not db.execute("SELECT 1 FROM replay WHERE request_id=? AND owner_id=? AND reservation_id=? AND run_id=? AND body_hash=? AND account_id IS ? AND state='STARTED' AND deadline>?",
+                if not db.execute("SELECT 1 FROM replay WHERE request_id=? AND owner_id=? AND reservation_id=? AND run_id=? AND body_hash=? AND account_id IS ? AND state='STARTED' AND deadline>? AND cache_response=1",
                                   self._identity(claims) + (now,)).fetchone():
                     raise ReplayConflict("inference result uncertain")
                 used = db.execute("SELECT used FROM cache_key_usage WHERE key_id=?", (self.key_id,)).fetchone()[0]
@@ -172,7 +183,15 @@ class Ledger:
                 db.rollback()
                 raise
 
-    def complete(self, claims, response, now):
+    def complete(self, claims, response, now, *, cache_response=True):
+        claims = self._bound_claims(claims, cache_response)
+        if not cache_response:
+            with self.connect() as db:
+                updated = db.execute("UPDATE replay SET state='COMPLETED',cache_until=NULL,nonce=NULL,response=NULL WHERE request_id=? AND owner_id=? AND reservation_id=? AND run_id=? AND body_hash=? AND account_id IS ? AND state='STARTED' AND deadline>? AND cache_response=0",
+                                     self._identity(claims) + (now,)).rowcount
+                if updated != 1:
+                    raise ReplayConflict("inference result uncertain")
+            return
         plaintext, aad = canonical(response), self._aad(claims)
         nonce = self._reserve_nonce(claims, now)
         encrypted = self.aes.encrypt(nonce, plaintext, aad)
@@ -188,7 +207,8 @@ class Ledger:
                 db.rollback()
                 raise
 
-    def unknown(self, claims):
+    def unknown(self, claims, *, cache_response=True):
+        claims = self._bound_claims(claims, cache_response)
         with self.connect() as db:
             db.execute("UPDATE replay SET state='UNKNOWN' WHERE request_id=? AND owner_id=? AND reservation_id=? AND run_id=? AND body_hash=? AND account_id IS ? AND state='STARTED'",
                        self._identity(claims))

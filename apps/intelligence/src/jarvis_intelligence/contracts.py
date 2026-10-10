@@ -155,14 +155,86 @@ class Budget(StrictModel):
     max_model_calls: Annotated[int, Field(ge=1, le=1)]
 
 
+SafePositive = Annotated[int, Field(ge=1, le=9007199254740991)]
+
+
+class ContextV1(StrictModel):
+    id: str
+    revision: Literal[1]
+    conversation_id: str
+    context_epoch: SafePositive
+    history_epoch: SafePositive
+    profile_version: SafePositive | None
+
+
+class ProjectContext(StrictModel):
+    id: str
+    version: SafePositive
+
+
+class MemorySource(StrictModel):
+    source_id: str
+    id: str
+    version: SafePositive
+    generation: SafePositive
+    scope: Literal['GLOBAL', 'PROJECT']
+    project_id: str | None
+    kind: Literal['PROFILE', 'PREFERENCE']
+    key: str
+    value: Annotated[str, Field(min_length=1, max_length=2000)]
+    confirmed_at: str
+    updated_at: str
+
+
+class HistorySource(StrictModel):
+    source_id: str
+    id: str
+    run_id: str
+    role: Literal['USER', 'ASSISTANT']
+    trust: Literal['USER_DIRECT', 'MODEL_PROPOSAL']
+    text: Annotated[str, Field(min_length=1, max_length=16000)]
+    created_at: str
+
+
+def validate_context(value):
+    if 'context' not in value:
+        return
+    subset = {key: value[key] for key in ('context', 'project_context', 'memories', 'history')}
+    for item, limit in ((value, MAX_BODY_BYTES), (subset, 196608),
+                        (value['memories'], 131072), (value['history'], 65536)):
+        if len(canonical(item)) > limit:
+            raise ContractViolation('context byte bound exceeded')
+    memories, history = value['memories'], value['history']
+    for items, key in ((memories + history, 'source_id'), (memories, 'id'), (history, 'id')):
+        if len({item[key] for item in items}) != len(items):
+            raise ContractViolation('duplicate source identity')
+    project = value['project_context']
+    for item in memories:
+        if len(item['value'].encode()) > 8000 or (item['scope'] == 'PROJECT' and
+                (project is None or item['project_id'] != project['id'])):
+            raise ContractViolation('invalid memory scope or size')
+    runs = {value['run_id']}
+    for offset in range(0, len(history), 2):
+        user, assistant = history[offset:offset + 2]
+        if (user['role'], user['trust'], assistant['role'], assistant['trust']) != ('USER', 'USER_DIRECT', 'ASSISTANT', 'MODEL_PROPOSAL'):
+            raise ContractViolation('invalid history authority')
+        if user['run_id'] != assistant['run_id'] or user['run_id'] in runs:
+            raise ContractViolation('invalid history pair')
+        runs.add(user['run_id'])
+        if any(len(item['text'].encode()) > 64000 for item in (user, assistant)):
+            raise ContractViolation('history byte bound exceeded')
+
+
 class TurnRequest(StrictModel):
     request_id: str
     run_id: str
     user_input: Annotated[str, Field(min_length=1, max_length=16000)]
     current_time: str
     timezone: Annotated[str, Field(min_length=1, max_length=80)]
-    project_context: None
-    memories: Annotated[list, Field(max_length=0)]
+    context: ContextV1 | None = None
+    history: Annotated[list[HistorySource], Field(max_length=16)] = Field(default_factory=list)
+    project_context: ProjectContext | None
+    memories: Annotated[list[MemorySource], Field(max_length=20)]
     evidence: Annotated[list, Field(max_length=0)]
     tool_results: Annotated[list, Field(max_length=0)]
     allowed_tool_ids: Annotated[list[Literal["calendar.event.create"]], Field(max_length=1)]
@@ -174,6 +246,7 @@ class TurnRequest(StrictModel):
     @classmethod
     def from_wire(cls, value):
         validate("turn-request", value)
+        validate_context(value)
         result = cls.model_validate(value)
         try:
             ZoneInfo(result.timezone)
