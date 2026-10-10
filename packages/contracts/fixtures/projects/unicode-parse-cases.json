@@ -1,0 +1,22 @@
+[
+  {
+    "name": "unpaired-high-surrogate",
+    "raw": "{\"name\":\"\\ud800\",\"description\":\"\"}",
+    "valid": false
+  },
+  {
+    "name": "unpaired-low-surrogate",
+    "raw": "{\"name\":\"Synthetic\",\"description\":\"\\udfff\"}",
+    "valid": false
+  },
+  {
+    "name": "high-surrogate-before-ascii",
+    "raw": "{\"name\":\"Synthetic\",\"description\":\"\\ud800A\"}",
+    "valid": false
+  },
+  {
+    "name": "valid-escaped-astral-pair",
+    "raw": "{\"name\":\"\\ud83d\\ude00\",\"description\":\"\\ud83d\\ude00\"}",
+    "valid": true
+  }
+]

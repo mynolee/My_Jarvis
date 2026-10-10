@@ -1,0 +1,24 @@
+{
+  "request_id": "10000000-0000-4000-8000-000000000001",
+  "run_id": "10000000-0000-4000-8000-000000000001",
+  "user_input": "Synthetic example",
+  "current_time": "2030-01-01T00:00:00Z",
+  "timezone": "UTC",
+  "project_context": null,
+  "memories": [],
+  "evidence": [],
+  "tool_results": [],
+  "allowed_tool_ids": [
+    "calendar.event.create"
+  ],
+  "budget": {
+    "reservation_id": "10000000-0000-4000-8000-000000000001",
+    "max_compute_ms": 60000,
+    "max_input_tokens": 4096,
+    "max_output_tokens": 512,
+    "max_model_calls": 1
+  },
+  "model_id": "mock-v1",
+  "model_manifest_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "prompt_revision": "mock-v1"
+}

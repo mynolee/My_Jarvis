@@ -1,0 +1,13 @@
+{
+  "request_canonical_utf8_bytes": 4096,
+  "display_name_codepoints": 80,
+  "display_name_utf8_bytes": 320,
+  "timezone_ascii_bytes": 80,
+  "maximum_safe_version": 9007199254740991,
+  "default_profile": {
+    "display_name": null,
+    "locale": "ko-KR",
+    "timezone": "UTC",
+    "profile_updated_at": null
+  }
+}
