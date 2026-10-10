@@ -3,6 +3,9 @@ export class ApiError extends Error {
   constructor(readonly code: string, readonly uncertain = false, readonly status = 0, readonly details: unknown = null) { super(code); }
 }
 const LIMIT = 1024 * 1024;
+const EXPORT_LIMIT = 8 * LIMIT;
+const EXPORT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\s\S])/;
+const JSON_CONTENT_TYPE = /^application\/json(?:;\s*charset=utf-8)?$(?![\s\S])/i;
 export class Api {
   private csrf = '';
   private credential_revision = 0;
@@ -38,6 +41,99 @@ export class Api {
       // Never automatically retry a mutation: its outcome may already be committed.
       throw new ApiError(body === undefined ? 'CONNECTION_UNAVAILABLE' : 'UNKNOWN', body !== undefined, response_status);
     } finally { clearTimeout(timeout); }
+  }
+  /** Bounded in-memory privacy read. The caller validates the document before offering a local save. */
+  async download_export(jobId: string): Promise<Uint8Array> {
+    if (typeof jobId !== 'string' || !EXPORT_UUID.test(jobId)) throw new ApiError('INVALID_EXPORT_ID');
+    const request_revision = this.credential_revision;
+    const controller = new AbortController();
+    let response_status = 0;
+    let response: Response | undefined;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let buffer: Uint8Array | undefined;
+    let completed = false;
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const bounded = <T>(operation: Promise<T>): Promise<T> => new Promise((resolve, reject) => {
+      const aborted = () => reject(new ApiError('CONNECTION_UNAVAILABLE', false, response_status));
+      controller.signal.addEventListener('abort', aborted, { once: true });
+      // Remove each settled operation's listener instead of retaining one deadline reaction per chunk.
+      operation.then(value => {
+        controller.signal.removeEventListener('abort', aborted);
+        if (controller.signal.aborted) aborted(); else resolve(value);
+      }, error => { controller.signal.removeEventListener('abort', aborted); reject(error); });
+      if (controller.signal.aborted) { controller.signal.removeEventListener('abort', aborted); aborted(); }
+    });
+    const current_session = () => {
+      if (request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', false, response_status);
+    };
+    try {
+      response = await bounded<Response>(fetch(`/api/v1/exports/${jobId}/download`, {
+        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      }).then(candidate => {
+        // A late mocked/intercepted fetch must not leave an unread private body behind after the deadline.
+        if (controller.signal.aborted) { void candidate.body?.cancel().catch(() => {}); throw new ApiError('CONNECTION_UNAVAILABLE', false, candidate.status); }
+        return candidate;
+      }));
+      response_status = response.status;
+      if (response.status === 401) {
+        if (request_revision === this.credential_revision) this.clear();
+        throw new ApiError('UNAUTHENTICATED', false, 401);
+      }
+      current_session();
+      if (response.redirected || response.type === 'opaqueredirect' || response.status >= 300 && response.status < 400
+        || !JSON_CONTENT_TYPE.test(response.headers.get('content-type') ?? '')) throw new ApiError('INVALID_RESPONSE', false, response_status);
+      if (response.ok && (response.status !== 200
+        || response.headers.get('content-disposition') !== 'attachment; filename="my-jarvis-memories.json"'
+        || response.headers.get('cache-control') !== 'no-store'
+        || response.headers.get('x-content-type-options') !== 'nosniff')) throw new ApiError('INVALID_RESPONSE', false, response_status);
+      const limit = response.ok ? EXPORT_LIMIT : LIMIT;
+      const declared = response.headers.get('content-length');
+      if (declared !== null) {
+        if (!/^(?:0|[1-9][0-9]*)$(?![\s\S])/.test(declared)) throw new ApiError('INVALID_RESPONSE', false, response_status);
+        if (declared.length > String(limit).length || Number(declared) > limit) throw new ApiError('RESPONSE_TOO_LARGE', false, response_status);
+      }
+      reader = response.body?.getReader();
+      if (!reader) throw new ApiError('INVALID_RESPONSE', false, response_status);
+      // A fixed buffer also bounds overhead from arbitrarily tiny stream chunks.
+      buffer = new Uint8Array(limit); let length = 0;
+      for (;;) {
+        current_session();
+        const { value, done } = await bounded(reader.read());
+        current_session();
+        if (done) break;
+        if (!ArrayBuffer.isView(value) || Object.prototype.toString.call(value) !== '[object Uint8Array]') throw new ApiError('INVALID_RESPONSE', false, response_status);
+        if (value.byteLength > limit - length) throw new ApiError('RESPONSE_TOO_LARGE', false, response_status);
+        buffer.set(value, length);
+        length += value.byteLength;
+      }
+      const bytes = buffer.slice(0, length);
+      if (!response.ok) {
+        let envelope;
+        try { envelope = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+        catch { throw new ApiError('INVALID_RESPONSE', false, response_status); }
+        if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)
+          || !envelope.error || typeof envelope.error !== 'object' || Array.isArray(envelope.error)
+          || typeof envelope.error.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,95}$(?![\s\S])/.test(envelope.error.code)) throw new ApiError('INVALID_RESPONSE', false, response_status);
+        throw new ApiError(envelope.error.code, false, response_status, envelope.error.details);
+      }
+      current_session();
+      completed = true;
+      return bytes;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError('CONNECTION_UNAVAILABLE', false, response_status);
+    } finally {
+      clearTimeout(timeout);
+      buffer?.fill(0);
+      if (!completed) {
+        controller.abort();
+        // Cancellation is best effort and never extends the read deadline, even for a stalled source.
+        if (reader) void reader.cancel().catch(() => {});
+        else if (response?.body) void response.body.cancel().catch(() => {});
+      }
+      reader?.releaseLock();
+    }
   }
   async bootstrap_csrf() { const revision = this.credential_revision; const data = await this.request<{ csrf_token: string }>('/auth/csrf'); if (revision === this.credential_revision) this.set_csrf(data.csrf_token); }
 }
