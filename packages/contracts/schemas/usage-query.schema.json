@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/usage-query.schema.json",
+  "$comment": "GET /api/v1/usage accepts no query parameters and no request body. The HTTP adapter separately rejects duplicates and any nonempty raw body.",
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/project-create-headers.schema.json",
+  "type": "object",
+  "properties": {
+    "Idempotency-Key": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    }
+  },
+  "required": [
+    "Idempotency-Key"
+  ],
+  "additionalProperties": false,
+  "description": "Logical required mutation-header subset, not the complete HTTP header collection. Implementation decision: canonical lowercase UUID Idempotency-Key. Cookie authentication and CSRF are verified by runtime, not this schema."
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/audit-history-query.schema.json",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "enum": [
+        "ALL",
+        "RUNS"
+      ]
+    },
+    "limit": {
+      "type": "string",
+      "pattern": "^(?:[1-9]|[1-9][0-9]|100)(?![\\s\\S])"
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 45,
+      "maxLength": 1024,
+      "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]{43}(?![\\s\\S])"
+    }
+  },
+  "additionalProperties": false
+}
