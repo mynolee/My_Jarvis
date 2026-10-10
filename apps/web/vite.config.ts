@@ -1,0 +1,3 @@
+import { defineConfig } from 'vitest/config';
+const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'" };
+export default defineConfig({ server: { headers, proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: false } } }, preview: { headers }, test: { environment: 'jsdom', include: ['src/**/*.test.ts', 'src/**/*.test.tsx'], restoreMocks: true } });
