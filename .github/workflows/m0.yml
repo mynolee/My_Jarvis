@@ -1,0 +1,81 @@
+name: Synthetic component verification
+on:
+  pull_request:
+  push:
+    branches: [dev, feat/local-inference-foundation]
+permissions:
+  contents: read
+concurrency:
+  group: m0-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mock-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          # Adoptium SemVer for the exact Temurin 21.0.12.1+1 release.
+          java-version: '21.0.12+101.0.LTS'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12.14'
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24.19.0'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.23'
+          enable-cache: false
+      - name: Run synthetic component tests
+        run: scripts/check.sh
+# No deployment, secrets, package publication, shared cache, or trusted artifact
+# consumption occurs here. A green development job is not release acceptance.
+
+  python-dependency-audit:
+    # Independent of the Java build: unavailable Java dependencies cannot skip SCA.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [apps/intelligence, packages/contracts]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.14'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          version: '0.12.23'
+          enable-cache: false
+      - name: Check lock freshness without regenerating
+        working-directory: ${{ matrix.project }}
+        run: uv lock --check
+      - name: Audit dependency identifiers against OSV
+        working-directory: ${{ matrix.project }}
+        # uv reports all severities and fails for findings or scan errors. This
+        # deliberately blocks more than only high/critical; no error is CLEAN.
+        run: uv audit --locked --no-build
+
+  web-dependency-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24.19.0'
+      - name: Audit package lock without installation or scripts
+        working-directory: apps/web
+        # Advisory output includes lower severities; high/critical or an
+        # unavailable/invalid scan fail the job. No source or credentials upload.
+        run: npm audit --package-lock-only --ignore-scripts --audit-level=high
