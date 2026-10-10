@@ -30,7 +30,7 @@ it('mounts Today only inside the authenticated workspace', async () => {
 });
 it('propagates pending navigation boundaries without creating Today mutations', async () => {
   const { api, request } = fixture(); render(<App api={api}/>);
-  await screen.findByRole('region', { name: 'Today wiring probe' }); click('Open internal reminders'); click('Begin reminder probe');
+  await screen.findByRole('region', { name: 'Today wiring probe' }); await screen.findByText('Account state: AVAILABLE FOR NEW WORK'); click('Open internal reminders'); click('Begin reminder probe');
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Today navigation probe' }).disabled).toBe(true);
   click('Resolve reminder probe');
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Today navigation probe' }).disabled).toBe(false);
@@ -44,7 +44,7 @@ it('removes Today when its read detects an expired session', async () => {
 });
 it('remounts Today with the new authenticated session generation', async () => {
   const { api, request } = fixture(); render(<App api={api}/>);
-  await screen.findByText('Today session 0'); click('Open internal reminders'); click('Request identity probe');
+  await screen.findByText('Today session 0'); await screen.findByText('Account state: AVAILABLE FOR NEW WORK'); click('Open internal reminders'); click('Request identity probe');
   fireEvent.change(await screen.findByLabelText('Confirm password'), { target: { value: 'synthetic-password' } }); click('Confirm identity');
   await screen.findByText('Today session 1');
   expect(request.mock.calls.filter(call => call[0] === '/auth/reauthenticate')).toHaveLength(1);

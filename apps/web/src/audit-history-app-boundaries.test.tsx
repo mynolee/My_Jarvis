@@ -42,7 +42,7 @@ it('requires explicit opening and removes private panel on close', async () => {
 it('allows read-only inspection during pending work without taking over run controls', async () => {
   const { api, request } = fixture(); render(<App api={api}/>);
   await screen.findByRole('button', { name: 'Open execution history' });
-  click('Open internal reminders'); click('Begin reminder probe');
+  await screen.findByText('Account state: AVAILABLE FOR NEW WORK'); click('Open internal reminders'); click('Begin reminder probe');
   const start = screen.getByRole<HTMLButtonElement>('button', { name: 'Start new conversation' });
   expect(start.disabled).toBe(true); click('Open execution history');
   await screen.findByRole('region', { name: 'Audit wiring probe' }); expect(start.disabled).toBe(true);
@@ -58,7 +58,7 @@ it('clears the workspace when audit reads report session expiry', async () => {
 it('remounts an open history panel for a new authenticated generation', async () => {
   const { api } = fixture(); render(<App api={api}/>);
   await screen.findByRole('button', { name: 'Open execution history' }); click('Open execution history');
-  await screen.findByText('Audit session 0'); click('Open internal reminders'); click('Request identity probe');
+  await screen.findByText('Audit session 0'); await screen.findByText('Account state: AVAILABLE FOR NEW WORK'); click('Open internal reminders'); click('Request identity probe');
   fireEvent.change(await screen.findByLabelText('Confirm password'), { target: { value: 'synthetic-password' } }); click('Confirm identity');
   await screen.findByText('Audit session 1'); expect(screen.queryByText('Audit session 0')).toBeNull();
 });
