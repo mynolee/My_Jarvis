@@ -145,8 +145,9 @@ final class ExportService {
             byte[] result = document(job, exportedAt, rows, budget);
             // Time-based validity is checked again after serialization, while the locks remain held.
             memories.session(session, true, true);
-            memories.project(session.owner(), (UUID) job.get("project_id"));
-            requireAvailable(job, memories.databaseNow()); budget.check();
+            // Re-read the bound metadata as well, rather than relying on the pre-serialization row.
+            var currentJob = owned(session, id);
+            requireAvailable(currentJob, memories.databaseNow()); budget.check();
             // Commit releases the locks before HTTP transmission. A later deletion cannot recall
             // bytes already generated/in flight or a file saved by the owner; later downloads rebuild.
             return result;

@@ -79,7 +79,10 @@ class ExportHttpTest {
     @Test void everyQueryAndNonemptyReadBodyIsRejectedIncludingChunkedAndEmptySegments() throws Exception {
         for (String path : reads()) {
             for (String query : List.of("scope=GLOBAL", "owner_id=" + owner, "download=true", "x=1&x=2", "&"))
-                assertEquals(400, http.perform(get(path + "?" + query).cookie(cookie)).andReturn().getResponse().getStatus());
+                assertEquals(400, http.perform(get(path + "?" + query).cookie(cookie).with(request -> {
+                    // URI builders may normalize a bare '&' away; preserve the actual wire query.
+                    request.setQueryString(query); assertEquals(query, request.getQueryString()); return request;
+                })).andReturn().getResponse().getStatus(), path + "?" + query);
             assertEquals(400, http.perform(get(path).cookie(cookie).content("x")).andReturn().getResponse().getStatus());
             assertEquals(400, http.perform(get(path).cookie(cookie).header("Transfer-Encoding", "chunked").content("x")).andReturn().getResponse().getStatus());
             assertEquals(400, http.perform(get(path).cookie(cookie).with(request -> { request.setQueryString(""); return request; })).andReturn().getResponse().getStatus());
@@ -97,12 +100,12 @@ class ExportHttpTest {
 
     @Test void knownAndUnexpectedErrorsContainNoAttachmentOrPartialContent() throws Exception {
         for (var failure : List.of(new ApiException(410, "EXPORT_EXPIRED"), new ApiException(413, "EXPORT_ROW_LIMIT"), new ApiException(413, "EXPORT_BYTE_LIMIT"), new ApiException(503, "EXPORT_TIME_LIMIT"))) {
-            when(exports.download(session, id)).thenThrow(failure);
+            doThrow(failure).when(exports).download(session, id);
             var result = http.perform(get(reads().getLast()).cookie(cookie)).andReturn().getResponse(); assertEquals(failure.status, result.getStatus());
             assertNull(result.getHeader("Content-Disposition")); assertEquals("no-store", result.getHeader("Cache-Control"));
             assertEquals(failure.code, Json.parse(result.getContentAsByteArray()).path("error").path("code").asText());
         }
-        when(exports.download(session, id)).thenThrow(new IllegalStateException("synthetic-private-ciphertext"));
+        doThrow(new IllegalStateException("synthetic-private-ciphertext")).when(exports).download(session, id);
         var result = http.perform(get(reads().getLast()).cookie(cookie)).andReturn().getResponse(); assertEquals(500, result.getStatus());
         assertFalse(result.getContentAsString().contains("synthetic-private")); assertNull(result.getHeader("Content-Disposition"));
     }

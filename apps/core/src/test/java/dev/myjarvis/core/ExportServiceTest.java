@@ -98,10 +98,22 @@ class ExportServiceTest extends ReminderTestSupport {
 
     @Test void ownerSessionEpochReauthAndPauseAreCheckedIndependently() {
         var created = job(null); UUID id = id(created); UUID key = db.queryForObject("SELECT idempotency_key FROM memory_export_jobs WHERE id=?", UUID.class, id);
-        UUID otherOwner = UUID.randomUUID(); db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,'other-export-owner','synthetic-unused')", otherOwner);
-        var other = auth.find(auth.issue(otherOwner, true, null).token());
-        code("NOT_FOUND", () -> exports().status(other, id)); code("NOT_FOUND", () -> exports().download(other, id));
-        assertEquals("NOT_OBSERVED", exports().reconcile(other, key).get("status"));
+        UUID otherOwner = UUID.randomUUID();
+        // Synthetic adversarial fixture only, matching the existing cross-owner memory tests.
+        db.execute("ALTER TABLE owners DROP CONSTRAINT owners_singleton_key");
+        try {
+            db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,'other-export-owner','synthetic-unused')", otherOwner);
+            var other = auth.find(auth.issue(otherOwner, true, null).token());
+            code("NOT_FOUND", () -> exports().status(other, id)); code("NOT_FOUND", () -> exports().download(other, id));
+            assertEquals("NOT_OBSERVED", exports().reconcile(other, key).get("status"));
+        } finally {
+            try { db.update("DELETE FROM sessions WHERE owner_id=?", otherOwner); }
+            finally {
+                try { db.update("DELETE FROM owners WHERE id=?", otherOwner); }
+                finally { db.execute("ALTER TABLE owners ADD CONSTRAINT owners_singleton_key UNIQUE(singleton)"); }
+            }
+        }
+        assertEquals(1L, db.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='owners'::regclass AND conname='owners_singleton_key' AND contype='u'", Long.class));
         var separate = auth.find(auth.issue(owner, true, null).token());
         code("AUTHORITY_NOT_VALID", () -> exports().status(separate, id)); code("AUTHORITY_NOT_VALID", () -> exports().reconcile(separate, key)); code("AUTHORITY_NOT_VALID", () -> exports().download(separate, id));
         db.update("UPDATE sessions SET reauthenticated_at=clock_timestamp()-interval '301 seconds' WHERE token_hash=?", session.hash());
@@ -255,6 +267,16 @@ class ExportServiceTest extends ReminderTestSupport {
             // Both test-only changes occurred in the failed download transaction and rolled back.
             assertEquals("AVAILABLE", exports().status(session, job).get("status"));
         }
+        // Controlled clock-facade evidence for expiry crossing with immutable metadata.
+        // This advances the checked instant after payload work; it is not a wall-clock wait.
+        var memory = spy(memories()); var serialized = new java.util.concurrent.atomic.AtomicBoolean();
+        doAnswer(call -> { var result = call.callRealMethod(); serialized.set(true); return result; }).when(memory).payload(anyMap());
+        doAnswer(call -> {
+            Instant databaseNow = (Instant)call.callRealMethod();
+            return serialized.get() ? databaseNow.plusSeconds(901) : databaseNow;
+        }).when(memory).databaseNow();
+        code("EXPORT_EXPIRED", () -> controlled(memory).download(session, job));
+        assertTrue(serialized.get()); assertEquals("AVAILABLE", exports().status(session, job).get("status"));
     }
 
     @Test void databaseClockIgnoresApplicationClockSkewAndTimeBudgetFailsClosed() {
