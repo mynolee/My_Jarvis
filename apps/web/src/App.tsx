@@ -8,6 +8,7 @@ import { SchedulesPanel } from './SchedulesPanel';
 import { NotificationsPanel } from './NotificationsPanel';
 import { MailDraftsPanel } from './MailDraftsPanel';
 import { TodayPanel } from './TodayPanel';
+import { AuditHistoryPanel } from './AuditHistoryPanel';
 import { ProjectsPanel } from './ProjectsPanel';
 import type { Project } from './projects';
 import { can_decide, decision_body, terminal, UUID, valid_snapshot, type Approval, type Conversation, type Run } from './domain';
@@ -30,6 +31,7 @@ export function App({ api = new Api() }: { api?: Api }) {
   const [schedule_pending, set_schedule_pending] = useState(false);
   const [notification_pending, set_notification_pending] = useState(false);
   const [mail_drafts_open, set_mail_drafts_open] = useState(false);
+  const [audit_history_open, set_audit_history_open] = useState(false);
   const [mail_draft_pending, set_mail_draft_pending] = useState(false);
   const domain_locked = useRef(false), navigation_paused = useRef(false), main_navigation_paused = useRef(false);
   const pending_domains = useRef({ task: false, project: false, memory: false, profile: false, schedule: false, notification: false, mail_draft: false });
@@ -73,7 +75,7 @@ export function App({ api = new Api() }: { api?: Api }) {
   const [approval, set_approval] = useState<Approval | null>(null);
   const [text, set_text] = useState('');
   const [now, set_now] = useState(Date.now());
-  const clear_private = useCallback(() => { if (Object.values(pending_domains.current).some(Boolean)) recovery_boundary_lost.current = true; pending_domains.current = { task: false, project: false, memory: false, profile: false, schedule: false, notification: false, mail_draft: false }; domain_locked.current = false; navigation_paused.current = false; auth_generation.current++; generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_projects_open(false); set_memories_open(false); set_profile_open(false); set_schedules_open(false); set_notifications_open(false); set_mail_drafts_open(false); set_mail_draft_pending(false); set_schedule_pending(false); set_notification_pending(false); set_profile_pending(false); set_memory_pending(false); set_task_pending(false); set_project_pending(false); set_new_project(null); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); selected_id.current = null; snapshot_revision.current++; set_run(null); set_approval(null); set_text(''); set_uncertain(false); set_reauth_required(false); }, [client]);
+  const clear_private = useCallback(() => { if (Object.values(pending_domains.current).some(Boolean)) recovery_boundary_lost.current = true; pending_domains.current = { task: false, project: false, memory: false, profile: false, schedule: false, notification: false, mail_draft: false }; domain_locked.current = false; navigation_paused.current = false; auth_generation.current++; generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_projects_open(false); set_memories_open(false); set_profile_open(false); set_schedules_open(false); set_notifications_open(false); set_mail_drafts_open(false); set_audit_history_open(false); set_mail_draft_pending(false); set_schedule_pending(false); set_notification_pending(false); set_profile_pending(false); set_memory_pending(false); set_task_pending(false); set_project_pending(false); set_new_project(null); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); selected_id.current = null; snapshot_revision.current++; set_run(null); set_approval(null); set_text(''); set_uncertain(false); set_reauth_required(false); }, [client]);
   const fail = useCallback((error: unknown) => { if (error instanceof ApiError) { if (error.status === 401) clear_private(); if (error.uncertain) set_uncertain(true); if (error.code === 'REAUTHENTICATION_REQUIRED') set_reauth_required(true); if (error.status === 409) set_approval(null); if (error.code === 'MODEL_UNAVAILABLE' || error.code === 'LOCAL_MODEL_UNAVAILABLE') set_runtime(null); set_notice(error.uncertain ? 'UNKNOWN: The request may have reached the server. Writes are paused. Reconcile server state; do not resend.' : /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code) ? error.code : 'REQUEST_REJECTED'); } else set_notice('BLOCKED: Invalid server data or unavailable operation.'); }, [clear_private]);
   const refresh_runtime = useCallback(async () => {
     const current = generation.current, session_epoch = auth_generation.current;
@@ -131,6 +133,8 @@ export function App({ api = new Api() }: { api?: Api }) {
     {!authenticated ? <section className="panel login"><h2>Owner sign in</h2><p>Use an owner account provisioned through the server’s local administration flow.</p><form onSubmit={login}><label>Login name<input name="login_name" autoComplete="username" required maxLength={128} disabled={!ready || busy}/></label><label>Password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={!ready || busy}/></label><button disabled={!ready || busy}>{ready ? 'Sign in' : 'Connecting securely…'}</button></form></section> : <>
       <nav aria-label="Session controls"><span>Session active</span><button className="secondary" disabled={busy} onClick={() => void refresh()}>Refresh server state</button><button className="secondary" disabled={busy} onClick={logout}>Sign out</button></nav>
       <TodayPanel key={auth_generation.current} api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private} selectionDisabled={navigation_disabled}/>
+      <button className="secondary" aria-expanded={audit_history_open} aria-controls="audit-history-region" onClick={() => set_audit_history_open(value => !value)}>{audit_history_open ? 'Close execution history' : 'Open execution history'}</button>
+      {audit_history_open && <div id="audit-history-region"><AuditHistoryPanel key={auth_generation.current} api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private}/></div>}
       <button className="secondary" disabled={tasks_open} onClick={() => set_tasks_open(true)}>Open internal tasks</button>
       {tasks_open && <TasksPanel key={auth_generation.current} api={client} onUnauthorized={clear_private} writesPaused={writes_paused || busy || memory_pending || project_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} onPendingChange={task_pending_changed} onAcquirePending={acquire_task}/>}
       <button className="secondary" disabled={projects_open} onClick={() => set_projects_open(true)}>Choose project for a new conversation</button>
