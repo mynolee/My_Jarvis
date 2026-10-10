@@ -1,0 +1,119 @@
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Api, ApiError } from './api';
+import { read_memory, read_memory_intent, read_memory_key_state, read_memory_page, read_memory_preparation, read_memory_receipt, read_memory_revision, valid_memory_body, valid_memory_fields, valid_memory_identity, type Memory, type MemoryArguments, type MemoryIdentity, type MemoryIntent, type MemoryKeyState, type MemoryKind, type MemoryPreparation, type MemoryReceipt, type MemoryRevision, type MemoryScope } from './memories';
+export interface MemoriesPanelProps { api: Api; sessionKey: number; selectedProjectId: string | null; onUnauthorized: () => void; onReauthenticate: () => void; writesPaused?: boolean; selectionDisabled?: boolean; onPendingChange?: (pending: boolean) => void }
+type Draft = { key: string; kind: MemoryKind; value: string; change_reason: string };
+type Review = { intent: MemoryIntent; arguments: MemoryArguments };
+/** Only metadata survives an uncertain response. Never retain mutation bodies in a retry queue. */
+type Pending = { key: string; stage: 'INTENT' | 'PREPARATION' | 'SAVE' | 'DELETE'; target: string | null; operation: 'CREATE' | 'REVISE' | 'DELETE' | null; version?: number; generation?: number };
+const empty = (): Draft => ({ key: '', kind: 'PREFERENCE', value: '', change_reason: '' });
+export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthorized, onReauthenticate, writesPaused = false, selectionDisabled = false, onPendingChange }: MemoriesPanelProps) {
+  const [scope, setScope] = useState<MemoryScope>('GLOBAL'), [draft, setDraft] = useState<Draft>(empty), [items, setItems] = useState<Memory[]>([]), [cursor, setCursor] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Memory | null>(null), [keyState, setKeyState] = useState<MemoryKeyState | null>(null), [revive, setRevive] = useState(false);
+  const [review, setReview] = useState<Review | null>(null), [preparation, setPreparation] = useState<MemoryPreparation | null>(null), [confirmed, setConfirmed] = useState(false);
+  const [revisions, setRevisions] = useState<MemoryRevision[]>([]), [revisionCursor, setRevisionCursor] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [notice, setNotice] = useState('');
+  const mounted = useRef(false), authenticated = useRef(true), epoch = useRef(0), listEpoch = useRef(0), lock = useRef(false), inFlight = useRef<Pending | null>(null);
+  const live = useRef({ api, sessionKey, selectedProjectId, scope, writesPaused, selectionDisabled, onUnauthorized, onReauthenticate, onPendingChange });
+  live.current = { api, sessionKey, selectedProjectId, scope, writesPaused, selectionDisabled, onUnauthorized, onReauthenticate, onPendingChange };
+  const current = (e: number) => mounted.current && authenticated.current && epoch.current === e && live.current.api === api && live.current.sessionKey === sessionKey && live.current.selectedProjectId === selectedProjectId && live.current.scope === scope;
+  const identity = (): MemoryIdentity => ({ scope, project_id: scope === 'PROJECT' ? selectedProjectId : null, key: draft.key });
+  const invalidate = () => { setReview(null); setPreparation(null); setConfirmed(false); };
+  function purge() { listEpoch.current++; setItems([]); setCursor(null); setSelected(null); setDraft(empty()); setKeyState(null); setRevive(false); setRevisions([]); setRevisionCursor(null); invalidate(); }
+  function fail(error: unknown, e: number) {
+    if (!mounted.current || !authenticated.current || live.current.api !== api || live.current.sessionKey !== sessionKey) return;
+    if (error instanceof ApiError && error.status === 401) { authenticated.current = false; epoch.current++; purge(); setPending(null); setBusy(false); setLoading(false); lock.current = false; api.clear(); live.current.onPendingChange?.(false); live.current.onUnauthorized(); return; }
+    if (!current(e)) return;
+    invalidate();
+    if (error instanceof ApiError && (error.code === 'MEMORY_DELETED' || error.status === 410)) { purge(); setNotice('This memory was deleted. Old values, revisions, and approvals have been cleared. A new save requires a fresh form.'); return; }
+    if (error instanceof ApiError && error.status === 409) { setKeyState(null); setRevive(false); setNotice('The version or generation changed. Your draft is preserved. Refresh and review again; nothing was resent.'); return; }
+    setNotice(error instanceof ApiError && /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code) ? error.code : 'Memory response could not be verified.');
+  }
+  async function load(next: string | null = null) {
+    const e = epoch.current, le = ++listEpoch.current; if (!current(e) || scope === 'PROJECT' && !selectedProjectId) return;
+    setLoading(true); const query = new URLSearchParams({ scope, limit: '20' }); if (scope === 'PROJECT') query.set('project_id', selectedProjectId!); if (next) query.set('cursor', next);
+    try { const page = read_memory_page(await api.request(`/memories?${query}`), read_memory); if (!current(e) || le !== listEpoch.current) return; if (page.items.some(m => m.scope !== scope || m.project_id !== (scope === 'PROJECT' ? selectedProjectId : null))) throw new ApiError('INVALID_MEMORY_RESPONSE'); setItems(old => next ? [...old, ...page.items.filter(m => !old.some(o => o.id === m.id))] : page.items); setCursor(page.next_cursor); }
+    catch (error) { if (le === listEpoch.current || error instanceof ApiError && error.status === 401) fail(error, e); }
+    finally { if (current(e) && le === listEpoch.current) setLoading(false); }
+  }
+  useEffect(() => { mounted.current = true; authenticated.current = true; epoch.current++; lock.current = false; inFlight.current = null; purge(); setPending(null); setBusy(false); setLoading(false); setNotice(''); void load(); return () => { mounted.current = false; epoch.current++; listEpoch.current++; }; }, [api, sessionKey]);
+  useEffect(() => { epoch.current++; if (inFlight.current) { setPending(inFlight.current); inFlight.current = null; } purge(); setNotice(''); setBusy(false); lock.current = false; void load(); }, [scope, selectedProjectId]);
+  useEffect(() => { onPendingChange?.(busy || pending !== null); }, [busy, pending, onPendingChange]);
+  useEffect(() => () => { live.current.onPendingChange?.(false); }, []);
+  function begin(): number | null { if (lock.current || pending || !authenticated.current || live.current.writesPaused) return null; lock.current = true; live.current.onPendingChange?.(true); setBusy(true); setNotice(''); return epoch.current; }
+  function finish(e: number) { if (current(e)) { inFlight.current = null; lock.current = false; setBusy(false); } }
+  function uncertain(error: unknown, attempt: Pending, e: number) { if (error instanceof ApiError && error.status === 401) { fail(error, e); return; } if (!current(e)) return; if (!(error instanceof ApiError) || error.uncertain) { invalidate(); setPending(attempt); setNotice('The outcome is unknown. Writes are paused. Check the content-free receipt; the request will not be resent.'); } else fail(error, e); }
+  async function mutate<T>(path: string, body: unknown, attempt: Pending, parse: (v: unknown) => T, method: 'POST' | 'PATCH' = 'POST'): Promise<T> { if (!valid_memory_body(body)) throw new ApiError('MEMORY_BODY_TOO_LARGE'); inFlight.current = attempt; const raw = await api.request(path, body, attempt.key, method); try { return parse(raw); } catch { throw new ApiError('UNKNOWN', true); } }
+  async function requestReview(event: FormEvent) {
+    event.preventDefault(); if (!valid_memory_identity(identity()) || !valid_memory_fields(draft)) { setNotice('Use a lowercase key (1–96 characters), a nonblank value (up to 2000 characters / 8000 bytes), and a reason (up to 300 characters / 1200 bytes).'); return; }
+    const e = begin(); if (e === null) return; invalidate(); let attempt: Pending | null = null;
+    try {
+      const state = read_memory_key_state(await api.request('/memories/key-state', identity())); if (!current(e)) return; setKeyState(state);
+      if (selected && (state.status !== 'ACTIVE' || state.memory_id !== selected.id)) throw new ApiError('MEMORY_DELETED', false, 410);
+      if (selected ? state.status !== 'ACTIVE' || state.memory_id !== selected.id || state.version !== selected.version || state.generation !== selected.generation : state.status === 'ACTIVE') throw new ApiError('PRECONDITION_CHANGED', false, 409);
+      if (!selected && state.status === 'DELETED' && (!revive || keyState?.status !== 'DELETED' || keyState.generation !== state.generation)) { setRevive(false); setNotice('This key was deleted. Review its current generation and explicitly choose a fresh save before continuing.'); return; }
+      const operation = selected ? 'REVISE' : 'CREATE'; const args: MemoryArguments = selected ? { value: draft.value, change_reason: draft.change_reason, expected_version: selected.version, expected_generation: selected.generation } : { ...identity(), kind: draft.kind, value: draft.value, change_reason: draft.change_reason, expected_generation: state.generation, revive_deleted: state.status === 'DELETED' };
+      attempt = { key: crypto.randomUUID(), stage: 'INTENT', target: selected?.id ?? null, operation };
+      const intent = await mutate('/memory-intents', { tool_id: 'memory.write', operation, target_id: selected?.id ?? null, arguments: args }, attempt, raw => { const i = read_memory_intent(raw); if (i.operation !== operation || i.expected_generation !== args.expected_generation || selected && i.target_id !== selected.id) throw new Error(); return i; });
+      if (current(e)) setReview({ intent, arguments: args });
+    } catch (error) { if (attempt) uncertain(error, attempt, e); else fail(error, e); } finally { finish(e); }
+  }
+  async function applyReceipt(receipt: MemoryReceipt, attempt: Pending) {
+    if (receipt.status === 'NOT_OBSERVED') { setNotice('No committed receipt is visible yet. This does not prove failure. Writes remain paused; do not resend.'); return; }
+    if (attempt.stage !== 'SAVE' && attempt.stage !== 'DELETE') throw new ApiError('INVALID_MEMORY_RESPONSE');
+    if (attempt.target && receipt.memory_id !== attempt.target || attempt.operation && receipt.operation !== attempt.operation || attempt.version !== undefined && receipt.version !== attempt.version || attempt.generation !== undefined && receipt.generation !== attempt.generation) throw new ApiError('INVALID_MEMORY_RESPONSE');
+    setPending(null); purge(); setNotice(receipt.status === 'REDACTED_DELETED' ? 'Deletion is confirmed. Old values, revisions, and approvals have been cleared.' : 'Save confirmed. The list has been refreshed.'); await load();
+  }
+  async function save() {
+    if (!review) return; const e = begin(); if (e === null) return; const staged = review; const attempt: Pending = { key: crypto.randomUUID(), stage: 'SAVE', target: staged.intent.target_id, operation: staged.intent.operation, version: 'expected_version' in staged.arguments ? staged.arguments.expected_version + 1 : 1, generation: staged.arguments.expected_generation + (staged.intent.operation === 'CREATE' ? 1 : 0) };
+    try { if (Date.parse(staged.intent.expires_at) <= Date.now()) throw new ApiError('INTENT_EXPIRED'); const receipt = await mutate(staged.intent.operation === 'CREATE' ? '/memories' : `/memories/${staged.intent.target_id}`, { intent_id: staged.intent.id, arguments: staged.arguments }, attempt, read_memory_receipt, staged.intent.operation === 'CREATE' ? 'POST' : 'PATCH'); if (!current(e)) return; if (receipt.status === 'NOT_OBSERVED' || receipt.memory_id !== attempt.target || receipt.operation !== attempt.operation || receipt.version !== attempt.version || receipt.generation !== attempt.generation) throw new ApiError('UNKNOWN', true); await applyReceipt(receipt, attempt); } catch (error) { uncertain(error, attempt, e); } finally { finish(e); }
+  }
+  async function select(memory: Memory) {
+    if (lock.current || pending || live.current.selectionDisabled) return; const e = ++epoch.current; invalidate(); setRevisions([]); setRevisionCursor(null); setKeyState(null); setRevive(false); setSelected(null); setDraft(empty()); live.current.onPendingChange?.(true); setBusy(true); lock.current = true;
+    try { const m = read_memory(await api.request(`/memories/${memory.id}`)); if (!current(e)) return; if (m.id !== memory.id || m.scope !== scope || m.project_id !== (scope === 'PROJECT' ? selectedProjectId : null)) throw new ApiError('INVALID_MEMORY_RESPONSE'); setSelected(m); setDraft({ key: m.key, kind: m.kind, value: m.value, change_reason: '' }); } catch (error) { if (error instanceof ApiError && error.status === 404 && current(e)) { purge(); setNotice('This memory is no longer active.'); } else fail(error, e); } finally { finish(e); }
+  }
+  async function refreshSelected() {
+    if (!selected || lock.current || pending) return; const e = epoch.current, target = selected.id; lock.current = true; live.current.onPendingChange?.(true); setBusy(true); invalidate();
+    try { const m = read_memory(await api.request(`/memories/${target}`)); if (!current(e)) return; if (m.id !== target || m.scope !== selected.scope || m.project_id !== selected.project_id || m.key !== selected.key || m.kind !== selected.kind) throw new ApiError('INVALID_MEMORY_RESPONSE'); setSelected(m); setKeyState(null); setRevisions([]); setRevisionCursor(null); setNotice('Current version loaded. Your draft is preserved; review it against the updated memory before saving.'); }
+    catch (error) { if (error instanceof ApiError && error.status === 404 && current(e)) { purge(); setNotice('This memory is no longer active.'); } else fail(error, e); } finally { finish(e); }
+  }
+  async function history(next: string | null = null) {
+    if (!selected || lock.current || pending) return; const e = epoch.current, target = selected.id; lock.current = true; live.current.onPendingChange?.(true); setBusy(true);
+    try { const q = new URLSearchParams({ limit: '20' }); if (next) q.set('cursor', next); const page = read_memory_page(await api.request(`/memories/${target}/revisions?${q}`), read_memory_revision); if (!current(e)) return; if (page.items.some(r => r.memory_id !== target)) throw new ApiError('INVALID_MEMORY_RESPONSE'); setRevisions(old => next ? [...old, ...page.items.filter(r => !old.some(o => o.version === r.version))] : page.items); setRevisionCursor(page.next_cursor); } catch (error) { if (error instanceof ApiError && error.status === 404 && current(e)) { purge(); setNotice('This memory is no longer active. Revisions were cleared.'); } else fail(error, e); } finally { finish(e); }
+  }
+  async function prepareDelete() {
+    if (!selected) return; const e = begin(); if (e === null) return; invalidate(); const m = selected, attempt: Pending = { key: crypto.randomUUID(), stage: 'PREPARATION', target: m.id, operation: null };
+    try { const p = await mutate(`/memories/${m.id}/delete-preparations`, { expected_version: m.version, expected_generation: m.generation }, attempt, raw => { const p = read_memory_preparation(raw); if (p.memory.id !== m.id || p.expected_version !== m.version || p.expected_generation !== m.generation || (Object.keys(m) as Array<keyof Memory>).some(key => key === 'source' ? (Object.keys(m.source) as Array<keyof Memory['source']>).some(field => p.memory.source[field] !== m.source[field]) : p.memory[key] !== m[key])) throw new Error(); return p; }); if (current(e)) setPreparation(p); } catch (error) { uncertain(error instanceof ApiError && error.status === 404 ? new ApiError('MEMORY_DELETED', false, 410) : error, attempt, e); } finally { finish(e); }
+  }
+  async function deleteMemory() {
+    if (!preparation || !confirmed) return; const e = begin(); if (e === null) return; const p = preparation, attempt: Pending = { key: crypto.randomUUID(), stage: 'DELETE', target: p.memory.id, operation: 'DELETE', version: p.expected_version, generation: p.expected_generation };
+    try { if (Date.parse(p.expires_at) <= Date.now()) throw new ApiError('PREPARATION_EXPIRED'); const receipt = await mutate(`/memory-delete-preparations/${p.id}/confirm`, { payload_hash: p.payload_hash, expected_version: p.expected_version, expected_generation: p.expected_generation, confirm: true }, attempt, read_memory_receipt); if (!current(e)) return; if (receipt.status !== 'REDACTED_DELETED' || receipt.memory_id !== p.memory.id || receipt.operation !== 'DELETE' || receipt.version !== attempt.version || receipt.generation !== attempt.generation) throw new ApiError('UNKNOWN', true); await applyReceipt(receipt, attempt); } catch (error) { uncertain(error, attempt, e); } finally { finish(e); }
+  }
+  async function reconcile() {
+    if (!pending || lock.current || !authenticated.current) return; const e = epoch.current, attempt = pending; lock.current = true; live.current.onPendingChange?.(true); setBusy(true);
+    try { const receipt = read_memory_receipt(await api.request(`/memory-mutations/${attempt.key}`)); if (current(e)) await applyReceipt(receipt, attempt); } catch (error) { fail(error, e); } finally { finish(e); }
+  }
+  const blocked = busy || pending !== null || writesPaused;
+  function edit(update: Partial<Draft>) { invalidate(); setDraft({ ...draft, ...update }); if ('key' in update) { setKeyState(null); setRevive(false); } }
+  return <section className="panel memories" aria-label="Explicit memories"><h2>Explicit memories</h2><p>Only information you enter and confirm here is saved. This panel does not extract memories from chats or promise that saved memories are used by the model.</p>
+    {notice && <p role="alert">{notice}</p>}
+    <label>Memory scope<select value={scope} disabled={busy || pending !== null || selectionDisabled} onChange={e => setScope(e.target.value as MemoryScope)}><option value="GLOBAL">Global</option><option value="PROJECT" disabled={!selectedProjectId}>Selected project</option></select></label>
+    {scope === 'PROJECT' && <p>Project: {selectedProjectId ?? 'Select a project first'}</p>}
+    <button className="secondary" disabled={loading || busy} onClick={() => void load()}>Refresh memories</button>
+    {loading && <p role="status">Loading memories…</p>}<ul>{items.map(m => <li key={m.id}><button className="secondary" disabled={busy || pending !== null || selectionDisabled} onClick={() => void select(m)}>{m.key} · {m.kind} · v{m.version}</button><p>{m.value}</p></li>)}</ul>
+    {cursor && <button className="secondary" disabled={loading || busy} onClick={() => void load(cursor)}>Load more memories</button>}
+    <button className="secondary" disabled={busy || pending !== null || selectionDisabled} onClick={() => { epoch.current++; setSelected(null); setDraft(empty()); setKeyState(null); setRevive(false); setRevisions([]); setRevisionCursor(null); invalidate(); setNotice(''); }}>New memory</button>
+    <form onSubmit={event => void requestReview(event)}><fieldset disabled={blocked || review !== null || preparation !== null}><legend>{selected ? 'Revise explicit memory' : 'New explicit memory'}</legend>
+      <label>Memory kind<select value={draft.kind} disabled={selected !== null} onChange={e => edit({ kind: e.target.value as MemoryKind })}><option value="PROFILE">Profile</option><option value="PREFERENCE">Preference</option></select></label>
+      <label>Memory key<input value={draft.key} required disabled={selected !== null} onChange={e => edit({ key: e.target.value })}/></label>
+      <label>Memory value<textarea value={draft.value} required onChange={e => edit({ value: e.target.value })}/></label><label>Change reason<textarea value={draft.change_reason} required onChange={e => edit({ change_reason: e.target.value })}/></label>
+      {keyState && <p>Key state: {keyState.status}; generation {keyState.generation}</p>}
+      {keyState?.status === 'DELETED' && <label><input type="checkbox" checked={revive} onChange={e => setRevive(e.target.checked)}/>Save a fresh memory for this deleted key. This does not restore its old values.</label>}
+      <button>Review memory save</button></fieldset></form>
+    {review && <section aria-label="Review exact memory save"><h3>Review exact memory save</h3><p>{review.intent.operation} · {scope} · {draft.kind} · {draft.key}</p><p>{review.arguments.value}</p><p>Reason: {review.arguments.change_reason}</p><p>Generation: {review.arguments.expected_generation}{'expected_version' in review.arguments ? `; version: ${review.arguments.expected_version}` : ''}</p><p>Expires: {review.intent.expires_at}</p><button disabled={blocked} onClick={() => void save()}>Confirm exact memory save</button><button className="secondary" disabled={busy} onClick={invalidate}>Cancel save review</button></section>}
+    {selected && <section aria-label="Selected memory details"><p>Version {selected.version}, generation {selected.generation}. Source: explicit owner form; submitted {selected.source.submitted_at}.</p><button className="secondary" disabled={busy || pending !== null} onClick={() => void refreshSelected()}>Refresh selected memory version</button><p>Current saved value: {selected.value}</p><button className="secondary" disabled={busy || pending !== null} onClick={() => void history()}>View active memory revisions</button><ol>{revisions.map(r => <li key={r.version}><p>Version {r.version}: {r.value}</p><p>Reason: {r.change_reason}</p><p>Explicit owner form: {r.source.submitted_at}</p></li>)}</ol>{revisionCursor && <button className="secondary" disabled={busy || pending !== null} onClick={() => void history(revisionCursor)}>Load more revisions</button>}
+      <p>Deletion requires recent reauthentication and a fresh deletion preview. Reauthentication clears staged approvals; select the memory again afterward.</p><button className="secondary" disabled={blocked} onClick={() => { if (!lock.current && !pending && !live.current.writesPaused) { invalidate(); live.current.onReauthenticate(); } }}>Reauthenticate for deletion</button><button className="secondary" disabled={blocked} onClick={() => void prepareDelete()}>Prepare memory deletion</button></section>}
+    {preparation && <section aria-label="Confirm memory deletion"><h3>Confirm memory deletion</h3><p>{preparation.memory.scope} · {preparation.memory.key}</p><p>{preparation.memory.value}</p><p>Version {preparation.expected_version}, generation {preparation.expected_generation}. Expires: {preparation.expires_at}</p><p>This deletes the active memory and its saved revisions. A fresh save later will not restore this history.</p><label><input type="checkbox" checked={confirmed} disabled={blocked} onChange={e => setConfirmed(e.target.checked)}/>I confirm deletion of this exact memory and its revisions.</label><button disabled={blocked || !confirmed} onClick={() => void deleteMemory()}>Delete this memory and revisions</button><button className="secondary" disabled={busy} onClick={invalidate}>Cancel deletion</button></section>}
+    {pending && <section aria-label="Unknown memory outcome"><p>Request: {pending.key}</p><button className="secondary" disabled={busy} onClick={() => void reconcile()}>Check memory outcome</button>{(pending.stage === 'INTENT' || pending.stage === 'PREPARATION') && <button className="secondary" disabled={busy} onClick={() => { setPending(null); invalidate(); setNotice('Unconsumed approval abandoned. No save or deletion was submitted. Review again to request a fresh approval.'); }}>Abandon unconsumed approval</button>}</section>}
+  </section>;
+}

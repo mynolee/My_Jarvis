@@ -6,7 +6,7 @@ const task_draft = (task: Task) => ({ title: task.title, description: task.descr
 
 type Review = { args: TaskArgs; target: string | null };
 type Pending = { key: string; target: string | null; mutation: boolean };
-export function TasksPanel({ api, onUnauthorized, writesPaused = false }: { api: Api; onUnauthorized: () => void; writesPaused?: boolean }) {
+export function TasksPanel({ api, onUnauthorized, writesPaused = false, onPendingChange }: { api: Api; onUnauthorized: () => void; writesPaused?: boolean; onPendingChange?: (pending: boolean) => void }) {
   const [items, setItems] = useState<Task[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState(''), [from, setFrom] = useState(''), [to, setTo] = useState('');
   const [base, setBase] = useState<Task | null>(null), [draft, setDraft] = useState(empty_task);
@@ -14,6 +14,8 @@ export function TasksPanel({ api, onUnauthorized, writesPaused = false }: { api:
   const [review, setReview] = useState<Review | null>(null), [conflict, setConflict] = useState<Task | null>(null);
   const [pending, setPending] = useState<Pending | null>(null), [observed, setObserved] = useState<Task | null>(null);
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
+  useEffect(() => { onPendingChange?.(busy || pending !== null); }, [busy, pending, onPendingChange]);
+  useEffect(() => () => onPendingChange?.(false), [onPendingChange]);
   const lock = useRef(false), live = useRef(true), listEpoch = useRef(0);
   useEffect(() => { live.current = true; return () => { live.current = false; listEpoch.current++; }; }, []);
   function fail(error: unknown) {
@@ -39,7 +41,7 @@ export function TasksPanel({ api, onUnauthorized, writesPaused = false }: { api:
   }
   async function commit() {
     if (!review || disabled || lock.current) return;
-    lock.current = true; setBusy(true); setNotice('');
+    lock.current = true; onPendingChange?.(true); setBusy(true); setNotice('');
     let attempt: Pending = { key: crypto.randomUUID(), target: review.target, mutation: false };
     try {
       const tool = review.target ? 'task.update' : 'task.create';
@@ -65,7 +67,7 @@ export function TasksPanel({ api, onUnauthorized, writesPaused = false }: { api:
     } finally { lock.current = false; if (live.current) setBusy(false); }
   }
   async function reconcile() {
-    if (!pending || lock.current) return; lock.current = true; setBusy(true);
+    if (!pending || lock.current) return; lock.current = true; onPendingChange?.(true); setBusy(true);
     try {
       if (!pending.mutation) { setNotice('The intent response is unknown. No task mutation was sent by this page. Writes remain paused; sign out and review server state before further work.'); return; }
       const receipt = await api.request<{status: string; task: unknown}>(`/task-mutations/${pending.key}`);

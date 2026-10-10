@@ -5,13 +5,15 @@ import { empty_project, read_project, read_project_page, read_project_receipt, v
 export interface ProjectsPanelProps {
   api: Api; sessionKey: number; selectedProjectId: string | null;
   onSelect: (project: Project | null) => void; onUnauthorized: () => void;
-  writesPaused?: boolean; selectionDisabled?: boolean;
+  writesPaused?: boolean; selectionDisabled?: boolean; onPendingChange?: (pending: boolean) => void;
 }
 type Attempt = { key: string; fields: ProjectFields };
-export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, onUnauthorized, writesPaused = false, selectionDisabled = false }: ProjectsPanelProps) {
+export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, onUnauthorized, writesPaused = false, selectionDisabled = false, onPendingChange }: ProjectsPanelProps) {
   const [items, setItems] = useState<Project[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState(empty_project), [pending, setPending] = useState<Attempt | null>(null);
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false);
+  useEffect(() => { onPendingChange?.(busy || pending !== null); }, [busy, pending, onPendingChange]);
+  useEffect(() => () => onPendingChange?.(false), [onPendingChange]);
   const session = useRef(0), live = useRef(false), authenticated = useRef(true), lock = useRef(false), listEpoch = useRef(0), selectionEpoch = useRef(0);
   const callbacks = useRef({ onSelect, onUnauthorized, selectionDisabled, writesPaused }); callbacks.current = { onSelect, onUnauthorized, selectionDisabled, writesPaused };
   const identity = useRef({ api, sessionKey }); identity.current = { api, sessionKey };
@@ -55,7 +57,7 @@ export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, on
     if (!authenticated.current || lock.current || pending || callbacks.current.writesPaused) return;
     if (!valid_project_fields(draft)) { setNotice('Enter a project name (1–200 characters) and description of up to 4000 characters.'); return; }
     const epoch = session.current, attempt: Attempt = { key: crypto.randomUUID(), fields: { ...draft } };
-    lock.current = true; setBusy(true); setNotice('');
+    lock.current = true; onPendingChange?.(true); setBusy(true); setNotice('');
     try {
       const raw = await api.request('/projects', attempt.fields, attempt.key);
       if (!active(epoch)) return;
@@ -72,7 +74,7 @@ export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, on
   }
   async function reconcile() {
     if (!pending || lock.current || !authenticated.current) return;
-    const epoch = session.current, attempt = pending; lock.current = true; setBusy(true);
+    const epoch = session.current, attempt = pending; lock.current = true; onPendingChange?.(true); setBusy(true);
     try {
       const raw = await api.request<unknown>(`/project-creations/${attempt.key}`);
       if (!active(epoch)) return;
