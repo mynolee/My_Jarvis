@@ -4,6 +4,8 @@ import { Api, ApiError } from './api';
 import { TasksPanel } from './TasksPanel';
 import { MemoriesPanel } from './MemoriesPanel';
 import { ProfilePanel } from './ProfilePanel';
+import { SchedulesPanel } from './SchedulesPanel';
+import { NotificationsPanel } from './NotificationsPanel';
 import { ProjectsPanel } from './ProjectsPanel';
 import type { Project } from './projects';
 import { can_decide, decision_body, terminal, UUID, valid_snapshot, type Approval, type Conversation, type Run } from './domain';
@@ -14,21 +16,38 @@ import { read_runtime, type LocalRuntime } from './runtime';
 export function App({ api = new Api() }: { api?: Api }) {
   const client = useRef(api).current;
   const [authenticated, set_authenticated] = useState(false);
+  const recovery_boundary_lost = useRef(false);
   const [tasks_open, set_tasks_open] = useState(false);
   const [projects_open, set_projects_open] = useState(false);
   const [memories_open, set_memories_open] = useState(false);
   const [memory_pending, set_memory_pending] = useState(false);
   const [profile_open, set_profile_open] = useState(false);
   const [profile_pending, set_profile_pending] = useState(false);
+  const [schedules_open, set_schedules_open] = useState(false);
+  const [notifications_open, set_notifications_open] = useState(false);
+  const [schedule_pending, set_schedule_pending] = useState(false);
+  const [notification_pending, set_notification_pending] = useState(false);
   const domain_locked = useRef(false), navigation_paused = useRef(false), main_navigation_paused = useRef(false);
-  const pending_domains = useRef({ task: false, project: false, memory: false, profile: false });
-  const update_pending = useCallback((domain: 'task' | 'project' | 'memory' | 'profile', pending: boolean) => { pending_domains.current[domain] = pending; domain_locked.current = Object.values(pending_domains.current).some(Boolean); navigation_paused.current = main_navigation_paused.current || domain_locked.current; }, []);
+  const pending_domains = useRef({ task: false, project: false, memory: false, profile: false, schedule: false, notification: false });
+  const update_pending = useCallback((domain: 'task' | 'project' | 'memory' | 'profile' | 'schedule' | 'notification', pending: boolean) => { pending_domains.current[domain] = pending; domain_locked.current = Object.values(pending_domains.current).some(Boolean); navigation_paused.current = main_navigation_paused.current || domain_locked.current; }, []);
   const task_pending_changed = useCallback((pending: boolean) => { update_pending('task', pending); set_task_pending(pending); }, [update_pending]);
   const project_pending_changed = useCallback((pending: boolean) => { update_pending('project', pending); set_project_pending(pending); }, [update_pending]);
   const memory_pending_changed = useCallback((pending: boolean) => { update_pending('memory', pending); set_memory_pending(pending); }, [update_pending]);
   const profile_pending_changed = useCallback((pending: boolean) => { update_pending('profile', pending); set_profile_pending(pending); }, [update_pending]);
+  const schedule_pending_changed = useCallback((pending: boolean) => { update_pending('schedule', pending); set_schedule_pending(pending); }, [update_pending]);
+  const notification_pending_changed = useCallback((pending: boolean) => { update_pending('notification', pending); set_notification_pending(pending); }, [update_pending]);
   const [task_pending, set_task_pending] = useState(false);
   const [project_pending, set_project_pending] = useState(false);
+  const acquire_pending = useCallback((domain: keyof typeof pending_domains.current) => {
+    if (locked.current || main_navigation_paused.current || Object.entries(pending_domains.current).some(([key, value]) => key !== domain && value)) return false;
+    pending_domains.current[domain] = true; domain_locked.current = true; navigation_paused.current = true; return true;
+  }, []);
+  const acquire_task = useCallback(() => acquire_pending('task'), [acquire_pending]);
+  const acquire_project = useCallback(() => acquire_pending('project'), [acquire_pending]);
+  const acquire_memory = useCallback(() => acquire_pending('memory'), [acquire_pending]);
+  const acquire_profile = useCallback(() => acquire_pending('profile'), [acquire_pending]);
+  const acquire_schedule = useCallback(() => acquire_pending('schedule'), [acquire_pending]);
+  const acquire_notification = useCallback(() => acquire_pending('notification'), [acquire_pending]);
   const [new_project, set_new_project] = useState<Project | null>(null);
   const [ready, set_ready] = useState(false);
   const [runtime, set_runtime] = useState<LocalRuntime | null>(null);
@@ -48,7 +67,7 @@ export function App({ api = new Api() }: { api?: Api }) {
   const [approval, set_approval] = useState<Approval | null>(null);
   const [text, set_text] = useState('');
   const [now, set_now] = useState(Date.now());
-  const clear_private = useCallback(() => { pending_domains.current = { task: false, project: false, memory: false, profile: false }; domain_locked.current = false; navigation_paused.current = false; auth_generation.current++; generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_projects_open(false); set_memories_open(false); set_profile_open(false); set_profile_pending(false); set_memory_pending(false); set_task_pending(false); set_project_pending(false); set_new_project(null); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); selected_id.current = null; snapshot_revision.current++; set_run(null); set_approval(null); set_text(''); set_uncertain(false); set_reauth_required(false); }, [client]);
+  const clear_private = useCallback(() => { if (Object.values(pending_domains.current).some(Boolean)) recovery_boundary_lost.current = true; pending_domains.current = { task: false, project: false, memory: false, profile: false, schedule: false, notification: false }; domain_locked.current = false; navigation_paused.current = false; auth_generation.current++; generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_projects_open(false); set_memories_open(false); set_profile_open(false); set_schedules_open(false); set_notifications_open(false); set_schedule_pending(false); set_notification_pending(false); set_profile_pending(false); set_memory_pending(false); set_task_pending(false); set_project_pending(false); set_new_project(null); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); selected_id.current = null; snapshot_revision.current++; set_run(null); set_approval(null); set_text(''); set_uncertain(false); set_reauth_required(false); }, [client]);
   const fail = useCallback((error: unknown) => { if (error instanceof ApiError) { if (error.status === 401) clear_private(); if (error.uncertain) set_uncertain(true); if (error.code === 'REAUTHENTICATION_REQUIRED') set_reauth_required(true); if (error.status === 409) set_approval(null); if (error.code === 'MODEL_UNAVAILABLE' || error.code === 'LOCAL_MODEL_UNAVAILABLE') set_runtime(null); set_notice(error.uncertain ? 'UNKNOWN: The request may have reached the server. Writes are paused. Reconcile server state; do not resend.' : /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code) ? error.code : 'REQUEST_REJECTED'); } else set_notice('BLOCKED: Invalid server data or unavailable operation.'); }, [clear_private]);
   const refresh_runtime = useCallback(async () => {
     const current = generation.current, session_epoch = auth_generation.current;
@@ -80,9 +99,9 @@ export function App({ api = new Api() }: { api?: Api }) {
   // Clear private state on page disposal and never persist it in CacheStorage/IDB/Web Storage.
   useEffect(() => { const hide = () => flushSync(() => clear_private()); window.addEventListener('pagehide', hide); return () => window.removeEventListener('pagehide', hide); }, [clear_private]);
   async function mutate(operation: (current: number) => Promise<void>, allowDomainPending = false) { if (locked.current || domain_locked.current && !allowDomainPending) return; const current = generation.current; locked.current = true; set_busy(true); set_notice(''); try { await operation(current); } catch (error) { if (current === generation.current) fail(error); } finally { locked.current = false; set_busy(false); } }
-  function login(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const login_name = String(data.get('login_name') ?? ''); const password = String(data.get('password') ?? ''); form.reset(); void mutate(async current => { await client.bootstrap_csrf(); if (current !== generation.current) return; const result = await client.request<{ csrf_token: string }>('/auth/login', { login_name, password }); if (current !== generation.current) return; client.set_csrf(result.csrf_token); set_authenticated(true); set_uncertain(false); }); }
+  function login(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const login_name = String(data.get('login_name') ?? ''); const password = String(data.get('password') ?? ''); form.reset(); void mutate(async current => { await client.bootstrap_csrf(); if (current !== generation.current) return; const result = await client.request<{ csrf_token: string }>('/auth/login', { login_name, password }); if (current !== generation.current) return; client.set_csrf(result.csrf_token); set_authenticated(true); set_uncertain(false); if (recovery_boundary_lost.current) set_notice('A previous request may still have committed. Private recovery identifiers were cleared at sign-out. Review saved data before making a new change; no request has been repeated automatically.'); }); }
   const writes_paused = uncertain || run?.status === 'UNKNOWN';
-  const domain_pending = task_pending || project_pending || memory_pending || profile_pending;
+  const domain_pending = task_pending || project_pending || memory_pending || profile_pending || schedule_pending || notification_pending;
   const navigation_disabled = busy || writes_paused || domain_pending;
   main_navigation_paused.current = busy || writes_paused; domain_locked.current = Object.values(pending_domains.current).some(Boolean); navigation_paused.current = main_navigation_paused.current || domain_locked.current;
   const local_ready = runtime?.ready === true && runtime.status === 'READY' && Math.max(now, Date.now()) - runtime_checked_at < 10000;
@@ -98,6 +117,7 @@ export function App({ api = new Api() }: { api?: Api }) {
   }
   function logout() { void mutate(async () => { try { await client.request('/auth/logout', {}); } finally { clear_private(); } }, true); }
   function request_memory_reauthentication() { if (locked.current || writes_paused || domain_locked.current) return; set_reauth_required(true); set_notice('Confirm your identity, then select the memory and prepare a fresh deletion preview.'); }
+  function request_schedule_reauthentication() { if (locked.current || writes_paused || domain_locked.current) return; set_reauth_required(true); set_notice('Confirm your identity, then prepare and review a fresh reminder preview. No reminder confirmation is repeated automatically.'); }
   return <main>
     <header><div><span className="eyebrow">MY JARVIS / LOCAL TEXT</span><h1>Operator console</h1></div><span className="badge">Server-reported state</span></header>
     <p className="boundary">Local text inference requires a ready server runtime. Mock demonstrations remain separate. Calendar, mail, and device integrations are not enabled here. No additional model training. This is not a production release.</p>
@@ -105,15 +125,19 @@ export function App({ api = new Api() }: { api?: Api }) {
     {!authenticated ? <section className="panel login"><h2>Owner sign in</h2><p>Use an owner account provisioned through the server’s local administration flow.</p><form onSubmit={login}><label>Login name<input name="login_name" autoComplete="username" required maxLength={128} disabled={!ready || busy}/></label><label>Password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={!ready || busy}/></label><button disabled={!ready || busy}>{ready ? 'Sign in' : 'Connecting securely…'}</button></form></section> : <>
       <nav aria-label="Session controls"><span>Session active</span><button className="secondary" disabled={busy} onClick={() => void refresh()}>Refresh server state</button><button className="secondary" disabled={busy} onClick={logout}>Sign out</button></nav>
       <button className="secondary" disabled={tasks_open} onClick={() => set_tasks_open(true)}>Open internal tasks</button>
-      {tasks_open && <TasksPanel key={auth_generation.current} api={client} onUnauthorized={clear_private} writesPaused={writes_paused || busy || memory_pending || project_pending || profile_pending} onPendingChange={task_pending_changed}/>}
+      {tasks_open && <TasksPanel key={auth_generation.current} api={client} onUnauthorized={clear_private} writesPaused={writes_paused || busy || memory_pending || project_pending || profile_pending || schedule_pending || notification_pending} onPendingChange={task_pending_changed} onAcquirePending={acquire_task}/>}
       <button className="secondary" disabled={projects_open} onClick={() => set_projects_open(true)}>Choose project for a new conversation</button>
-      {projects_open && <ProjectsPanel api={client} sessionKey={auth_generation.current} selectedProjectId={new_project?.id ?? null} onSelect={set_new_project} onUnauthorized={clear_private} writesPaused={writes_paused || busy || memory_pending || task_pending || profile_pending} selectionDisabled={navigation_disabled} onPendingChange={project_pending_changed}/>}
+      {projects_open && <ProjectsPanel api={client} sessionKey={auth_generation.current} selectedProjectId={new_project?.id ?? null} onSelect={set_new_project} onUnauthorized={clear_private} writesPaused={writes_paused || busy || memory_pending || task_pending || profile_pending || schedule_pending || notification_pending} selectionDisabled={navigation_disabled} onPendingChange={project_pending_changed} onAcquirePending={acquire_project}/>}
       <button className="secondary" disabled={profile_open} onClick={() => set_profile_open(true)}>Open owner settings</button>
-      {profile_open && <ProfilePanel api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private} writesPaused={writes_paused || busy || task_pending || project_pending || memory_pending} onPendingChange={profile_pending_changed}/>}
+      {profile_open && <ProfilePanel api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private} writesPaused={writes_paused || busy || task_pending || project_pending || memory_pending || schedule_pending || notification_pending} onPendingChange={profile_pending_changed} onAcquirePending={acquire_profile}/>}
       <button className="secondary" disabled={memories_open} onClick={() => set_memories_open(true)}>Open explicit memories</button>
-      {memories_open && <MemoriesPanel api={client} sessionKey={auth_generation.current} selectedProjectId={conversation ? conversation.project_id : new_project?.id ?? null} onUnauthorized={clear_private} onReauthenticate={request_memory_reauthentication} writesPaused={writes_paused || busy || task_pending || project_pending || profile_pending} selectionDisabled={navigation_disabled} onPendingChange={memory_pending_changed}/>}
+      {memories_open && <MemoriesPanel api={client} sessionKey={auth_generation.current} selectedProjectId={conversation ? conversation.project_id : new_project?.id ?? null} onUnauthorized={clear_private} onReauthenticate={request_memory_reauthentication} writesPaused={writes_paused || busy || task_pending || project_pending || profile_pending || schedule_pending || notification_pending} selectionDisabled={navigation_disabled} onPendingChange={memory_pending_changed} onAcquirePending={acquire_memory}/>}
+      <button className="secondary" disabled={schedules_open} onClick={() => set_schedules_open(true)}>Open internal reminders</button>
+      {schedules_open && <SchedulesPanel api={client} sessionKey={auth_generation.current} selectedProjectId={new_project?.id ?? null} onUnauthorized={clear_private} onReauthenticate={request_schedule_reauthentication} writesPaused={writes_paused || busy || task_pending || project_pending || memory_pending || profile_pending || notification_pending} selectionDisabled={navigation_disabled} onPendingChange={schedule_pending_changed} onAcquirePending={acquire_schedule}/>}
+      <button className="secondary" disabled={notifications_open} onClick={() => set_notifications_open(true)}>Open internal inbox</button>
+      {notifications_open && <NotificationsPanel api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private} writesPaused={writes_paused || busy || task_pending || project_pending || memory_pending || profile_pending || schedule_pending} selectionDisabled={navigation_disabled} onPendingChange={notification_pending_changed} onAcquirePending={acquire_notification}/>}
       {busy && <p role="status">Processing the current request…</p>}
-      {domain_pending && <p role="status">{profile_pending ? 'An owner settings request is pending.' : 'A task, project, or memory request is pending.'} Other changes and navigation are paused; any available outcome check remains enabled.</p>}
+      {domain_pending && <p role="status">{profile_pending ? 'An owner settings request is pending.' : schedule_pending || notification_pending ? 'A reminder or inbox request is pending.' : 'A task, project, or memory request is pending.'} Other changes and navigation are paused; any available outcome check remains enabled.</p>}
       <p className="hint">Next new conversation project: {new_project?.name ?? 'No project'}. Existing conversations keep their original project.</p>
       <button className="secondary" disabled={navigation_disabled} onClick={start_new_conversation}>Start new conversation</button>
       <section className="panel" aria-label="Local model runtime"><h2>Local model runtime</h2><span className="badge" role="status">{runtime?.status === 'READY' && !local_ready ? 'UNKNOWN' : runtime?.status ?? 'UNKNOWN'}</span><p>{local_ready ? 'The server reports the local worker is ready. Responses are generated only after you send a message.' : runtime?.status === 'LOADING' ? 'The local model is loading. Sending is disabled until the server confirms readiness.' : runtime?.status === 'DISABLED' ? 'Local inference is disabled on this server.' : runtime?.status === 'UNAVAILABLE' ? 'MODEL_UNAVAILABLE: the local runtime is unavailable.' : 'Runtime state could not be confirmed. Local sending is disabled.'}</p><p className="hint">No external AI fallback. Download, loading, and successful inference are separate states. No training progress is reported.</p></section>

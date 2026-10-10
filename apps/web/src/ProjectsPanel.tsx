@@ -5,10 +5,10 @@ import { empty_project, read_project, read_project_page, read_project_receipt, v
 export interface ProjectsPanelProps {
   api: Api; sessionKey: number; selectedProjectId: string | null;
   onSelect: (project: Project | null) => void; onUnauthorized: () => void;
-  writesPaused?: boolean; selectionDisabled?: boolean; onPendingChange?: (pending: boolean) => void;
+  writesPaused?: boolean; selectionDisabled?: boolean; onPendingChange?: (pending: boolean) => void; onAcquirePending?: () => boolean;
 }
 type Attempt = { key: string; fields: ProjectFields };
-export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, onUnauthorized, writesPaused = false, selectionDisabled = false, onPendingChange }: ProjectsPanelProps) {
+export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, onUnauthorized, writesPaused = false, selectionDisabled = false, onPendingChange, onAcquirePending }: ProjectsPanelProps) {
   const [items, setItems] = useState<Project[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState(empty_project), [pending, setPending] = useState<Attempt | null>(null);
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false);
@@ -56,6 +56,7 @@ export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, on
     event.preventDefault();
     if (!authenticated.current || lock.current || pending || callbacks.current.writesPaused) return;
     if (!valid_project_fields(draft)) { setNotice('Enter a project name (1–200 characters) and description of up to 4000 characters.'); return; }
+    if (onAcquirePending?.() === false) return;
     const epoch = session.current, attempt: Attempt = { key: crypto.randomUUID(), fields: { ...draft } };
     lock.current = true; onPendingChange?.(true); setBusy(true); setNotice('');
     try {
@@ -73,7 +74,7 @@ export function ProjectsPanel({ api, sessionKey, selectedProjectId, onSelect, on
     } finally { if (active(epoch)) { lock.current = false; setBusy(false); } }
   }
   async function reconcile() {
-    if (!pending || lock.current || !authenticated.current) return;
+    if (!pending || lock.current || !authenticated.current || onAcquirePending?.() === false) return;
     const epoch = session.current, attempt = pending; lock.current = true; onPendingChange?.(true); setBusy(true);
     try {
       const raw = await api.request<unknown>(`/project-creations/${attempt.key}`);

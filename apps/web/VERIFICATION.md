@@ -1,3 +1,5 @@
+> Historical snapshot: the source hashes and test counts below describe the earlier local-text milestone, not later profile, context, or reminder changes.
+
 # Web local-text verification — 2026-10-10
 
 Status: implemented and unit-tested; browser and real-model integration remain unverified. Not a production-readiness or security certification.

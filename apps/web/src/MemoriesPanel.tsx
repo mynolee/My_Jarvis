@@ -1,28 +1,28 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Api, ApiError } from './api';
 import { read_memory, read_memory_intent, read_memory_key_state, read_memory_page, read_memory_preparation, read_memory_receipt, read_memory_revision, valid_memory_body, valid_memory_fields, valid_memory_identity, type Memory, type MemoryArguments, type MemoryIdentity, type MemoryIntent, type MemoryKeyState, type MemoryKind, type MemoryPreparation, type MemoryReceipt, type MemoryRevision, type MemoryScope } from './memories';
-export interface MemoriesPanelProps { api: Api; sessionKey: number; selectedProjectId: string | null; onUnauthorized: () => void; onReauthenticate: () => void; writesPaused?: boolean; selectionDisabled?: boolean; onPendingChange?: (pending: boolean) => void }
+export interface MemoriesPanelProps { api: Api; sessionKey: number; selectedProjectId: string | null; onUnauthorized: () => void; onReauthenticate: () => void; writesPaused?: boolean; selectionDisabled?: boolean; onPendingChange?: (pending: boolean) => void; onAcquirePending?: () => boolean }
 type Draft = { key: string; kind: MemoryKind; value: string; change_reason: string };
 type Review = { intent: MemoryIntent; arguments: MemoryArguments };
 /** Only metadata survives an uncertain response. Never retain mutation bodies in a retry queue. */
 type Pending = { key: string; stage: 'INTENT' | 'PREPARATION' | 'SAVE' | 'DELETE'; target: string | null; operation: 'CREATE' | 'REVISE' | 'DELETE' | null; version?: number; generation?: number };
 const empty = (): Draft => ({ key: '', kind: 'PREFERENCE', value: '', change_reason: '' });
-export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthorized, onReauthenticate, writesPaused = false, selectionDisabled = false, onPendingChange }: MemoriesPanelProps) {
+export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthorized, onReauthenticate, writesPaused = false, selectionDisabled = false, onPendingChange, onAcquirePending }: MemoriesPanelProps) {
   const [scope, setScope] = useState<MemoryScope>('GLOBAL'), [draft, setDraft] = useState<Draft>(empty), [items, setItems] = useState<Memory[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<Memory | null>(null), [keyState, setKeyState] = useState<MemoryKeyState | null>(null), [revive, setRevive] = useState(false);
   const [review, setReview] = useState<Review | null>(null), [preparation, setPreparation] = useState<MemoryPreparation | null>(null), [confirmed, setConfirmed] = useState(false);
   const [revisions, setRevisions] = useState<MemoryRevision[]>([]), [revisionCursor, setRevisionCursor] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [notice, setNotice] = useState('');
   const mounted = useRef(false), authenticated = useRef(true), epoch = useRef(0), listEpoch = useRef(0), lock = useRef(false), inFlight = useRef<Pending | null>(null);
-  const live = useRef({ api, sessionKey, selectedProjectId, scope, writesPaused, selectionDisabled, onUnauthorized, onReauthenticate, onPendingChange });
-  live.current = { api, sessionKey, selectedProjectId, scope, writesPaused, selectionDisabled, onUnauthorized, onReauthenticate, onPendingChange };
+  const live = useRef({ api, sessionKey, selectedProjectId, scope, writesPaused, selectionDisabled, onUnauthorized, onReauthenticate, onPendingChange, onAcquirePending });
+  live.current = { api, sessionKey, selectedProjectId, scope, writesPaused, selectionDisabled, onUnauthorized, onReauthenticate, onPendingChange, onAcquirePending };
   const current = (e: number) => mounted.current && authenticated.current && epoch.current === e && live.current.api === api && live.current.sessionKey === sessionKey && live.current.selectedProjectId === selectedProjectId && live.current.scope === scope;
   const identity = (): MemoryIdentity => ({ scope, project_id: scope === 'PROJECT' ? selectedProjectId : null, key: draft.key });
   const invalidate = () => { setReview(null); setPreparation(null); setConfirmed(false); };
   function purge() { listEpoch.current++; setItems([]); setCursor(null); setSelected(null); setDraft(empty()); setKeyState(null); setRevive(false); setRevisions([]); setRevisionCursor(null); invalidate(); }
   function fail(error: unknown, e: number) {
     if (!mounted.current || !authenticated.current || live.current.api !== api || live.current.sessionKey !== sessionKey) return;
-    if (error instanceof ApiError && error.status === 401) { authenticated.current = false; epoch.current++; purge(); setPending(null); setBusy(false); setLoading(false); lock.current = false; api.clear(); live.current.onPendingChange?.(false); live.current.onUnauthorized(); return; }
+    if (error instanceof ApiError && error.status === 401) { authenticated.current = false; epoch.current++; purge(); setPending(null); setBusy(false); setLoading(false); lock.current = false; api.clear(); live.current.onUnauthorized(); live.current.onPendingChange?.(false); return; }
     if (!current(e)) return;
     invalidate();
     if (error instanceof ApiError && (error.code === 'MEMORY_DELETED' || error.status === 410)) { purge(); setNotice('This memory was deleted. Old values, revisions, and approvals have been cleared. A new save requires a fresh form.'); return; }
@@ -40,7 +40,7 @@ export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthoriz
   useEffect(() => { epoch.current++; if (inFlight.current) { setPending(inFlight.current); inFlight.current = null; } purge(); setNotice(''); setBusy(false); lock.current = false; void load(); }, [scope, selectedProjectId]);
   useEffect(() => { onPendingChange?.(busy || pending !== null); }, [busy, pending, onPendingChange]);
   useEffect(() => () => { live.current.onPendingChange?.(false); }, []);
-  function begin(): number | null { if (lock.current || pending || !authenticated.current || live.current.writesPaused) return null; lock.current = true; live.current.onPendingChange?.(true); setBusy(true); setNotice(''); return epoch.current; }
+  function begin(): number | null { if (lock.current || pending || !authenticated.current || live.current.writesPaused || live.current.onAcquirePending?.() === false) return null; lock.current = true; live.current.onPendingChange?.(true); setBusy(true); setNotice(''); return epoch.current; }
   function finish(e: number) { if (current(e)) { inFlight.current = null; lock.current = false; setBusy(false); } }
   function uncertain(error: unknown, attempt: Pending, e: number) { if (error instanceof ApiError && error.status === 401) { fail(error, e); return; } if (!current(e)) return; if (!(error instanceof ApiError) || error.uncertain) { invalidate(); setPending(attempt); setNotice('The outcome is unknown. Writes are paused. Check the content-free receipt; the request will not be resent.'); } else fail(error, e); }
   async function mutate<T>(path: string, body: unknown, attempt: Pending, parse: (v: unknown) => T, method: 'POST' | 'PATCH' = 'POST'): Promise<T> { if (!valid_memory_body(body)) throw new ApiError('MEMORY_BODY_TOO_LARGE'); inFlight.current = attempt; const raw = await api.request(path, body, attempt.key, method); try { return parse(raw); } catch { throw new ApiError('UNKNOWN', true); } }
@@ -69,16 +69,16 @@ export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthoriz
     try { if (Date.parse(staged.intent.expires_at) <= Date.now()) throw new ApiError('INTENT_EXPIRED'); const receipt = await mutate(staged.intent.operation === 'CREATE' ? '/memories' : `/memories/${staged.intent.target_id}`, { intent_id: staged.intent.id, arguments: staged.arguments }, attempt, read_memory_receipt, staged.intent.operation === 'CREATE' ? 'POST' : 'PATCH'); if (!current(e)) return; if (receipt.status === 'NOT_OBSERVED' || receipt.memory_id !== attempt.target || receipt.operation !== attempt.operation || receipt.version !== attempt.version || receipt.generation !== attempt.generation) throw new ApiError('UNKNOWN', true); await applyReceipt(receipt, attempt); } catch (error) { uncertain(error, attempt, e); } finally { finish(e); }
   }
   async function select(memory: Memory) {
-    if (lock.current || pending || live.current.selectionDisabled) return; const e = ++epoch.current; invalidate(); setRevisions([]); setRevisionCursor(null); setKeyState(null); setRevive(false); setSelected(null); setDraft(empty()); live.current.onPendingChange?.(true); setBusy(true); lock.current = true;
+    if (lock.current || pending || live.current.selectionDisabled || live.current.onAcquirePending?.() === false) return; const e = ++epoch.current; invalidate(); setRevisions([]); setRevisionCursor(null); setKeyState(null); setRevive(false); setSelected(null); setDraft(empty()); live.current.onPendingChange?.(true); setBusy(true); lock.current = true;
     try { const m = read_memory(await api.request(`/memories/${memory.id}`)); if (!current(e)) return; if (m.id !== memory.id || m.scope !== scope || m.project_id !== (scope === 'PROJECT' ? selectedProjectId : null)) throw new ApiError('INVALID_MEMORY_RESPONSE'); setSelected(m); setDraft({ key: m.key, kind: m.kind, value: m.value, change_reason: '' }); } catch (error) { if (error instanceof ApiError && error.status === 404 && current(e)) { purge(); setNotice('This memory is no longer active.'); } else fail(error, e); } finally { finish(e); }
   }
   async function refreshSelected() {
-    if (!selected || lock.current || pending) return; const e = epoch.current, target = selected.id; lock.current = true; live.current.onPendingChange?.(true); setBusy(true); invalidate();
+    if (!selected || lock.current || pending || live.current.onAcquirePending?.() === false) return; const e = epoch.current, target = selected.id; lock.current = true; live.current.onPendingChange?.(true); setBusy(true); invalidate();
     try { const m = read_memory(await api.request(`/memories/${target}`)); if (!current(e)) return; if (m.id !== target || m.scope !== selected.scope || m.project_id !== selected.project_id || m.key !== selected.key || m.kind !== selected.kind) throw new ApiError('INVALID_MEMORY_RESPONSE'); setSelected(m); setKeyState(null); setRevisions([]); setRevisionCursor(null); setNotice('Current version loaded. Your draft is preserved; review it against the updated memory before saving.'); }
     catch (error) { if (error instanceof ApiError && error.status === 404 && current(e)) { purge(); setNotice('This memory is no longer active.'); } else fail(error, e); } finally { finish(e); }
   }
   async function history(next: string | null = null) {
-    if (!selected || lock.current || pending) return; const e = epoch.current, target = selected.id; lock.current = true; live.current.onPendingChange?.(true); setBusy(true);
+    if (!selected || lock.current || pending || live.current.onAcquirePending?.() === false) return; const e = epoch.current, target = selected.id; lock.current = true; live.current.onPendingChange?.(true); setBusy(true);
     try { const q = new URLSearchParams({ limit: '20' }); if (next) q.set('cursor', next); const page = read_memory_page(await api.request(`/memories/${target}/revisions?${q}`), read_memory_revision); if (!current(e)) return; if (page.items.some(r => r.memory_id !== target)) throw new ApiError('INVALID_MEMORY_RESPONSE'); setRevisions(old => next ? [...old, ...page.items.filter(r => !old.some(o => o.version === r.version))] : page.items); setRevisionCursor(page.next_cursor); } catch (error) { if (error instanceof ApiError && error.status === 404 && current(e)) { purge(); setNotice('This memory is no longer active. Revisions were cleared.'); } else fail(error, e); } finally { finish(e); }
   }
   async function prepareDelete() {
@@ -90,7 +90,7 @@ export function MemoriesPanel({ api, sessionKey, selectedProjectId, onUnauthoriz
     try { if (Date.parse(p.expires_at) <= Date.now()) throw new ApiError('PREPARATION_EXPIRED'); const receipt = await mutate(`/memory-delete-preparations/${p.id}/confirm`, { payload_hash: p.payload_hash, expected_version: p.expected_version, expected_generation: p.expected_generation, confirm: true }, attempt, read_memory_receipt); if (!current(e)) return; if (receipt.status !== 'REDACTED_DELETED' || receipt.memory_id !== p.memory.id || receipt.operation !== 'DELETE' || receipt.version !== attempt.version || receipt.generation !== attempt.generation) throw new ApiError('UNKNOWN', true); await applyReceipt(receipt, attempt); } catch (error) { uncertain(error, attempt, e); } finally { finish(e); }
   }
   async function reconcile() {
-    if (!pending || lock.current || !authenticated.current) return; const e = epoch.current, attempt = pending; lock.current = true; live.current.onPendingChange?.(true); setBusy(true);
+    if (!pending || lock.current || !authenticated.current || live.current.onAcquirePending?.() === false) return; const e = epoch.current, attempt = pending; lock.current = true; live.current.onPendingChange?.(true); setBusy(true);
     try { const receipt = read_memory_receipt(await api.request(`/memory-mutations/${attempt.key}`)); if (current(e)) await applyReceipt(receipt, attempt); } catch (error) { fail(error, e); } finally { finish(e); }
   }
   const blocked = busy || pending !== null || writesPaused;
