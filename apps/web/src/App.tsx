@@ -7,6 +7,7 @@ import { ProfilePanel } from './ProfilePanel';
 import { SchedulesPanel } from './SchedulesPanel';
 import { NotificationsPanel } from './NotificationsPanel';
 import { MailDraftsPanel } from './MailDraftsPanel';
+import { TodayPanel } from './TodayPanel';
 import { ProjectsPanel } from './ProjectsPanel';
 import type { Project } from './projects';
 import { can_decide, decision_body, terminal, UUID, valid_snapshot, type Approval, type Conversation, type Run } from './domain';
@@ -129,6 +130,7 @@ export function App({ api = new Api() }: { api?: Api }) {
     {notice && <div className="notice" role="alert">{notice}</div>}
     {!authenticated ? <section className="panel login"><h2>Owner sign in</h2><p>Use an owner account provisioned through the server’s local administration flow.</p><form onSubmit={login}><label>Login name<input name="login_name" autoComplete="username" required maxLength={128} disabled={!ready || busy}/></label><label>Password<input name="password" type="password" autoComplete="current-password" required maxLength={256} disabled={!ready || busy}/></label><button disabled={!ready || busy}>{ready ? 'Sign in' : 'Connecting securely…'}</button></form></section> : <>
       <nav aria-label="Session controls"><span>Session active</span><button className="secondary" disabled={busy} onClick={() => void refresh()}>Refresh server state</button><button className="secondary" disabled={busy} onClick={logout}>Sign out</button></nav>
+      <TodayPanel key={auth_generation.current} api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private} selectionDisabled={navigation_disabled}/>
       <button className="secondary" disabled={tasks_open} onClick={() => set_tasks_open(true)}>Open internal tasks</button>
       {tasks_open && <TasksPanel key={auth_generation.current} api={client} onUnauthorized={clear_private} writesPaused={writes_paused || busy || memory_pending || project_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} onPendingChange={task_pending_changed} onAcquirePending={acquire_task}/>}
       <button className="secondary" disabled={projects_open} onClick={() => set_projects_open(true)}>Choose project for a new conversation</button>
