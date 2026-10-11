@@ -1,9 +1,9 @@
 # Study-session domain kernel v1
 
 This is an unregistered, pure component and a synthetic interchange contract.
-There are no study endpoints, storage, migrations, background work, model calls,
-review-task writes, or retention selectors. It is not an implemented end-to-end
-study service. Schema-valid identities and events do not authenticate an owner,
+This document describes the pure kernel rather than its adapters. The durable
+owner-answer API and storage integration are documented in durable-study-v1.md.
+Model feedback, review-task writes and automatic retention remain unavailable. Schema-valid identities and events do not authenticate an owner,
 prove that an answer came from them, or prove accepted model provenance.
 
 ## Bounded workflow

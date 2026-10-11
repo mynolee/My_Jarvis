@@ -1,9 +1,10 @@
 # Study answer source relationships v1
 
-This pure, unregistered guard advances the study kernel's explicit-answer source
-boundary. It does not implement a study HTTP service, authentication, durable
-provenance, model feedback admission, or completed end-to-end study functionality.
-The existing study state and ANSWER event are reused without changes.
+This pure guard checks the study kernel's explicit-answer source relationship.
+Its original message-source fixtures remain unchanged. The durable owner-input
+adapter now invokes this same guard through an explicitly tagged source identity;
+see durable-study-v1.md for the implemented service boundary. The guard by itself
+is not authentication, durable provenance or model-feedback admission.
 
 ## Relationship rule
 
@@ -32,12 +33,12 @@ the user authored rather than quoted the text or that an answer is correct.
 
 These records are internal data, not capabilities. A caller can fabricate matching
 records. Schema validity, USER_DIRECT labels, UUIDs and content versions cannot
-authenticate anyone or grant permission. A future adapter must obtain the actor
+authenticate anyone or grant permission. An adapter must obtain the actor
 from its current authenticated session, resolve the source under the existing
 owner/session/conversation locking discipline, check session revocation, pause,
 project ownership, and conversation/message tombstones, and hold those guards
 through any persistence. It must not deserialize actor/selection/source fields
-from a browser or model as trusted observations. No such adapter is added here.
+from a browser or model as trusted observations. StudySessionService supplies these checks for its dedicated owner-input source.
 
 Missing, deleted, inaccessible or otherwise unavailable sources are passed as
 null, with no source text or identity. The guard returns no state for them and
@@ -80,3 +81,15 @@ parsing is not semantic compilation or JUnit execution. No Spring registration,
 endpoint, migration, database, model/provider call, task/profile/memory mutation,
 background worker or retention activation is added. Authenticated adapter,
 concurrency, database, browser and actual model verification remain separate work.
+
+## Tagged owner-input integration
+
+SourceRef contains a closed SourceKind and UUID. Existing UUID-only constructors
+explicitly create CONVERSATION_MESSAGE references; they never silently become
+owner-input references. OWNER_STUDY_ANSWER_INPUT observations carry the independently
+stored target. The command target, selection target and observed stored target
+must match in addition to the source kind/ID, owner, conversation, nullable
+project, current conversation version and exact text. Source identity is minted
+by Core and is absent from public answer requests. The dedicated adapter reads
+stored selection and observation separately under one transaction. Its historical
+source observation is not reinterpreted as today's conversation version on reads.

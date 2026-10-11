@@ -12,8 +12,8 @@ consumption, receipt and audit writes commit atomically or none commit.
 
 Remove the target title, every stored message body and its content commitment,
 run-result copies, terminal action payload copies and their raw commitments in
-proposal/approval/authorization/synthetic-effect records, and target inference
-source bindings. Clear earlier target previews' temporary commitments and revoke
+proposal/approval/authorization/synthetic-effect records, target inference
+source bindings, study lesson/source commitments and recorded study answer bodies. Clear earlier target previews' temporary commitments and revoke
 competing preparations. Never persist a title/transcript snapshot in a preview.
 Unexpected content stores or cross-conversation source bindings fail closed; a
 new store must join the reviewed deletion inventory before it can be supported.
@@ -120,7 +120,7 @@ Counts alone are insufficient. Reconstruct and compare under lock before commit.
 
 The confirmation commitment binds owner_id, session_hash, security_epoch,
 preparation_id, conversation_id, tool_id `conversation.source.delete`, tool_version
-`1`, policy_version `conversation-source-v1-r4`, scope_policy
+`1`, policy_version `conversation-source-v1-r5`, scope_policy
 `CONVERSATION_SOURCE_V1`, expected_version, expected_digest, manifest_revision 1,
 prepared_at, expires_at and max_executions 1. Use separate keyed domains for
 manifest, confirmation and prepare/confirm request bindings. Protect temporary
@@ -260,3 +260,23 @@ authentication, CSRF, SQL transactions, trigger enforcement, concurrency, HTTP,
 browser accessibility or runtime provenance proof. Real Java/PostgreSQL/HTTP,
 React, restart, rollback/race, native inference/device, backup restore and physical
 erasure remain NOT_RUN unless independently exercised and separately reported.
+
+## Durable-study scope revision
+
+The current reviewed schema is exactly 16 and the current deletion policy is r5.
+V16 revokes unconsumed older preparations; consumed historical values and immutable
+accounting are preserved. Additive study count fields default to zero for old
+records. The seven review counts are messages, runs, run_results, action_payloads,
+inference_contexts, study_sessions and study_answers. The last two describe source
+bindings and retained answer bodies to remove, not deletion of immutable identities.
+
+The shared SQL inventory includes study_sessions, study_owner_answer_inputs and
+study_mutations, with converse references checked for scope corruption. Every
+receipt and metadata-only shell contributes to the row ceiling; live lesson/input
+commitment ciphertext, input text ciphertext and receipt request HMACs contribute
+to the explicit byte formula. Limits additionally allow at most 1,000 sessions
+and 2,000 answers per conversation. The 16 MiB source-byte cap does not bound
+physical database, audit or nonce-ledger size. Passive open study sessions do not
+constitute executing work. Existing inference/action quiescence requirements still
+apply. A source-deletion timestamp clears the study source without rewriting its
+historical version, lifecycle, receipt or authentication attribution.

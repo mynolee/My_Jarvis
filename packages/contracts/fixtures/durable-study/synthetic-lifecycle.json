@@ -1,0 +1,129 @@
+{
+  "synthetic": true,
+  "start_request": {
+    "lesson_run_id": "00000000-0000-4000-8000-000000000001",
+    "expected_conversation_version": 7
+  },
+  "answer_request": {
+    "expected_version": 1,
+    "expected_conversation_version": 8,
+    "question_id": "00000000-0000-4000-8000-000000000005",
+    "text": "  Synthetic owner answer.\n😀  "
+  },
+  "close_request": {
+    "expected_version": 2,
+    "expected_conversation_version": 9
+  },
+  "start": {
+    "status": "COMMITTED",
+    "receipt": {
+      "operation": "START",
+      "mutation_id": "00000000-0000-4000-8000-000000000002",
+      "conversation_id": "00000000-0000-4000-8000-000000000003",
+      "study_session_id": "00000000-0000-4000-8000-000000000004",
+      "lesson_run_id": "00000000-0000-4000-8000-000000000001",
+      "prior_version": null,
+      "resulting_version": 1,
+      "prior_conversation_version": 7,
+      "resulting_conversation_version": 8,
+      "committed_at": "2026-01-01T00:00:00Z"
+    },
+    "checked_at": "2026-01-01T00:00:00Z"
+  },
+  "answer": {
+    "status": "COMMITTED",
+    "receipt": {
+      "operation": "ANSWER",
+      "mutation_id": "00000000-0000-4000-8000-000000000008",
+      "conversation_id": "00000000-0000-4000-8000-000000000003",
+      "study_session_id": "00000000-0000-4000-8000-000000000004",
+      "lesson_run_id": "00000000-0000-4000-8000-000000000001",
+      "prior_version": 1,
+      "resulting_version": 2,
+      "prior_conversation_version": 8,
+      "resulting_conversation_version": 9,
+      "committed_at": "2026-01-01T00:00:00Z",
+      "question_id": "00000000-0000-4000-8000-000000000005",
+      "attempt_id": "00000000-0000-4000-8000-000000000007",
+      "input_id": "00000000-0000-4000-8000-000000000009"
+    },
+    "checked_at": "2026-01-01T00:00:00Z"
+  },
+  "close": {
+    "status": "COMMITTED",
+    "receipt": {
+      "operation": "CLOSE",
+      "mutation_id": "00000000-0000-4000-8000-000000000010",
+      "conversation_id": "00000000-0000-4000-8000-000000000003",
+      "study_session_id": "00000000-0000-4000-8000-000000000004",
+      "lesson_run_id": "00000000-0000-4000-8000-000000000001",
+      "prior_version": 2,
+      "resulting_version": 3,
+      "prior_conversation_version": 9,
+      "resulting_conversation_version": 10,
+      "committed_at": "2026-01-01T00:00:00Z"
+    },
+    "checked_at": "2026-01-01T00:00:00Z"
+  },
+  "not_observed": {
+    "status": "NOT_OBSERVED",
+    "receipt": null,
+    "checked_at": "2026-01-01T00:00:00Z"
+  },
+  "view": {
+    "id": "00000000-0000-4000-8000-000000000004",
+    "conversation_id": "00000000-0000-4000-8000-000000000003",
+    "project_id": null,
+    "lesson_run_id": "00000000-0000-4000-8000-000000000001",
+    "version": 2,
+    "conversation_content_version": 9,
+    "lifecycle": "OPEN",
+    "stage": "WAITING_ANSWERS",
+    "lesson": {
+      "concepts": [
+        "Synthetic distances",
+        "Synthetic edges",
+        "Synthetic ordering"
+      ],
+      "questions": [
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "text": "Synthetic question one?"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "text": "Synthetic question two?"
+        }
+      ]
+    },
+    "attempts": [
+      {
+        "input_id": "00000000-0000-4000-8000-000000000009",
+        "attempt_id": "00000000-0000-4000-8000-000000000007",
+        "question_id": "00000000-0000-4000-8000-000000000005",
+        "text": "  Synthetic owner answer.\n😀  ",
+        "feedback": null
+      }
+    ],
+    "feedback_availability": "UNAVAILABLE",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z",
+    "checked_at": "2026-01-01T00:00:00Z"
+  },
+  "index": {
+    "conversation_id": "00000000-0000-4000-8000-000000000003",
+    "conversation_content_version": 9,
+    "items": [
+      {
+        "lesson_run_id": "00000000-0000-4000-8000-000000000001",
+        "lesson_run_version": 3,
+        "created_at": "2026-01-01T00:00:00Z",
+        "study_session_id": "00000000-0000-4000-8000-000000000004",
+        "study_version": 2,
+        "lifecycle": "OPEN"
+      }
+    ],
+    "next_cursor": null,
+    "checked_at": "2026-01-01T00:00:00Z"
+  }
+}

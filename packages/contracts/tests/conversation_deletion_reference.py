@@ -108,7 +108,8 @@ def validate_preparation(value, state=None):
             return False
     except OverflowError:
         return False
-    if counts['run_results'] > counts['runs'] or counts['inference_contexts'] > counts['runs']:
+    if (counts['run_results'] > counts['runs'] or counts['inference_contexts'] > counts['runs']
+            or counts['study_answers'] > 2 * counts['study_sessions']):
         return False
     return state is None or (validate_state(state) and state['status'] == 'ACTIVE'
                             and state['eligibility']['status'] == 'ELIGIBLE'
@@ -167,15 +168,24 @@ def source_counts(target):
     return {'messages': len(target['content']['messages']), 'runs': len(target['graph']['runs']),
             'run_results': len(target['content']['run_results']),
             'action_payloads': len(target['content']['action_payloads']),
-            'inference_contexts': len(target['graph']['contexts'])}
+            'inference_contexts': len(target['graph']['contexts']),
+            'study_sessions': len(target['graph'].get('study_sessions', [])),
+            'study_answers': len(target['graph'].get('study_answers', []))}
 
 
 def check_limits(target, elapsed_ms=0):
     counts = source_counts(target)
     source_bytes = len(target['title'].encode('utf-8')) + sum(
         len(x.encode('utf-8')) for copies in target['content'].values() for x in copies)
+    for kind, fields in (('study_sessions', ('lesson_binding_ref',)),
+                         ('study_answers', ('text_ref', 'source_binding_ref')),
+                         ('study_mutations', ('request_digest',))):
+        source_bytes += sum(len(row.get(field, '').encode('utf-8')) for row in target['graph'].get(kind, [])
+                            for field in fields if row.get(field) is not None)
     if (counts['messages'] > LIMITS['messages'] or counts['runs'] > LIMITS['runs']
             or len(target['graph']['actions']) > LIMITS['actions']
+            or counts['study_sessions'] > LIMITS['study_sessions']
+            or counts['study_answers'] > LIMITS['study_answers']
             or (sum(len(rows) for rows in target['graph'].values())
                 + len(target['content']['messages']) + len(target['authorizations'])
                 + len(target['source_bindings'])) > LIMITS['dependent_rows']
@@ -191,7 +201,8 @@ def eligibility(target):
     title = target.get('title')
     if not isinstance(title, str) or not 1 <= len(title) <= 200 or '\0' in title:
         blockers.add('INTEGRITY_UNVERIFIED')
-    if set(graph) != set(DOMAINS) or not target['integrity_verified']:
+    if (not set(DOMAINS) <= set(graph) or not set(graph) <= set(DOMAINS) | {'study_sessions', 'study_answers', 'study_mutations'}
+            or not target['integrity_verified']):
         blockers.add('INTEGRITY_UNVERIFIED')
     runs = {row['id']: row for row in graph.get('runs', [])}
     contexts = {row['id']: row for row in graph.get('contexts', [])}
@@ -204,6 +215,20 @@ def eligibility(target):
                 blockers.add('INTEGRITY_UNVERIFIED')
             if kind != 'runs' and row.get('run_id') not in runs:
                 blockers.add('INTEGRITY_UNVERIFIED')
+            if kind in {'study_sessions', 'study_answers', 'study_mutations'}:
+                studies = {s['id']: s for s in graph.get('study_sessions', [])}
+                if kind == 'study_sessions':
+                    if row.get('lifecycle') not in {'OPEN', 'CLOSED_BY_OWNER'} or not row.get('lesson_binding_ref'):
+                        blockers.add('INTEGRITY_UNVERIFIED')
+                else:
+                    study = studies.get(row.get('study_session_id'))
+                    if not study or study['run_id'] != row.get('run_id'):
+                        blockers.add('INTEGRITY_UNVERIFIED')
+                    if kind == 'study_answers' and (not row.get('text_ref') or not row.get('source_binding_ref')):
+                        blockers.add('INTEGRITY_UNVERIFIED')
+                    if kind == 'study_mutations' and (row.get('operation') not in {'START', 'ANSWER', 'CLOSE'} or len(row.get('request_digest', '')) != 64):
+                        blockers.add('INTEGRITY_UNVERIFIED')
+                continue
             status = row['status']
             if status == 'UNKNOWN':
                 blockers.add('UNKNOWN_WORK')
@@ -438,6 +463,10 @@ class SyntheticDeletions:
         for context in staged['graph']['contexts']:
             context['status'] = 'INVALIDATED'
         staged['source_bindings'] = []
+        for shell in staged['graph'].get('study_sessions', []):
+            shell['lesson_binding_ref'], shell['source_deleted_at'] = None, now
+        for shell in staged['graph'].get('study_answers', []):
+            shell['text_ref'], shell['source_binding_ref'], shell['content_deleted_at'] = None, None, now
         for shell in staged['authorizations']:
             shell['payload_hash'], shell['source_deleted_at'], shell['revoked'] = None, now, True
         if fail_after_stage:
