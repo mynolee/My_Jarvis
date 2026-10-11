@@ -383,3 +383,76 @@ it('synchronous source-owner refusal prevents a captured incoming handler from i
   expect(consume).toHaveBeenCalledExactlyOnceWith(copy.ui_id); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe(''); expect((screen.getByLabelText('Task description') as HTMLTextAreaElement).value).toBe(''); expect(screen.queryByRole('button', {name: 'Discard review task draft'})).toBeNull(); expect(f.calls.filter(c => c.body)).toHaveLength(0);
   sourceCurrent = true; fireEvent.click(use); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe(copy.fields.title); expect(consume).toHaveBeenCalledTimes(2);
 });
+
+// Retain a rendered action itself, including after its DOM node is replaced.
+function retainTaskAction(name: string): () => void {
+  const element = screen.getByRole<HTMLButtonElement>('button', {name});
+  const key = Object.keys(element).find(value => value.startsWith('__reactProps$'));
+  if (!key) throw new Error('Rendered React event props were not found');
+  const handler = (element as unknown as Record<string, {onClick?: unknown}>)[key].onClick;
+  if (typeof handler !== 'function') throw new Error('Rendered task action has no click handler');
+  return () => { handler({preventDefault() {}, currentTarget: element, target: element}); };
+}
+it.each(['Back to draft', 'Discard review task draft', 'New personal task', 'Edit Synthetic task'])('%s synchronously retires a captured imported Request intent before domain acquisition', async cancel => {
+  const f = fixture('success', true), acquire = vi.fn(() => true); render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={reviewCopy()} onAcquirePending={acquire}/>); await importReview(); await screen.findByRole('button', {name: 'Edit Synthetic task'}); fireEvent.click(screen.getByRole('button', {name: 'Review task change'}));
+  const stale = screen.getByRole<HTMLButtonElement>('button', {name: 'Request task intent'});
+  act(() => { screen.getByRole<HTMLButtonElement>('button', {name: cancel}).click(); stale.click(); });
+  expect(f.calls.filter(c => c.body)).toHaveLength(0); expect(acquire).not.toHaveBeenCalled(); expect(screen.queryByRole('button', {name: 'Request task intent'})).toBeNull();
+});
+it.each(['Back to draft', 'Discard review task draft', 'New personal task', 'Edit Synthetic task'])('%s synchronously retires a captured imported Apply without revoking its recorded intent', async cancel => {
+  const f = fixture('success', true), acquire = vi.fn(() => true); render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={reviewCopy()} onAcquirePending={acquire}/>); await importReview();
+  const stale = await requestCopyIntent(); await waitFor(() => expect((stale as HTMLButtonElement).disabled).toBe(false));
+  act(() => { screen.getByRole<HTMLButtonElement>('button', {name: cancel}).click(); (stale as HTMLButtonElement).click(); });
+  expect(f.calls.filter(c => c.body)).toHaveLength(1); expect(f.calls.filter(c => c.path === '/tasks')).toHaveLength(0); expect(acquire).toHaveBeenCalledOnce(); expect(screen.queryByRole('button', {name: 'Apply server-bound task change'})).toBeNull();
+});
+it.each(['Request task intent', 'Apply server-bound task change'])('explicit incoming replacement synchronously retires the previous %s and exact arguments', async action => {
+  const f = copyFixture(), copy = reviewCopy(), acquire = vi.fn(() => true); const view = render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={copy} onAcquirePending={acquire}/>); await importReview();
+  fireEvent.click(screen.getByRole('button', {name: 'Review task change'})); if (action === 'Apply server-bound task change') { fireEvent.click(screen.getByRole('button', {name: 'Request task intent'})); await screen.findByRole('button', {name: action}); }
+  const replacement = {...copy, ui_id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', fields: {...copy.fields, title: 'Review study question 2', description: '- Different explicitly selected item'}};
+  view.rerender(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={replacement} onAcquirePending={acquire}/>); await screen.findByRole('button', {name: 'Replace my current unsaved draft with this copy'});
+  const stale = screen.getByRole<HTMLButtonElement>('button', {name: action}), before = f.calls.filter(c => c.body).length;
+  act(() => { screen.getByRole<HTMLButtonElement>('button', {name: 'Replace my current unsaved draft with this copy'}).click(); stale.click(); });
+  expect(f.calls.filter(c => c.body)).toHaveLength(before); expect(acquire).toHaveBeenCalledTimes(before); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe(replacement.fields.title); expect((screen.getByLabelText('Task description') as HTMLTextAreaElement).value).toBe(replacement.fields.description);
+  expect(screen.queryByRole('button', {name: action})).toBeNull();
+});
+it.each(['Back to draft', 'Discard review task draft', 'New personal task', 'Edit Synthetic task'])('a retained old %s action cannot clear a newer explicit review', async action => {
+  const f = fixture('success', true); render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={reviewCopy()}/>); await importReview(); await screen.findByRole('button', {name: 'Edit Synthetic task'}); fireEvent.click(screen.getByRole('button', {name: 'Review task change'}));
+  const oldClear = retainTaskAction(action); fireEvent.click(screen.getByRole('button', {name: 'Back to draft'})); fireEvent.change(screen.getByLabelText('Task title'), {target: {value: 'New independently reviewed title'}}); fireEvent.click(screen.getByRole('button', {name: 'Review task change'}));
+  act(oldClear); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe('New independently reviewed title'); expect(screen.getByRole('region', {name: 'Review task change'}).textContent).toContain('New independently reviewed title');
+  fireEvent.click(screen.getByRole('button', {name: 'Request task intent'})); await screen.findByRole('button', {name: 'Apply server-bound task change'}); expect(f.calls.find(c => c.path === '/user-intents')?.body).toMatchObject({arguments: {title: 'New independently reviewed title'}});
+});
+it('a retained old replacement cannot overwrite a newer review or consume a stale incoming identity', async () => {
+  const f = copyFixture(), copy = reviewCopy(), consume = vi.fn(() => true), view = render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={copy} onConsumeReviewCopy={consume}/>); await importReview(); fireEvent.click(screen.getByRole('button', {name: 'Review task change'}));
+  const replacement = {...copy, ui_id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', fields: {...copy.fields, title: 'Stale replacement'}};
+  view.rerender(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={replacement} onConsumeReviewCopy={consume}/>); await screen.findByRole('button', {name: 'Replace my current unsaved draft with this copy'}); const oldReplace = retainTaskAction('Replace my current unsaved draft with this copy');
+  fireEvent.click(screen.getByRole('button', {name: 'Dismiss review copy'})); fireEvent.click(screen.getByRole('button', {name: 'Back to draft'})); fireEvent.change(screen.getByLabelText('Task title'), {target: {value: 'Fresh retained review'}}); fireEvent.click(screen.getByRole('button', {name: 'Review task change'}));
+  act(oldReplace); expect(consume).toHaveBeenCalledExactlyOnceWith(copy.ui_id); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe('Fresh retained review'); expect(screen.getByRole('button', {name: 'Request task intent'})).toBeTruthy(); expect(f.calls.filter(c => c.body)).toHaveLength(0);
+});
+it('a retained old Back action cannot clear a newly issued exact intent', async () => {
+  const f = copyFixture(); render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={reviewCopy()}/>); await importReview(); fireEvent.click(screen.getByRole('button', {name: 'Review task change'})); const oldBack = retainTaskAction('Back to draft');
+  fireEvent.click(screen.getByRole('button', {name: 'Back to draft'})); fireEvent.change(screen.getByLabelText('Task title'), {target: {value: 'Latest reviewed intent'}}); await requestCopyIntent(); act(oldBack);
+  expect(screen.getByRole('button', {name: 'Apply server-bound task change'})).toBeTruthy(); expect(screen.getByRole('region', {name: 'Review task change'}).textContent).toContain('Latest reviewed intent'); expect(f.calls.filter(c => c.body)).toHaveLength(1);
+});
+it('retired local clears cannot cancel sent issuance, erase UNKNOWN authority, or replace the original receipt key', async () => {
+  const issuance = deferred<unknown>(), mutation = deferred<unknown>(), copy = reviewCopy(); const f = copyFixture({intent: () => issuance.promise, mutation: () => mutation.promise, receipt: () => ({status: 'COMMITTED', task: {...task, ...copy.fields}}), current: () => ({...task, ...copy.fields})});
+  render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={copy}/>); await importReview(); fireEvent.click(screen.getByRole('button', {name: 'Review task change'})); const oldBack = retainTaskAction('Back to draft');
+  fireEvent.click(screen.getByRole('button', {name: 'Request task intent'})); act(oldBack); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe(copy.fields.title);
+  await act(async () => { issuance.resolve(intentFor(f.calls.find(c => c.path === '/user-intents')!.body)); await issuance.promise; });
+  const oldDiscard = retainTaskAction('Discard review task draft'); fireEvent.click(screen.getByRole('button', {name: 'Apply server-bound task change'})); act(oldDiscard); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe(copy.fields.title);
+  const sent = f.calls.find(c => c.path === '/tasks')!; await act(async () => {mutation.reject(new ApiError('UNKNOWN', true)); await mutation.promise.catch(() => {});}); act(oldDiscard); expectCopyCleared(copy); expect(screen.getByText(`Request: ${sent.key}`)).toBeTruthy(); expect(screen.getByRole('heading', {name: 'Task writes paused'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', {name: 'Check task outcome'})); await screen.findByText(/Server receipt confirms committed version 1/); expect(f.calls.find(c => c.path.startsWith('/task-mutations/'))?.path).toBe(`/task-mutations/${sent.key}`); expect(f.calls.filter(c => c.path === '/tasks')).toHaveLength(1); expect(screen.queryByRole('heading', {name: 'Task writes paused'})).toBeNull();
+});
+it('ordinary task cancellation also retires its captured future Request intent without changing the normal flow', async () => {
+  const f = fixture(); render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized}/>); fireEvent.change(screen.getByLabelText('Task title'), {target: {value: 'Ordinary reviewed title'}}); fireEvent.click(screen.getByRole('button', {name: 'Review task change'})); const stale = screen.getByRole<HTMLButtonElement>('button', {name: 'Request task intent'});
+  act(() => {screen.getByRole<HTMLButtonElement>('button', {name: 'Back to draft'}).click(); stale.click();}); expect(f.calls.filter(c => c.body)).toHaveLength(0); expect((screen.getByLabelText('Task title') as HTMLInputElement).value).toBe('Ordinary reviewed title');
+  fireEvent.click(await requestCopyIntent()); await screen.findByText('Server confirmed task TODO, version 1.'); expect(f.calls.filter(c => c.body)).toHaveLength(2);
+});
+it('an old incoming Dismiss cannot erase a newer preview or disturb a separately issued task intent', async () => {
+  const f = copyFixture(), copy = reviewCopy(), dismiss = vi.fn(), view = render(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={copy} onDismissReviewCopy={dismiss}/>);
+  await screen.findByRole('button', {name: 'Dismiss review copy'}); const oldDismiss = retainTaskAction('Dismiss review copy'); await importReview(); await requestCopyIntent();
+  const newer = {...copy, ui_id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', fields: {...copy.fields, title: 'New incoming preview'}};
+  view.rerender(<TasksPanel api={f.api} onUnauthorized={f.unauthorized} incomingReviewCopy={newer} onDismissReviewCopy={dismiss}/>); await screen.findByRole('region', {name: 'Incoming study review copy'});
+  act(oldDismiss); expect(within(screen.getByRole('region', {name: 'Incoming study review copy'})).getByText(newer.fields.title)).toBeTruthy(); expect(dismiss).not.toHaveBeenCalled(); expect(screen.getByRole('button', {name: 'Apply server-bound task change'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', {name: 'Dismiss review copy'})); expect(dismiss).toHaveBeenCalledExactlyOnceWith(newer.ui_id); expect(screen.queryByRole('region', {name: 'Incoming study review copy'})).toBeNull(); expect(screen.getByRole('button', {name: 'Apply server-bound task change'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', {name: 'Apply server-bound task change'})); await screen.findByText('Server confirmed task TODO, version 1.'); expect(f.calls.find(c => c.path === '/tasks')?.body).toMatchObject(copy.fields); expect(f.calls.filter(c => c.body)).toHaveLength(2);
+});
