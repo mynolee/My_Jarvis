@@ -1,0 +1,14 @@
+{
+  "revision": 1,
+  "assessment": "CORRECT",
+  "explanation": "Your answer describes first-in, first-out ordering.",
+  "example": "If A arrives before B, removing once returns A.",
+  "assumptions": [
+    "The queue has at least one item."
+  ],
+  "review_checklist": [
+    "Check the empty case.",
+    "Trace two insertions and one removal."
+  ],
+  "code_execution": "NOT_RUN"
+}

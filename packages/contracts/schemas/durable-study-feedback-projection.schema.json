@@ -1,0 +1,491 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/durable-study-feedback-projection.schema.json",
+  "type": "object",
+  "properties": {
+    "revision": {
+      "const": 1
+    },
+    "study_session_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "conversation_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "study_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "conversation_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "lifecycle": {
+      "enum": [
+        "OPEN",
+        "CLOSED_BY_OWNER"
+      ]
+    },
+    "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          },
+          "input_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "availability": {
+            "enum": [
+              "AVAILABLE",
+              "ANSWERS_INCOMPLETE",
+              "STUDY_CLOSED",
+              "MODEL_UNAVAILABLE",
+              "ALREADY_REQUESTED",
+              "CONVERSATION_BUSY"
+            ]
+          },
+          "request": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+                  },
+                  "feedback_version": {
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "status": {
+                    "enum": [
+                      "QUEUED",
+                      "RUNNING",
+                      "ACCEPTED",
+                      "FAILED",
+                      "REVOKED"
+                    ]
+                  },
+                  "output_authority": {
+                    "enum": [
+                      "ACTIVE",
+                      "CLOSED",
+                      "REVOKED"
+                    ]
+                  },
+                  "execution_evidence": {
+                    "enum": [
+                      "UNCONFIRMED",
+                      "UNSTARTED_CORE",
+                      "UNSTARTED_FENCED",
+                      "COMPLETED",
+                      "WORKER_STOPPED"
+                    ]
+                  },
+                  "accounting": {
+                    "enum": [
+                      "PENDING",
+                      "MEASURED",
+                      "UNCERTAIN",
+                      "UNSTARTED"
+                    ]
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+                  },
+                  "updated_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+                  },
+                  "result": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "revision": {
+                            "const": 1
+                          },
+                          "assessment": {
+                            "enum": [
+                              "CORRECT",
+                              "PARTIALLY_CORRECT",
+                              "NEEDS_WORK",
+                              "INSUFFICIENT_INFORMATION"
+                            ]
+                          },
+                          "explanation": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000,
+                            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                            "not": {
+                              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                            }
+                          },
+                          "example": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000,
+                            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                            "not": {
+                              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                            }
+                          },
+                          "assumptions": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500,
+                              "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                              "not": {
+                                "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                              }
+                            }
+                          },
+                          "review_checklist": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500,
+                              "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                              "not": {
+                                "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                              }
+                            }
+                          },
+                          "code_execution": {
+                            "const": "NOT_RUN"
+                          }
+                        },
+                        "required": [
+                          "revision",
+                          "assessment",
+                          "explanation",
+                          "example",
+                          "assumptions",
+                          "review_checklist",
+                          "code_execution"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "feedback_version",
+                  "status",
+                  "output_authority",
+                  "execution_evidence",
+                  "accounting",
+                  "created_at",
+                  "updated_at",
+                  "result"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "status": {
+                            "const": "QUEUED"
+                          },
+                          "feedback_version": {
+                            "const": 1
+                          },
+                          "output_authority": {
+                            "const": "ACTIVE"
+                          },
+                          "result": {
+                            "const": null
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "status": {
+                            "const": "RUNNING"
+                          },
+                          "feedback_version": {
+                            "const": 2
+                          },
+                          "output_authority": {
+                            "const": "ACTIVE"
+                          },
+                          "result": {
+                            "const": null
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "status": {
+                            "const": "ACCEPTED"
+                          },
+                          "feedback_version": {
+                            "const": 3
+                          },
+                          "output_authority": {
+                            "const": "CLOSED"
+                          },
+                          "accounting": {
+                            "const": "MEASURED"
+                          },
+                          "result": {
+                            "type": "object",
+                            "properties": {
+                              "revision": {
+                                "const": 1
+                              },
+                              "assessment": {
+                                "enum": [
+                                  "CORRECT",
+                                  "PARTIALLY_CORRECT",
+                                  "NEEDS_WORK",
+                                  "INSUFFICIENT_INFORMATION"
+                                ]
+                              },
+                              "explanation": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000,
+                                "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                                "not": {
+                                  "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                                }
+                              },
+                              "example": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000,
+                                "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                                "not": {
+                                  "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                                }
+                              },
+                              "assumptions": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 3,
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500,
+                                  "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                                  "not": {
+                                    "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                                  }
+                                }
+                              },
+                              "review_checklist": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 3,
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500,
+                                  "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                                  "not": {
+                                    "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                                  }
+                                }
+                              },
+                              "code_execution": {
+                                "const": "NOT_RUN"
+                              }
+                            },
+                            "required": [
+                              "revision",
+                              "assessment",
+                              "explanation",
+                              "example",
+                              "assumptions",
+                              "review_checklist",
+                              "code_execution"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "status": {
+                            "const": "FAILED"
+                          },
+                          "feedback_version": {
+                            "const": 3
+                          },
+                          "output_authority": {
+                            "const": "CLOSED"
+                          },
+                          "result": {
+                            "const": null
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "status": {
+                            "const": "REVOKED"
+                          },
+                          "feedback_version": {
+                            "enum": [
+                              2,
+                              3
+                            ]
+                          },
+                          "output_authority": {
+                            "const": "REVOKED"
+                          },
+                          "result": {
+                            "const": null
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "question_id",
+          "input_id",
+          "attempt_id",
+          "availability",
+          "request"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "input_id": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "attempt_id": {
+                  "const": null
+                },
+                "request": {
+                  "const": null
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "attempt_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "request": {
+                  "type": "object"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "input_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+                },
+                "attempt_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+                },
+                "availability": {
+                  "const": "ALREADY_REQUESTED"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "revision",
+    "study_session_id",
+    "conversation_id",
+    "study_version",
+    "conversation_version",
+    "lifecycle",
+    "checked_at",
+    "targets"
+  ],
+  "additionalProperties": false,
+  "$comment": "Exactly the original ordered two targets; runtime rejects duplicate target identities, future timestamps, incomplete linkage and whole envelopes exceeding 262144 bytes."
+}

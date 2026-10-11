@@ -1,0 +1,16 @@
+{
+  "V10__internal_mail_drafts.sql": "cff87feb748ab81e43864c046e15707a86537257e753ec3e8bc543cfc8e63030",
+  "V11__audit_history_index.sql": "b9ec428f79a70b5a783a7526ec473919f489f4eaca20dd300c71a3e0eb18e610",
+  "V12__local_inference_usage.sql": "f6b9063093bafd255f5b93f6a8e2823b91eb1b6e9d1b334de064fe5f09505f39",
+  "V13__explicit_memory_exports.sql": "3ec192caa4e1025ce7bce7994a713e6b687d4aa2924229d61976471e1a26e312",
+  "V14__quiescent_conversation_deletion.sql": "ba349ef23a796837b8464e1f60d0242e440ba680a59716632c37ad08a52e6a4c",
+  "V1__m0_security_and_execution.sql": "1161a15f24b4f7d624600c1e60e410b5d16662c75ee8c7bec7e89cf367d03def",
+  "V2__local_inference_reservations.sql": "4454b07beed79c526ec829237d7b43b66b2cde2d0e9fdf3b6acc8f6c12cbedaa",
+  "V3__internal_tasks_and_typed_intents.sql": "8b2fff8c05ca905e1bc6c774876b44842d65e2b4ef47c919b435139d3baf7320",
+  "V4__conversation_history.sql": "bca00c29b710df34786f12d9906bbe3b4c204de95ec2101c5d91256c6460c1cf",
+  "V5__project_metadata.sql": "2eceb50a5f5e11547a6abb508572a50f56c04ca99051ab3e39a3942d99af1369",
+  "V6__explicit_memories.sql": "7a11b6bb6b487b8a118471d0c98a464f8fd25f77e12edab1d578be7bdebd26cc",
+  "V7__owner_profile_settings.sql": "20545a96812cf0c24415753d905aac9e4485c982362d5cbb5e68060ed268cce3",
+  "V8__inference_context.sql": "936dc9c787b0e8ad0c06166dee3786c422f14cb9ca6c37e5c3420c97309b43a3",
+  "V9__internal_reminders_and_inbox.sql": "1f8e4762fe9d3145626a9f9a5250ab31c442fc2633570e845cedca3002e74bc9"
+}

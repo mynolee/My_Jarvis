@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/durable-study-feedback-revoke.schema.json",
+  "type": "object",
+  "properties": {
+    "expected_feedback_version": {
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "expected_conversation_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "expected_feedback_version",
+    "expected_conversation_version"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,161 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "state": {
+      "$ref": "urn:myjarvis:study-session:v1"
+    },
+    "actor_owner_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "minLength": 36,
+          "maxLength": 36
+        },
+        "conversation_content_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "session_id": {
+              "$ref": "urn:myjarvis:study-session-event:v1#/oneOf/0/properties/session_id"
+            },
+            "expected_version": {
+              "$ref": "urn:myjarvis:study-session-event:v1#/oneOf/0/properties/expected_version"
+            },
+            "question_id": {
+              "$ref": "urn:myjarvis:study-session-event:v1#/oneOf/0/properties/question_id"
+            },
+            "attempt_id": {
+              "$ref": "urn:myjarvis:study-session-event:v1#/oneOf/0/properties/attempt_id"
+            }
+          },
+          "required": [
+            "session_id",
+            "expected_version",
+            "question_id",
+            "attempt_id"
+          ]
+        }
+      },
+      "required": [
+        "message_id",
+        "conversation_content_version",
+        "target"
+      ]
+    },
+    "current_source": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "minLength": 36,
+              "maxLength": 36
+            },
+            "owner_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "minLength": 36,
+              "maxLength": 36
+            },
+            "conversation_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "minLength": 36,
+              "maxLength": 36
+            },
+            "project_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "minLength": 36,
+                  "maxLength": 36
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "conversation_content_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "role": {
+              "enum": [
+                "USER",
+                "ASSISTANT"
+              ]
+            },
+            "trust": {
+              "enum": [
+                "USER_DIRECT",
+                "MODEL_PROPOSAL",
+                "EXTERNAL_UNTRUSTED",
+                "TOOL_RESULT"
+              ]
+            },
+            "text": {
+              "$ref": "urn:myjarvis:study-session-event:v1#/oneOf/0/properties/answer"
+            }
+          },
+          "required": [
+            "message_id",
+            "owner_id",
+            "conversation_id",
+            "project_id",
+            "conversation_content_version",
+            "role",
+            "trust",
+            "text"
+          ]
+        }
+      ]
+    },
+    "event": {
+      "allOf": [
+        {
+          "$ref": "urn:myjarvis:study-session-event:v1"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "ANSWER"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "state",
+    "actor_owner_id",
+    "selection",
+    "current_source",
+    "event"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:myjarvis:study-answer-source-case:v1",
+  "$comment": "Synthetic fixture envelope only. Caller values cannot establish authenticated observations."
+}

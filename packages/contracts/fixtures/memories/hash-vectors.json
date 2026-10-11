@@ -1,0 +1,75 @@
+{
+  "synthetic": true,
+  "note": "Server-side binding vectors. These payloads are never accepted from a client as authority.",
+  "vectors": [
+    {
+      "name": "write",
+      "payload": {
+        "owner_id": "30000000-0000-4000-8000-000000000003",
+        "session_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "security_epoch": 7,
+        "tool_version": "1",
+        "expires_at": "2030-01-01T10:05:00.123456Z",
+        "max_executions": 1,
+        "intent_id": "20000000-0000-4000-8000-000000000002",
+        "tool_id": "memory.write",
+        "policy_version": "memory-v1",
+        "operation": "CREATE",
+        "target_id": "10000000-0000-4000-8000-000000000001",
+        "arguments": {
+          "scope": "GLOBAL",
+          "project_id": null,
+          "key": "display.language",
+          "kind": "PREFERENCE",
+          "value": "Synthetic language setting",
+          "change_reason": "Synthetic owner form",
+          "expected_generation": 0,
+          "revive_deleted": false
+        }
+      },
+      "canonical": "{\"arguments\":{\"change_reason\":\"Synthetic owner form\",\"expected_generation\":0,\"key\":\"display.language\",\"kind\":\"PREFERENCE\",\"project_id\":null,\"revive_deleted\":false,\"scope\":\"GLOBAL\",\"value\":\"Synthetic language setting\"},\"expires_at\":\"2030-01-01T10:05:00.123456Z\",\"intent_id\":\"20000000-0000-4000-8000-000000000002\",\"max_executions\":1,\"operation\":\"CREATE\",\"owner_id\":\"30000000-0000-4000-8000-000000000003\",\"policy_version\":\"memory-v1\",\"security_epoch\":7,\"session_hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"target_id\":\"10000000-0000-4000-8000-000000000001\",\"tool_id\":\"memory.write\",\"tool_version\":\"1\"}",
+      "sha256": "ac7c72e45fd3fa76a318c5b892ca970b20670c0fbb467b22fd950bc4c61fa11b"
+    },
+    {
+      "name": "delete",
+      "payload": {
+        "owner_id": "30000000-0000-4000-8000-000000000003",
+        "session_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "security_epoch": 7,
+        "tool_version": "1",
+        "expires_at": "2030-01-01T10:05:00.123456Z",
+        "max_executions": 1,
+        "preparation_id": "40000000-0000-4000-8000-000000000004",
+        "tool_id": "memory.delete",
+        "policy_version": "memory-v1-r3",
+        "memory_id": "10000000-0000-4000-8000-000000000001",
+        "slot_id": "50000000-0000-4000-8000-000000000005",
+        "expected_version": 1,
+        "expected_generation": 1,
+        "snapshot_hash": "87e221423e1dbdbd7b67cf319b77e950a763de3c7dff10142de9f783d9539a3b"
+      },
+      "canonical": "{\"expected_generation\":1,\"expected_version\":1,\"expires_at\":\"2030-01-01T10:05:00.123456Z\",\"max_executions\":1,\"memory_id\":\"10000000-0000-4000-8000-000000000001\",\"owner_id\":\"30000000-0000-4000-8000-000000000003\",\"policy_version\":\"memory-v1-r3\",\"preparation_id\":\"40000000-0000-4000-8000-000000000004\",\"security_epoch\":7,\"session_hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"slot_id\":\"50000000-0000-4000-8000-000000000005\",\"snapshot_hash\":\"87e221423e1dbdbd7b67cf319b77e950a763de3c7dff10142de9f783d9539a3b\",\"tool_id\":\"memory.delete\",\"tool_version\":\"1\"}",
+      "sha256": "385fb4191f96fa1e62c52fd00023898d6872aef0e71c85cd3b48f248fb8d1d8b",
+      "snapshot": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "scope": "GLOBAL",
+        "project_id": null,
+        "key": "display.language",
+        "kind": "PREFERENCE",
+        "value": "Synthetic language setting",
+        "change_reason": "Synthetic owner form",
+        "source": {
+          "type": "EXPLICIT_OWNER_FORM",
+          "submission_id": "20000000-0000-4000-8000-000000000002",
+          "submitted_at": "2030-01-01T10:00:00Z",
+          "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "version": 1,
+        "generation": 1,
+        "confirmed_at": "2030-01-01T10:00:00Z",
+        "created_at": "2030-01-01T10:00:00Z",
+        "updated_at": "2030-01-01T10:00:00Z"
+      }
+    }
+  ]
+}

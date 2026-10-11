@@ -1,0 +1,71 @@
+{
+  "request_id": "0000006c-0000-4000-8000-00000000006c",
+  "run_id": "0000006d-0000-4000-8000-00000000006d",
+  "purpose": "STUDY_FEEDBACK",
+  "feedback_source": {
+    "revision": 1,
+    "feedback_id": "00000065-0000-4000-8000-000000000065",
+    "study_session_id": "00000066-0000-4000-8000-000000000066",
+    "study_version": 3,
+    "lesson_run_id": "00000067-0000-4000-8000-000000000067",
+    "lesson_run_version": 3,
+    "question_id": "00000068-0000-4000-8000-000000000068",
+    "input_id": "00000069-0000-4000-8000-000000000069",
+    "attempt_id": "0000006a-0000-4000-8000-00000000006a",
+    "lesson": {
+      "concepts": [
+        "A queue preserves insertion order.",
+        "Removing an item changes the front.",
+        "An empty queue has no front item."
+      ],
+      "questions": [
+        {
+          "id": "00000068-0000-4000-8000-000000000068",
+          "text": "Which item leaves a queue first?"
+        },
+        {
+          "id": "0000006b-0000-4000-8000-00000000006b",
+          "text": "What should a caller check before removal?"
+        }
+      ]
+    },
+    "answer": {
+      "source_kind": "OWNER_STUDY_ANSWER_INPUT",
+      "role": "USER",
+      "trust": "USER_DIRECT",
+      "text": "The earliest item leaves first. Check that the queue has an item."
+    }
+  },
+  "current_time": "2030-01-01T00:00:00Z",
+  "timezone": "UTC",
+  "context": {
+    "revision": 1,
+    "id": "0000006e-0000-4000-8000-00000000006e",
+    "conversation_id": "0000006f-0000-4000-8000-00000000006f",
+    "context_epoch": 2,
+    "history_epoch": 2,
+    "profile_version": null
+  },
+  "control": {
+    "revision": 1,
+    "origin_binding": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "dispatch_commitment": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "security_epoch": 2
+  },
+  "project_context": null,
+  "memories": [],
+  "history": [],
+  "evidence": [],
+  "tool_results": [],
+  "allowed_tool_ids": [],
+  "budget": {
+    "reservation_id": "00000070-0000-4000-8000-000000000070",
+    "max_compute_ms": 60000,
+    "max_input_tokens": 3584,
+    "max_output_tokens": 512,
+    "max_model_calls": 1
+  },
+  "model_id": "local-mlx-v1",
+  "model_manifest_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "prompt_revision": "local-v1"
+}

@@ -1,0 +1,21 @@
+{
+  "status": "COMMITTED",
+  "receipt": {
+    "mutation_id": "00000071-0000-4000-8000-000000000071",
+    "operation": "REQUEST_FEEDBACK",
+    "feedback_request_id": "00000065-0000-4000-8000-000000000065",
+    "conversation_id": "0000006f-0000-4000-8000-00000000006f",
+    "study_session_id": "00000066-0000-4000-8000-000000000066",
+    "lesson_run_id": "00000067-0000-4000-8000-000000000067",
+    "question_id": "00000068-0000-4000-8000-000000000068",
+    "input_id": "00000069-0000-4000-8000-000000000069",
+    "attempt_id": "0000006a-0000-4000-8000-00000000006a",
+    "prior_feedback_version": null,
+    "resulting_feedback_version": 1,
+    "study_version": 3,
+    "prior_conversation_version": 10,
+    "resulting_conversation_version": 14,
+    "committed_at": "2030-01-01T00:00:00Z"
+  },
+  "checked_at": "2030-01-01T00:00:00Z"
+}
