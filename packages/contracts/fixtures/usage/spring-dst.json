@@ -1,0 +1,60 @@
+{
+  "checked_at": "2026-03-08T12:00:00Z",
+  "timezone": "America/New_York",
+  "attribution": "RESERVATION_CREATED_AT",
+  "quota_timezone": "UTC",
+  "day": {
+    "local_key": "2026-03-08",
+    "start_at": "2026-03-08T05:00:00Z",
+    "end_at": "2026-03-09T04:00:00Z",
+    "request_count": 0,
+    "counts": {
+      "measured": 0,
+      "pending": 0,
+      "in_progress": 0,
+      "unstarted": 0,
+      "uncertain": 0,
+      "legacy_unavailable": 0
+    },
+    "measured": {
+      "request_count": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "compute_ms": 0,
+      "peak_memory_bytes": null,
+      "external_cost_usd_micro": null
+    },
+    "conservative_reserved": {
+      "request_count": 0,
+      "max_compute_ms": 0,
+      "max_output_tokens": 0
+    }
+  },
+  "month": {
+    "local_key": "2026-03",
+    "start_at": "2026-03-01T05:00:00Z",
+    "end_at": "2026-04-01T04:00:00Z",
+    "request_count": 0,
+    "counts": {
+      "measured": 0,
+      "pending": 0,
+      "in_progress": 0,
+      "unstarted": 0,
+      "uncertain": 0,
+      "legacy_unavailable": 0
+    },
+    "measured": {
+      "request_count": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "compute_ms": 0,
+      "peak_memory_bytes": null,
+      "external_cost_usd_micro": null
+    },
+    "conservative_reserved": {
+      "request_count": 0,
+      "max_compute_ms": 0,
+      "max_output_tokens": 0
+    }
+  }
+}

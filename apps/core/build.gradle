@@ -1,0 +1,51 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.1'
+}
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+dependencies {
+    implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    implementation platform('tools.jackson:jackson-bom:3.1.7')
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.springframework.security:spring-security-crypto'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+    runtimeOnly 'org.postgresql:postgresql'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation enforcedPlatform('io.zonky.test.postgres:embedded-postgres-binaries-bom:17.11.0')
+    testImplementation 'io.zonky.test:embedded-postgres:2.2.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+test { useJUnitPlatform() }
+dependencyLocking { lockAllConfigurations() }
+tasks.withType(JavaCompile).configureEach { options.encoding='UTF-8'; options.compilerArgs.add('-parameters') }
+dependencies {
+    constraints {
+        ['tomcat-embed-core','tomcat-embed-el','tomcat-embed-websocket'].each { module ->
+            implementation("org.apache.tomcat.embed:${module}:11.0.26")
+        }
+    }
+}
+tasks.register('bootstrapAdmin', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.myjarvis.core.BootstrapAdmin'
+    standardInput = System.in
+}
+tasks.register('runtimeClasspathFile') {
+    dependsOn tasks.named('classes')
+    doLast {
+        layout.buildDirectory.file('runtime-classpath.txt').get().asFile.text = sourceSets.main.runtimeClasspath.asPath
+    }
+}
+
+// Explicit packaging only: build apps/web first, then invoke :apps:core:packageWeb.
+// Ordinary backend builds do not silently package stale frontend artifacts.
+tasks.register('packageWeb', Copy) {
+    from rootProject.layout.projectDirectory.dir('apps/web/dist')
+    into layout.buildDirectory.dir('resources/main/static')
+    dependsOn tasks.named('processResources')
+    doFirst { if (!rootProject.file('apps/web/dist/index.html').isFile()) throw new GradleException('Build apps/web before packageWeb') }
+}
+tasks.named('bootJar') { mustRunAfter tasks.named('packageWeb') }

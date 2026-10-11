@@ -1,0 +1,36 @@
+name: Dependency review bootstrap
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  candidate-locks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          # Adoptium SemVer for the exact Temurin 21.0.12.1+1 release.
+          java-version: '21.0.12+101.0.LTS'
+      - name: Generate untrusted dependency review candidates
+        run: |
+          python3 scripts/verify_wrapper.py
+          ./gradlew --no-daemon resolveDependencyGraph --write-locks --write-verification-metadata sha256
+          mkdir -p dependency-review
+          sha256sum apps/core/gradle.lockfile gradle/verification-metadata.xml > dependency-review/SHA256SUMS
+      - name: Retain only dependency review candidates
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: untrusted-dependency-review-${{ github.sha }}
+          path: |
+            apps/core/gradle.lockfile
+            gradle/verification-metadata.xml
+            dependency-review/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+# These artifacts do not authorize release. Review independently before committing.
+# No automatic commit, trusted downstream consumption, credentials, or deployment.

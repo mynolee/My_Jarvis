@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/task-mutation-result.schema.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "COMMITTED"
+        },
+        "task": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+              "description": "Must contain a code point outside Unicode White_Space plus U+FEFF; preserve the exact original nonblank string. U+0000 is forbidden because the title is stored in PostgreSQL text.",
+              "not": {
+                "pattern": "\\u0000"
+              }
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "project_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "due_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$",
+                  "description": "Lexical RFC3339 shape with at most six fractional digits. Runtime must reject invalid calendar dates, seconds or offset ranges and require UTC-normalized year 0001..9999. Preserve exact input for intent hashing; reject excess precision before storage."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "priority": {
+              "enum": [
+                "LOW",
+                "NORMAL",
+                "HIGH"
+              ]
+            },
+            "estimated_minutes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 525600
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "enum": [
+                "TODO",
+                "IN_PROGRESS",
+                "DONE",
+                "CANCELLED"
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$",
+              "description": "Lexical RFC3339 shape with at most six fractional digits. Runtime must reject invalid calendar dates, seconds or offset ranges and require UTC-normalized year 0001..9999. Preserve exact input for intent hashing; reject excess precision before storage."
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$",
+              "description": "Lexical RFC3339 shape with at most six fractional digits. Runtime must reject invalid calendar dates, seconds or offset ranges and require UTC-normalized year 0001..9999. Preserve exact input for intent hashing; reject excess precision before storage."
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "description",
+            "project_id",
+            "due_at",
+            "priority",
+            "estimated_minutes",
+            "status",
+            "version",
+            "created_at",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "status",
+        "task"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "NOT_OBSERVED"
+        },
+        "task": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "task"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
