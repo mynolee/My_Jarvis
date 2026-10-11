@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/export-job-path.schema.json",
+  "$comment": "Wire shape only. Runtime validates current owner/session/epoch, recent reauthentication, transaction ordering, exact scope, byte/deadline bounds and current-data release. No public bearer URL or stored export artifact.",
+  "type": "object",
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    }
+  },
+  "required": [
+    "job_id"
+  ],
+  "additionalProperties": false
+}
