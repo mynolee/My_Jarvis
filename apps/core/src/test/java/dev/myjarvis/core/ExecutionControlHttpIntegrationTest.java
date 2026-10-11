@@ -49,7 +49,10 @@ class ExecutionControlHttpIntegrationTest {
                 "-storetype", "PKCS12", "-keystore", store.toString(), "-storepass", storePassword,
                 "-keypass", storePassword, "-noprompt")
                 .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
-        try { assertTrue(process.waitFor(30, TimeUnit.SECONDS)); assertEquals(0, process.exitValue()); }
+        try {
+            assertTrue(process.waitFor(30, TimeUnit.SECONDS), "SYNTHETIC_TLS_KEYTOOL_WAIT_EXPIRED");
+            assertEquals(0, process.exitValue(), "SYNTHETIC_TLS_KEYTOOL_NONZERO_EXIT");
+        }
         finally { if (process.isAlive()) { process.destroyForcibly(); process.waitFor(); } }
         Files.setPosixFilePermissions(store, PosixFilePermissions.fromString("rw-------"));
         KeyStore trust = KeyStore.getInstance("PKCS12");
