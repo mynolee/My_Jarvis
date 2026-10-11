@@ -241,6 +241,33 @@ class ReportFixtureTest(unittest.TestCase):
         target.write_text(original)
         report.source_snapshot(self.root)
 
+    def test_typed_lesson_exact_inventory_and_all_new_source_bindings(self):
+        expected = {'StudyLessonContractTest': 8, 'StudyLessonHttpTest': 6, 'StudyLessonLifecycleTest': 18, 'StudyLessonMigrationTest': 1, 'StudyLessonSqlTest': 2}
+        self.prepare(); self.xml(); result = self.emit()
+        for name, count in expected.items():
+            methods = [item for item in result['methods'] if item['class'] == report.PACKAGE + '.' + name]
+            target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+            self.assertEqual(len(methods), count)
+            self.assertEqual({item['method'] for item in methods}, set(report.ALLOWED_TESTS[name]))
+            self.assertTrue(all(item['outcome'] == 'PASS' and item['observations'] == 1 for item in methods))
+            self.assertTrue(all(item['source_sha256'] == hashlib.sha256(target.read_bytes()).hexdigest() for item in methods))
+        target.write_text(target.read_text() + '\n// synthetic changed lesson source\n')
+        self.assertEqual(self.emit()['reason_codes'], ['SOURCE_CHANGED_DURING_VERIFICATION'])
+
+    def test_typed_lesson_inventory_rejects_missing_renamed_extra_and_parameterized(self):
+        for name in ['StudyLessonContractTest', 'StudyLessonHttpTest', 'StudyLessonLifecycleTest', 'StudyLessonMigrationTest', 'StudyLessonSqlTest']:
+            target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+            original = target.read_text(); first = report.ALLOWED_TESTS[name][0]
+            for source in (original.replace('@Test void ' + first + '() {}\n', ''),
+                           original.replace(first, 'unreviewedLessonRename'),
+                           original + '\n@Test void unreviewedLessonExtra() {}\n',
+                           original.replace('@Test', '@ParameterizedTest', 1)):
+                target.write_text(source)
+                with self.assertRaisesRegex(report.ReportError, '^TEST_INVENTORY_REVIEW_REQUIRED$'):
+                    report.source_snapshot(self.root)
+            target.write_text(original)
+        report.source_snapshot(self.root)
+
     def test_missing_method_is_not_observed_not_a_pass(self):
         self.prepare()
         self.xml(suite([testcase()]))
@@ -361,7 +388,7 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 534)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 569)
 
     def test_workflow_keeps_verification_status_and_always_reports(self):
         workflow = (report.ROOT / '.github/workflows/m0.yml').read_text()

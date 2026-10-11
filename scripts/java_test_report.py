@@ -44,6 +44,51 @@ CONTEXT_ENV = {"checkout_sha": "REPORT_CHECKOUT_SHA", "pr_head_sha": "REPORT_PR_
                "run_id": "GITHUB_RUN_ID", "run_attempt": "GITHUB_RUN_ATTEMPT"}
 # Reviewed source names only. Do not learn output identities from XML attributes.
 ALLOWED_TESTS = {
+    "StudyLessonContractTest": (
+        "exactTypedWireHasNoModelIdentityAndMintsOnlyAtAdmission",
+        "ordinaryAndStudyPurposeCannotSubstituteTheirSuccessKinds",
+        "lessonRequiresCurrentContextLocalModeAndNoTools",
+        "wrongCountsBlankScalarNulAndOversizeTextFailClosed",
+        "unknownAuthorityAndUnboundUsageNeverBecomeAcceptedLessons",
+        "storedEnvelopeIsCanonicalVersionedAndRejectsProseOrExtraFields",
+        "needInputAndErrorRemainCompatibleForBothPurposes",
+        "storedDuplicateQuestionIdsAreRejectedRatherThanBecomingTwoTargets",
+    ),
+    "StudyLessonHttpTest": (
+        "authenticatedExplicitRouteSettlesAndReadsTheExactTypedLesson",
+        "missingAuthenticationOriginCsrfAndJsonRejectBeforeReservation",
+        "clientAuthorityPurposeSourceAndReceiptFieldsCannotEnterTheRoute",
+        "idempotencyHeaderMustBeSingleCanonicalAndEqualToBodyIdentity",
+        "queriesBodiesDuplicateJsonAndNoncanonicalTargetsAreClosed",
+        "deletionAndRevokedSessionCannotExposeAFormerTypedResult",
+    ),
+    "StudyLessonLifecycleTest": (
+        "reservedPurposeAndTypedOutputFlowThroughRealSettlementAndPlainReaders",
+        "ordinaryHashesAndOmittedPurposeRemainByteCompatible",
+        "idempotencyCannotSwitchPurposeInEitherDirectionOrResubmitCompletedWork",
+        "purposeMismatchAndMalformedOutputKeepUnknownReservedUsage",
+        "ordinaryPurposeRejectsLessonWithoutCreatingTypedHistory",
+        "needInputAndUnavailableRemainOrdinaryDataAndErrorObservation",
+        "pauseAfterDispatchRecordsFactsButNeverMintsOrStoresLesson",
+        "logoutAfterDispatchRecordsFactsButRejectsOutputAndTypedRead",
+        "contextRotationAfterDispatchRecordsFactsButNeverAcceptsStaleLesson",
+        "crossOwnerNonLessonAndCorruptReadsNeverExposeSourceText",
+        "acceptedHistoricalLessonSurvivesContextChangeWithoutCreatingAuthority",
+        "deletionErasesBothTypedResultAndRenderedTranscriptAndPreventsResurrection",
+        "reservationPurposeIsImmutableAndCommittedByDeletionSnapshot",
+        "queuedPauseAndLogoutCancelWithoutCallingTheProvider",
+        "realSessionRotationAndIdleExpiryDiscardLateTypedResponses",
+        "deletingASelectedMemoryInterruptsAndDiscardsLateLessonButKeepsBoundUsage",
+        "activeConversationDeletionIsBlockedAndCompletedReplayNeverRemintsQuestionIds",
+        "descendantLockWaitRechecksSessionClockBeforeLessonIdsOrContentCommit",
+    ),
+    "StudyLessonMigrationTest": (
+        "v14PreparedAuthorityIsRevokedAndConsumedPreparationRemainsUnchanged",
+    ),
+    "StudyLessonSqlTest": (
+        "directReceiptWritesCannotSubstituteOrdinaryAndStudyPurpose",
+        "sharedClarificationAndUnknownPurposeRemainStrictlyConstrained",
+    ),
     "StudyAnswerSourcePolicyTest": (
         "sharedSyntheticSourceCasesInvokeActualGuard",
         "otherwiseValidCommandTargetSubstitutionsAreRejected",
