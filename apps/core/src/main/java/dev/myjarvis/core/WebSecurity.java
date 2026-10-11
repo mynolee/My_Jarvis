@@ -27,7 +27,10 @@ final class WebSecurity extends OncePerRequestFilter {
                 if(!origin.equals(req.getHeader("Origin")))throw new ApiException(403,"ORIGIN_REJECTED");
                 if(!auth.csrf(session,req.getHeader("X-CSRF-Token")))throw new ApiException(403,"CSRF_REJECTED");
                 String type=req.getContentType();if(type==null||!type.split(";",2)[0].trim().equalsIgnoreCase("application/json"))throw new ApiException(415,"JSON_REQUIRED");
-                byte[] body=req.getInputStream().readNBytes(262145);JsonNodeRequest wrapped=new JsonNodeRequest(req,body);req=wrapped;
+                boolean feedbackPost="POST".equals(req.getMethod())&&(path.matches("^/api/v1/study-sessions/[^/]+/feedback-requests$")||path.matches("^/api/v1/study-feedback-requests/[^/]+/revoke$"));
+                byte[] body=req.getInputStream().readNBytes(feedbackPost?8193:262145);
+                if(feedbackPost&&body.length>8192)throw new ApiException(413,"BODY_TOO_LARGE");
+                JsonNodeRequest wrapped=new JsonNodeRequest(req,body);req=wrapped;
             }
             boolean publicPath=Set.of("/health","/api/v1/auth/csrf","/api/v1/auth/login","/api/v1/auth/bootstrap").contains(path);
             if(!publicPath)AuthService.requireOwner(session);

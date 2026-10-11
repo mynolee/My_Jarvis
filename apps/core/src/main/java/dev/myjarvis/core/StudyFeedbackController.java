@@ -18,8 +18,7 @@ final class StudyFeedbackController {
     }
     private static tools.jackson.databind.JsonNode body(HttpServletRequest request){
         MemoryController.query(request);
-        try{byte[] bytes=request.getInputStream().readNBytes(8193);if(bytes.length>8192)throw new ApiException(413,"BODY_TOO_LARGE");return Json.parse(bytes);}
-        catch(java.io.IOException invalid){throw ApiException.bad();}
+        return ApiController.body(request);
     }
     private static Map<String,Object> wrap(HttpServletRequest request,Map<String,Object> data,int limit){
         var result=ApiController.wrap(request,data);if(Json.canonical(result).getBytes(StandardCharsets.UTF_8).length>limit)throw new ApiException(409,"FEEDBACK_SOURCE_UNAVAILABLE");return result;
