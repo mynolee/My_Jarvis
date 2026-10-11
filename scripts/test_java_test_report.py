@@ -27,7 +27,7 @@ DURABLE_CLASS_COUNTS = {
     'StudyStorageFixtures': 0,
     'StudyStorageSqlTest': 12,
 }
-CONTROL_CLASS_COUNTS = {'InferenceControlResultTest': 7, 'InferenceControlServiceTest': 17, 'InferenceControlConcurrencyTest': 14, 'InferenceControlHttpTest': 7, 'InferenceControlSqlTest': 18, 'InferenceControlMigrationTest': 4, 'InferenceControlFixtures': 0}
+CONTROL_CLASS_COUNTS = {'InferenceControlResultTest': 7, 'InferenceControlServiceTest': 18, 'InferenceControlConcurrencyTest': 14, 'InferenceControlHttpTest': 7, 'InferenceControlSqlTest': 18, 'InferenceControlMigrationTest': 4, 'InferenceControlFixtures': 0}
 DIRECT_INPUT_METHOD = 'directInputRequiresIndependentlyObservedTargetAndClosedSourceKind'
 
 
@@ -592,7 +592,7 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 685)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 686)
 
     def test_all_569_historical_identities_remain_exactly_preserved(self):
         historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items() for method in names

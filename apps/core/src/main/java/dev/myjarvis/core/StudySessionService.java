@@ -62,7 +62,7 @@ final class StudySessionService {
         return checked;
     }
     private void schema() {
-        if (!"16".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1", String.class)))
+        if (!"17".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1", String.class)))
             throw new ApiException(409, "CONVERSATION_GRAPH_UNVERIFIED");
     }
     private Map<String,Object> live(AuthService.Session session, UUID conversation) {

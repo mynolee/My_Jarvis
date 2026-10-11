@@ -120,9 +120,15 @@ class UsageLifecycleTest extends ReminderTestSupport {
     }
 
     @Test void staleStartedRecoveryRemainsUnknownAndIsNeverAutomaticallyResubmitted() {
-        UUID run = accept();
-        db.update("UPDATE inference_reservations SET status='STARTED',started_at=clock_timestamp()-interval '2 minutes' WHERE run_id=?", run);
-        db.update("UPDATE runs SET status='RUNNING' WHERE id=?", run);
+        // Synthetic legacy-shaped revision-0 rows; not a migrated-database or control-proof claim.
+        UUID run = UUID.randomUUID(), reservation = UUID.randomUUID(), request = UUID.randomUUID();
+        flow.tx.executeWithoutResult(tx -> {
+            flow.access.lockSession(session); flow.access.requireLive(session, conversation);
+            db.update("INSERT INTO runs(id,owner_id,conversation_id,status,created_at) VALUES (?,?,?,'RUNNING',clock_timestamp()-interval '3 minutes')", run, owner, conversation);
+            db.update("INSERT INTO inference_reservations(id,owner_id,run_id,request_id,body_hash,model_manifest_hash,status,max_compute_ms,reserved_output_tokens,security_epoch,control_revision,created_at,started_at) VALUES (?,?,?,?,?,?,'STARTED',60000,512,?,0,clock_timestamp()-interval '3 minutes',clock_timestamp()-interval '2 minutes')", reservation, owner, run, request, "a".repeat(64), client.manifestHash, session.epoch());
+        });
+        assertEquals(0, db.queryForObject("SELECT control_revision FROM inference_reservations WHERE id=?", Integer.class, reservation));
+        assertEquals(0, count("inference_control_slots"));
         local.recover(); assertEquals("UNKNOWN", status(run)); assertFalse(local.runOne()); assertEquals(0, client.calls);
         assertEquals(1, summary().path("counts").path("uncertain").asLong()); assertEquals(0, count("inference_usage_receipts"));
     }

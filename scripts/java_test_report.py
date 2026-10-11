@@ -62,6 +62,7 @@ ALLOWED_TESTS = {
         'liveQueuedRequestIsNotFencedByObservationOrNavigation',
         'successfulActiveAuthorityIsObservedWithoutStop',
         'uncertainTransportStopsOnlyAfterCommittedUnknownWithoutRetry',
+        'agedControlledDispatchRecoversUnknownWithoutResubmissionOrInventedStop',
         'revokedOriginalSessionCanReconcileWithoutSourceOrCurrentEpoch',
         'timeoutPendingAndMissingNeverManufactureTerminalOrUsage',
         'identicalFactReplayPreservesTimestampAndConflictingProofFails',
