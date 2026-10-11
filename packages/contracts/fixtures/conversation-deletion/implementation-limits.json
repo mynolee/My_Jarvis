@@ -12,7 +12,7 @@
   "display_timezone": "Asia/Seoul",
   "wire_timezone": "UTC",
   "scope_policy": "CONVERSATION_SOURCE_V1",
-  "policy_version": "conversation-source-v1-r3",
+  "policy_version": "conversation-source-v1-r4",
   "manifest_revision": 1,
   "dispatch_cache_policy": "CONTEXT_V1_NO_RESPONSE_CACHE"
 }

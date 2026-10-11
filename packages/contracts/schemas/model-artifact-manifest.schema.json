@@ -109,6 +109,11 @@
         ],
         "additionalProperties": false
       }
+    },
+    "study_lesson_prompt_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Optional private lesson response-shaping dependency. No prompt content is published."
     }
   },
   "required": [

@@ -569,6 +569,13 @@
           }
         }
       ]
+    },
+    "purpose": {
+      "enum": [
+        "CONVERSATION",
+        "STUDY_LESSON"
+      ],
+      "description": "Server-selected reserved-turn purpose. Omission preserves legacy CONVERSATION bytes."
     }
   },
   "required": [
@@ -669,6 +676,34 @@
             "type": "null"
           },
           "memories": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "purpose"
+        ],
+        "properties": {
+          "purpose": {
+            "const": "STUDY_LESSON"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "context"
+        ],
+        "properties": {
+          "model_id": {
+            "const": "local-mlx-v1"
+          },
+          "prompt_revision": {
+            "const": "local-v1"
+          },
+          "allowed_tool_ids": {
             "maxItems": 0
           }
         }

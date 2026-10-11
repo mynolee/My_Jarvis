@@ -120,7 +120,7 @@ Counts alone are insufficient. Reconstruct and compare under lock before commit.
 
 The confirmation commitment binds owner_id, session_hash, security_epoch,
 preparation_id, conversation_id, tool_id `conversation.source.delete`, tool_version
-`1`, policy_version `conversation-source-v1-r3`, scope_policy
+`1`, policy_version `conversation-source-v1-r4`, scope_policy
 `CONVERSATION_SOURCE_V1`, expected_version, expected_digest, manifest_revision 1,
 prepared_at, expires_at and max_executions 1. Use separate keyed domains for
 manifest, confirmation and prepare/confirm request bindings. Protect temporary
