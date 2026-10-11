@@ -155,3 +155,60 @@ it('describes eligible context as data with explicit-only writes and unverified 
   expect(screen.getByText(/Older history without that ordering remains visible in the transcript/)).toBeTruthy();
   expect(screen.getByText(/late output is discarded and may be UNKNOWN while computation may continue/)).toBeTruthy();
 });
+
+// Synthetic same-batch dispatch regression: this does not assert an exploit using
+// ordinary physical clicks separated by React's discrete-event commit.
+describe('synchronous generic memory approval revocation', () => {
+  it.each(['cancel', 'new', 'scope'])('rejects retained save confirmation after same-batch %s', async boundary => {
+    const api = new Api(), request = standard(api), acquire = vi.fn(() => true);
+    render(<MemoriesPanel {...props(api)} selectedProjectId={projectId} onAcquirePending={acquire}/>);
+    fill(); click('Review memory save');
+    const confirm = await screen.findByRole('button', { name: 'Confirm exact memory save' });
+    acquire.mockClear();
+    act(() => {
+      if (boundary === 'cancel') screen.getByRole('button', { name: 'Cancel save review' }).click();
+      if (boundary === 'new') screen.getByRole('button', { name: 'New memory' }).click();
+      if (boundary === 'scope') fireEvent.change(screen.getByLabelText('Memory scope'), { target: { value: 'PROJECT' } });
+      confirm.click();
+    });
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Review exact memory save' })).toBeNull());
+    expect(request.mock.calls.some(c => c[0] === '/memories' || c[3] === 'PATCH')).toBe(false);
+    expect(acquire).not.toHaveBeenCalled();
+  });
+
+  it.each(['cancel', 'uncheck', 'new', 'scope'])('rejects retained deletion confirmation after same-batch %s', async boundary => {
+    const api = new Api(), request = standard(api), acquire = vi.fn(() => true);
+    render(<MemoriesPanel {...props(api)} selectedProjectId={projectId} onAcquirePending={acquire}/>);
+    await screen.findByText(memory.value); await select(); click('Prepare memory deletion');
+    await screen.findByRole('region', { name: 'Confirm memory deletion' });
+    fireEvent.click(screen.getByLabelText(/I confirm deletion/));
+    const confirm = screen.getByRole('button', { name: 'Delete this memory and revisions' });
+    acquire.mockClear();
+    act(() => {
+      if (boundary === 'cancel') screen.getByRole('button', { name: 'Cancel deletion' }).click();
+      if (boundary === 'uncheck') (screen.getByLabelText(/I confirm deletion/) as HTMLInputElement).click();
+      if (boundary === 'new') screen.getByRole('button', { name: 'New memory' }).click();
+      if (boundary === 'scope') fireEvent.change(screen.getByLabelText('Memory scope'), { target: { value: 'PROJECT' } });
+      confirm.click();
+    });
+    expect(request.mock.calls.some(c => c[0].endsWith('/confirm'))).toBe(false);
+    expect(acquire).not.toHaveBeenCalled();
+    if (boundary === 'uncheck') {
+      expect((confirm as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(screen.getByLabelText(/I confirm deletion/));
+      click('Delete this memory and revisions');
+      await screen.findByText(/Deletion is confirmed/);
+      expect(request.mock.calls.filter(c => c[0].endsWith('/confirm'))).toHaveLength(1);
+    }
+  });
+
+  it('allows a fresh save review after cancellation and submits it only once', async () => {
+    const api = new Api(), request = standard(api);
+    render(<MemoriesPanel {...props(api)}/>); fill(); click('Review memory save');
+    await screen.findByRole('button', { name: 'Confirm exact memory save' }); click('Cancel save review');
+    click('Review memory save'); const confirm = await screen.findByRole('button', { name: 'Confirm exact memory save' });
+    act(() => { confirm.click(); confirm.click(); });
+    await screen.findByText(/Save confirmed/);
+    expect(request.mock.calls.filter(c => c[0] === '/memories')).toHaveLength(1);
+  });
+});
