@@ -36,6 +36,12 @@ STUDY_REVIEW_TASK_METHODS = (
     'independentTaskCreateAndExplicitCompletionNeverMutateStudyOrInferenceEvidence',
 )
 
+STUDY_LEARNING_CATALOG_METHODS = (
+    'explicitLearningCatalogRecordsReachTypedLessonDispatch',
+    'typedLessonLearningKeysHonorProjectOverrideAndTombstone',
+    'typedLessonWithoutLearningRecordsAddsNoProfileDefaultsOrMemoryWrites',
+)
+
 
 def testcase(name=METHOD + "()", classname=CLASS, outcome="passed", extra=""):
     child = {"passed": "", "failed": '<failure message="' + MARKER + '" type="synthetic">' + MARKER + '</failure>',
@@ -277,7 +283,7 @@ class ReportFixtureTest(unittest.TestCase):
         report.source_snapshot(self.root)
 
     def test_typed_lesson_exact_inventory_and_all_new_source_bindings(self):
-        expected = {'StudyLessonContractTest': 8, 'StudyLessonHttpTest': 6, 'StudyLessonLifecycleTest': 18, 'StudyLessonMigrationTest': 1, 'StudyLessonSqlTest': 2}
+        expected = {'StudyLessonContractTest': 8, 'StudyLessonHttpTest': 6, 'StudyLessonLifecycleTest': 21, 'StudyLessonMigrationTest': 1, 'StudyLessonSqlTest': 2}
         self.prepare(); self.xml(); result = self.emit()
         for name, count in expected.items():
             methods = [item for item in result['methods'] if item['class'] == report.PACKAGE + '.' + name]
@@ -520,7 +526,7 @@ class ReportFixtureTest(unittest.TestCase):
                 result = self.emit()
                 self.assertEqual(result['status'], 'PASS')
                 self.assertEqual(result['evidence'], 'PARSED_JUNIT_XML')
-                self.assertEqual(result['counts']['observed_methods'], 809)
+                self.assertEqual(result['counts']['observed_methods'], 812)
                 self.assertEqual(result['counts']['unobserved_methods'], 0)
                 self.assertEqual(result['counts']['unmapped_testcases'], 0)
                 for method in STUDY_REVIEW_TASK_METHODS:
@@ -578,7 +584,95 @@ class ReportFixtureTest(unittest.TestCase):
                     self.xml(suite(rest + additions))
                     result = self.emit()
                     self.assertEqual(result['status'], 'INCOMPLETE')
-                    self.assertEqual(result['counts']['observed_methods'], 809 - unobserved)
+                    self.assertEqual(result['counts']['observed_methods'], 812 - unobserved)
+                    self.assertEqual(result['counts']['unobserved_methods'], unobserved)
+                    self.assertEqual(result['counts']['unmapped_testcases'], unmapped)
+                    self.assertEqual(result['counts']['duplicate_observations'], duplicate)
+                    observed = [item for item in result['methods'] if (item['class'], item['method']) == (cls, method)]
+                    self.assertEqual(len(observed), 1)
+                    self.assertEqual(observed[0]['outcome'], outcome)
+                    self.assertEqual(observed[0]['observations'], 0 if unobserved else 1 + duplicate)
+                    self.assertEqual(observed[0]['source_sha256'], hashlib.sha256(target.read_bytes()).hexdigest())
+                    if unobserved:
+                        self.assertIn('UNOBSERVED_METHODS', result['reason_codes'])
+                        self.assertEqual(observed[0]['counts'], {key: 0 for key in report.OUTCOMES})
+                    self.assertNotIn(MARKER, json.dumps(result))
+                    self.assertNotIn(str(self.root), json.dumps(result))
+
+    def test_study_learning_catalog_exact_names_and_source_bytes_bind_each_synthetic_observation(self):
+        name = 'StudyLessonLifecycleTest'
+        cls = report.PACKAGE + '.' + name
+        target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+        self.assertEqual(report.ALLOWED_TESTS[name][-3:], STUDY_LEARNING_CATALOG_METHODS)
+        self.assertEqual(len(report.ALLOWED_TESTS[name]), 21)
+        self.prepare()
+        for suffix in ('', '()'):
+            with self.subTest(default_name_suffix=suffix):
+                self.xml(suite([testcase(name=method + (suffix if (c == name and method in STUDY_LEARNING_CATALOG_METHODS)
+                                                          else '()'), classname=report.PACKAGE + '.' + c)
+                                for c, names in report.ALLOWED_TESTS.items() for method in names]))
+                result = self.emit()
+                self.assertEqual(result['status'], 'PASS')
+                self.assertEqual(result['evidence'], 'PARSED_JUNIT_XML')
+                self.assertEqual(result['counts']['observed_methods'], 812)
+                self.assertEqual(result['counts']['unobserved_methods'], 0)
+                self.assertEqual(result['counts']['unmapped_testcases'], 0)
+                for method in STUDY_LEARNING_CATALOG_METHODS:
+                    observed = [item for item in result['methods'] if (item['class'], item['method']) == (cls, method)]
+                    self.assertEqual(len(observed), 1)
+                    self.assertEqual(observed[0]['outcome'], 'PASS')
+                    self.assertEqual(observed[0]['observations'], 1)
+                    self.assertEqual(observed[0]['counts'], {'passed': 1, 'failed': 0, 'errors': 0, 'skipped': 0})
+                    self.assertEqual(observed[0]['source_sha256'], hashlib.sha256(target.read_bytes()).hexdigest())
+                self.assertNotIn(MARKER, json.dumps(result))
+                self.assertNotIn(str(self.root), json.dumps(result))
+        original = target.read_bytes()
+        target.write_bytes(original + b'\n// synthetic learning catalog source alteration\n')
+        self.assertEqual(self.emit()['reason_codes'], ['SOURCE_CHANGED_DURING_VERIFICATION'])
+        target.write_bytes(original)
+        self.assertEqual(self.emit()['status'], 'PASS')
+
+    def test_each_study_learning_catalog_name_rejects_source_and_xml_substitutions_or_omissions(self):
+        name = 'StudyLessonLifecycleTest'
+        cls = report.PACKAGE + '.' + name
+        target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+        original = target.read_text()
+        for method in STUDY_LEARNING_CATALOG_METHODS:
+            declaration = '@Test void ' + method + '() {}'
+            for kind, replacement in (
+                    ('missing', ''),
+                    ('renamed', '@Test void unreviewedLearningCatalogRename() {}'),
+                    ('extra', declaration + '\n@Test void unreviewedLearningCatalogExtra() {}'),
+                    ('duplicate', declaration + '\n' + declaration),
+                    ('parameterized', declaration.replace('@Test', '@ParameterizedTest')),
+                    ('repeated', declaration.replace('@Test', '@RepeatedTest(2)')),
+                    ('display_name', declaration.replace('@Test', '@DisplayName("synthetic") @Test')),
+                    ('argument', declaration.replace('()', '(String synthetic)')),
+                    ('nested', 'class UnreviewedNested { ' + declaration + ' }')):
+                with self.subTest(method=method, source_mutation=kind):
+                    target.write_text(original.replace(declaration, replacement))
+                    with self.assertRaisesRegex(report.ReportError, '^TEST_INVENTORY_REVIEW_REQUIRED$'):
+                        report.source_snapshot(self.root)
+            target.write_text(original)
+        report.source_snapshot(self.root)
+        self.prepare()
+        for method in STUDY_LEARNING_CATALOG_METHODS:
+            matched = testcase(name=method + '()', classname=cls)
+            rest = [testcase(name=m + '()', classname=report.PACKAGE + '.' + c)
+                    for c, names in report.ALLOWED_TESTS.items() for m in names if (c, m) != (name, method)]
+            for kind, additions, unobserved, unmapped, duplicate, outcome in (
+                    ('missing', [], 1, 0, 0, 'NOT_OBSERVED'),
+                    ('renamed', [testcase(name=MARKER, classname=cls)], 1, 1, 0, 'NOT_OBSERVED'),
+                    ('extra', [matched, testcase(name=MARKER, classname=cls)], 0, 1, 0, 'PASS'),
+                    ('duplicate', [matched, matched], 0, 0, 1, 'DUPLICATE_UNRESOLVED'),
+                    ('parameterized', [testcase(name=method + '(' + MARKER + ')', classname=cls)], 1, 1, 0, 'NOT_OBSERVED'),
+                    ('display_suffix', [testcase(name=method + '()[1]', classname=cls)], 1, 1, 0, 'NOT_OBSERVED'),
+                    ('wrong_class', [testcase(name=method + '()', classname=CLASS)], 1, 1, 0, 'NOT_OBSERVED')):
+                with self.subTest(method=method, xml_mutation=kind):
+                    self.xml(suite(rest + additions))
+                    result = self.emit()
+                    self.assertEqual(result['status'], 'INCOMPLETE')
+                    self.assertEqual(result['counts']['observed_methods'], 812 - unobserved)
                     self.assertEqual(result['counts']['unobserved_methods'], unobserved)
                     self.assertEqual(result['counts']['unmapped_testcases'], unmapped)
                     self.assertEqual(result['counts']['duplicate_observations'], duplicate)
@@ -703,12 +797,13 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 809)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 812)
 
     def test_all_569_historical_identities_remain_exactly_preserved(self):
         historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items() for method in names
                             if cls not in DURABLE_CLASS_COUNTS and cls not in CONTROL_CLASS_COUNTS and cls not in FEEDBACK_CLASS_COUNTS
-                            and (cls, method) != ('StudyAnswerSourcePolicyTest', DIRECT_INPUT_METHOD))
+                            and (cls, method) != ('StudyAnswerSourcePolicyTest', DIRECT_INPUT_METHOD)
+                            and (cls, method) not in {('StudyLessonLifecycleTest', name) for name in STUDY_LEARNING_CATALOG_METHODS})
         self.assertEqual(len(historical), 569)
         self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
                          'eaf1fb4616a8dbcd87fc28744000afa9778575c98003332e734c11fbe43b25fa')
@@ -717,7 +812,8 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
 
     def test_all_618_previous_identities_remain_exactly_preserved(self):
         historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items()
-                            if cls not in CONTROL_CLASS_COUNTS and cls not in FEEDBACK_CLASS_COUNTS for method in names)
+                            if cls not in CONTROL_CLASS_COUNTS and cls not in FEEDBACK_CLASS_COUNTS for method in names
+                            if (cls, method) not in {('StudyLessonLifecycleTest', name) for name in STUDY_LEARNING_CATALOG_METHODS})
         self.assertEqual(len(historical), 618)
         self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
                          'bf3c9ac564e491e5425a92ad0260232a6adaecb7fec1edac94dbd89d51ef3c73')
@@ -726,7 +822,8 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
 
     def test_all_686_stage_a_identities_remain_exactly_preserved(self):
         historical=sorted(cls+'.'+method for cls,names in report.ALLOWED_TESTS.items()
-                          if cls not in FEEDBACK_CLASS_COUNTS for method in names)
+                          if cls not in FEEDBACK_CLASS_COUNTS for method in names
+                          if (cls, method) not in {('StudyLessonLifecycleTest', name) for name in STUDY_LEARNING_CATALOG_METHODS})
         self.assertEqual(len(historical),686)
         self.assertEqual(hashlib.sha256(('\n'.join(historical)+'\n').encode()).hexdigest(),
                          '2c3ddbe76e953f3499193316def7d130dccd9196f60f157ca4f3bb1ce3d70ff3')
@@ -737,7 +834,8 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
     def test_all_806_pre_review_task_identities_remain_exactly_preserved(self):
         additions = {('StudyFeedbackDeletionTest', method) for method in STUDY_REVIEW_TASK_METHODS}
         historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items()
-                            for method in names if (cls, method) not in additions)
+                            for method in names if (cls, method) not in additions
+                            and (cls, method) not in {('StudyLessonLifecycleTest', name) for name in STUDY_LEARNING_CATALOG_METHODS})
         self.assertEqual(len(additions), 3)
         self.assertEqual(report.ALLOWED_TESTS['StudyFeedbackDeletionTest'][-3:], STUDY_REVIEW_TASK_METHODS)
         self.assertEqual(len(report.ALLOWED_TESTS['StudyFeedbackDeletionTest'][:-3]), 11)
@@ -745,6 +843,25 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         # Frozen parent inventory: sorted unqualified class.method lines and final newline.
         self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
                          '02c61eb5bb7d73e003165163726bcfebdc85480f503c306424531a721e666840')
+
+    def test_all_809_parent_identities_remain_exactly_preserved(self):
+        additions = {('StudyLessonLifecycleTest', method) for method in STUDY_LEARNING_CATALOG_METHODS}
+        self.assertEqual(len(additions), 3)
+        self.assertEqual(report.ALLOWED_TESTS['StudyLessonLifecycleTest'][-3:], STUDY_LEARNING_CATALOG_METHODS)
+        self.assertEqual(len(report.ALLOWED_TESTS['StudyLessonLifecycleTest'][:-3]), 18)
+        snapshot = report.source_snapshot(report.ROOT)
+        target = report.ROOT / report.TEST_ROOT / 'dev/myjarvis/core/StudyLessonLifecycleTest.java'
+        self.assertEqual(snapshot['class_source_sha256'][report.PACKAGE + '.StudyLessonLifecycleTest'],
+                         hashlib.sha256(target.read_bytes()).hexdigest())
+        for _, method in additions:
+            self.assertEqual(report.ALLOWED_TESTS['StudyLessonLifecycleTest'].count(method), 1)
+            self.assertEqual(target.read_text().count('@Test void ' + method + '()'), 1)
+        historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items()
+                            for method in names if (cls, method) not in additions)
+        self.assertEqual(len(historical), 809)
+        self.assertEqual(len(set(historical)), 809)
+        self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
+                         '403eb5d44b4fdcbddc518707fb77d031e5ebe668e56e3995514675e5aff3024b')
 
     def test_control_migration_adds_v17_without_changing_any_previous_migration(self):
         path = report.ROOT / report.TEST_ROOT / 'dev/myjarvis/core/InferenceControlMigrationTest.java'

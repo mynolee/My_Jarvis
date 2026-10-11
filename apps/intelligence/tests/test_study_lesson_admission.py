@@ -43,6 +43,22 @@ def study_request():
     return {**request(), 'purpose': 'STUDY_LESSON'}
 
 
+def learning_catalog_request():
+    body = study_request()
+    body['budget']['max_input_tokens'] = 3584
+    template = body['memories'][0]
+    body['memories'] = [
+        {**template, 'source_id': f'00000000-0000-4000-8000-{60 + index:012d}',
+         'id': f'00000000-0000-4000-8000-{70 + index:012d}', 'key': key, 'kind': kind, 'value': value}
+        for index, (key, kind, value) in enumerate((
+            ('learning.level', 'PROFILE', '  Synthetic level alpha  '),
+            ('learning.explanation_style', 'PREFERENCE', 'Synthetic style beta'),
+            ('learning.code_language', 'PREFERENCE', 'Synthetic language gamma'),
+        ))
+    ]
+    return body
+
+
 def study_fixture(root):
     config = fixture(root)
     path = root / 'synthetic-study-placeholder.txt'
@@ -323,6 +339,35 @@ class StudyAdapterTests(unittest.TestCase):
         with self.assertRaises(ContractViolation):
             _validate_output(result['output'], TurnRequest.from_wire(body), measured=result)
 
+    def test_learning_catalog_records_remain_subject_to_existing_typed_pruning(self):
+        body = learning_catalog_request()
+        body['memories'] = body['memories'][:1]
+        body['user_input'] = 'Synthetic input ∑\n  unchanged bytes  '
+        original = canonical(body)
+        parsed = TurnRequest.from_wire(body).model_dump(exclude_unset=True)
+        self.assertEqual(canonical(parsed), original)
+        self.assertEqual(len(parsed['history']), 2)
+        adapter, seen = fake_adapter(lambda observations: 3585 if json.loads(
+            observations['candidates'][-1][1]['content'])['memories'] else 3584)
+        adapter.study_lesson_system = PLACEHOLDER.decode()
+        result = adapter.generate(adapter_request(parsed), SimpleNamespace(is_set=lambda: False))
+        self.assertEqual(len(seen['candidates']), 2)
+        self.assertEqual([json.loads(messages[1]['content'])['memories'] for messages in seen['candidates']],
+                         [body['memories'], []])
+        history_metadata = [{key: value for key, value in item.items() if key != 'text'} for item in body['history']]
+        for messages in seen['candidates']:
+            self.assertEqual([message['role'] for message in messages], ['system', 'user', 'user', 'assistant', 'user'])
+            self.assertEqual(json.loads(messages[1]['content'])['history'], history_metadata)
+            self.assertEqual(messages[2:4], [{'role': item['role'].lower(), 'content': item['text']} for item in body['history']])
+            self.assertEqual(messages[-1]['content'].encode(), body['user_input'].encode())
+        self.assertEqual(canonical(parsed), original)
+        self.assertEqual([ids.shape for ids, _ in seen['tensors']], [(1, 3585), (1, 3584)])
+        self.assertEqual(len(seen['streams']), 1)
+        self.assertIs(seen['streams'][0]['input_ids'], seen['tensors'][-1][0])
+        self.assertIs(seen['streams'][0]['mask'], seen['tensors'][-1][1])
+        self.assertIsNot(seen['streams'][0]['input_ids'], seen['tensors'][0][0])
+        self.assertEqual(result['input_tokens'], 3584)
+
     def test_missing_dependency_fails_before_render_prepare_or_stream(self):
         adapter, seen = fake_adapter(lambda _: 100)
         with self.assertRaises(RuntimeFailure) as caught:
@@ -341,6 +386,51 @@ class StudyAdapterTests(unittest.TestCase):
 
 
 class StudyPipeTests(unittest.TestCase):
+    def test_explicit_learning_catalog_survives_typed_pipe_and_data_render_when_it_fits(self):
+        body = learning_catalog_request()
+        turn = TurnRequest.from_wire(body)
+        self.assertEqual(turn.model_dump(exclude_unset=True), body)
+        self.assertEqual(len({item['id'] for item in body['memories']}), 3)
+        self.assertEqual(len({item['source_id'] for item in body['memories']}), 3)
+        captured = []
+        runtime = LocalRuntime(SimpleNamespace(manifest_sha256=body['model_manifest_hash'],
+                                              study_lesson_prompt_path=Path('/synthetic-placeholder-only')))
+        runtime.health = lambda: {'runtime_ready': True}
+        runtime._cancel = SimpleNamespace(clear=lambda: None)
+        runtime._pipe = SimpleNamespace(send=captured.append)
+        async def receive(deadline): return {'request_id': body['request_id']}
+        async def wait_for(coro, timeout): return await coro
+        runtime._receive = receive
+        with patch('jarvis_intelligence.local_runtime.asyncio.wait_for', new=wait_for):
+            immediate(runtime.generate(turn, time.time() + 10))
+        self.assertEqual(len(captured), 1)
+        self.assertFalse(runtime._serial.locked())
+        piped = captured[0]
+        for key in ('purpose', 'context', 'project_context', 'memories', 'history', 'evidence', 'tool_results', 'user_input'):
+            self.assertEqual(piped[key], body[key])
+        self.assertEqual((piped['max_input_tokens'], piped['max_output_tokens']), (3584, 512))
+        adapter, seen = fake_adapter(lambda _: 3584)
+        adapter.study_lesson_system = PLACEHOLDER.decode()
+        result = adapter.generate(piped, SimpleNamespace(is_set=lambda: False))
+        self.assertEqual(len(seen['candidates']), 1)
+        messages = seen['candidates'][0]
+        self.assertEqual([message['role'] for message in messages], ['system', 'user', 'user', 'assistant', 'user'])
+        data = {key: piped[key] for key in ('context', 'project_context', 'memories', 'evidence', 'tool_results')}
+        data['history'] = [{key: value for key, value in item.items() if key != 'text'} for item in piped['history']]
+        self.assertEqual(messages[1]['content'].encode(), canonical(data))
+        self.assertEqual(json.loads(messages[1]['content'])['memories'], body['memories'])
+        self.assertTrue(messages[0]['content'].startswith(PLACEHOLDER.decode() + '\n'))
+        for item in body['memories']:
+            for field in ('key', 'value', 'id', 'source_id'):
+                self.assertNotIn(item[field], messages[0]['content'])
+        self.assertEqual(messages[-1]['content'].encode(), body['user_input'].encode())
+        self.assertEqual(len(seen['tensors']), 1)
+        self.assertEqual(seen['tensors'][0][0].shape, (1, 3584))
+        self.assertEqual(len(seen['streams']), 1)
+        self.assertIs(seen['streams'][0]['input_ids'], seen['tensors'][0][0])
+        self.assertIs(seen['streams'][0]['mask'], seen['tensors'][0][1])
+        self.assertEqual(result['input_tokens'], 3584)
+
     def test_study_purpose_and_all_context_fields_survive_synthetic_pipe(self):
         body = study_request()
         captured = []

@@ -227,6 +227,9 @@ ALLOWED_TESTS = {
         "deletingASelectedMemoryInterruptsAndDiscardsLateLessonButKeepsBoundUsage",
         "activeConversationDeletionIsBlockedAndCompletedReplayNeverRemintsQuestionIds",
         "descendantLockWaitRechecksSessionClockBeforeLessonIdsOrContentCommit",
+        "explicitLearningCatalogRecordsReachTypedLessonDispatch",
+        "typedLessonLearningKeysHonorProjectOverrideAndTombstone",
+        "typedLessonWithoutLearningRecordsAddsNoProfileDefaultsOrMemoryWrites",
     ),
     "StudyLessonMigrationTest": (
         "v14PreparedAuthorityIsRevokedAndConsumedPreparationRemainsUnchanged",

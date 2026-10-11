@@ -246,4 +246,132 @@ class StudyLessonLifecycleTest extends ConversationDeletionFixtures {
         }
     }
 
+    UUID saveLearningMemory(UUID project, String key, String kind, String value) {
+        Map<String,Object> fields = new LinkedHashMap<>();
+        fields.put("scope", project == null ? "GLOBAL" : "PROJECT"); fields.put("project_id", project);
+        fields.put("key", key); fields.put("kind", kind); fields.put("value", value);
+        fields.put("change_reason", "Synthetic explicit catalog form");
+        fields.put("expected_generation", 0); fields.put("revive_deleted", false);
+        JsonNode arguments = json(fields);
+        Map<String,Object> intentBody = new LinkedHashMap<>();
+        intentBody.put("tool_id", "memory.write"); intentBody.put("operation", "CREATE");
+        intentBody.put("target_id", null); intentBody.put("arguments", arguments);
+        var intent = context.getBean(MemoryIntentService.class).issue(session, UUID.randomUUID(), json(intentBody));
+        var saved = memories.save(session, UUID.randomUUID(), null,
+                json(Map.of("intent_id", intent.get("id"), "arguments", arguments)), true);
+        UUID id = UUID.fromString(saved.get("memory_id").toString());
+        var canonical = memories.get(session, id);
+        assertEquals(value, canonical.get("value")); assertEquals(key, canonical.get("key"));
+        assertEquals(kind, canonical.get("kind")); assertEquals(project, canonical.get("project_id"));
+        assertEquals(project == null ? "GLOBAL" : "PROJECT", canonical.get("scope"));
+        return id;
+    }
+    JsonNode learningKey(UUID project, String key) {
+        Map<String,Object> fields = new LinkedHashMap<>();
+        fields.put("scope", project == null ? "GLOBAL" : "PROJECT");
+        fields.put("project_id", project); fields.put("key", key);
+        return json(fields);
+    }
+    void assertSelectedLearningMemories(UUID run, Set<UUID> expectedIds) {
+        UUID contextId = db.queryForObject("SELECT id FROM inference_contexts WHERE owner_id=? AND run_id=?", UUID.class, owner, run);
+        assertEquals(contextId.toString(), client.captured.path("context").path("id").asText());
+        JsonNode selected = client.captured.path("memories");
+        assertTrue(selected.isArray()); assertEquals(expectedIds.size(), selected.size());
+        Set<UUID> actualIds = new HashSet<>(), sourceIds = new HashSet<>();
+        for (JsonNode item : selected) {
+            UUID id = UUID.fromString(item.path("id").asText());
+            UUID sourceId = UUID.fromString(item.path("source_id").asText());
+            assertTrue(actualIds.add(id)); assertTrue(sourceIds.add(sourceId));
+            var canonical = memories.get(session, id);
+            Map<String,Object> expected = new LinkedHashMap<>(); expected.put("source_id", sourceId);
+            for (String field : List.of("id", "key", "value", "kind", "version", "generation", "scope", "project_id", "confirmed_at", "updated_at"))
+                expected.put(field, canonical.get(field));
+            assertEquals(json(expected), item);
+            UUID slotId = db.queryForObject("SELECT slot_id FROM memories WHERE owner_id=? AND id=?", UUID.class, owner, id);
+            var binding = db.queryForMap("SELECT context_id,source_id,memory_id,slot_id,version,generation FROM inference_context_memories WHERE context_id=? AND source_id=?", contextId, sourceId);
+            assertEquals(Map.of("context_id", contextId, "source_id", sourceId, "memory_id", id,
+                    "slot_id", slotId, "version", canonical.get("version"), "generation", canonical.get("generation")), binding);
+        }
+        assertEquals(expectedIds, actualIds);
+        assertEquals((long) expectedIds.size(), db.queryForObject("SELECT count(*) FROM inference_context_memories WHERE context_id=?", Long.class, contextId));
+    }
+
+    @Test void explicitLearningCatalogRecordsReachTypedLessonDispatch() {
+        UUID level = saveLearningMemory(null, "learning.level", "PROFILE", "  Synthetic level alpha  ");
+        UUID style = saveLearningMemory(null, "learning.explanation_style", "PREFERENCE", "Synthetic style beta");
+        UUID language = saveLearningMemory(null, "learning.code_language", "PREFERENCE", "Synthetic language gamma");
+        UUID run = accept(conversation("synthetic learning catalog"));
+        assertTrue(local.runOne()); assertEquals("SUCCEEDED", status(run)); assertEquals(1, client.calls);
+        assertEquals("STUDY_LESSON", client.captured.path("purpose").asText());
+        assertSelectedLearningMemories(run, Set.of(level, style, language));
+        assertTrue(client.captured.path("project_context").isNull());
+        assertNotNull(local.lesson(session, run).get("lesson")); assertEquals(1L, measured(run));
+    }
+
+    @Test void typedLessonLearningKeysHonorProjectOverrideAndTombstone() {
+        UUID project = UUID.randomUUID(), unrelatedProject = UUID.randomUUID();
+        db.update("INSERT INTO projects(id,owner_id,name) VALUES (?,?,'Synthetic learning project'),(?,?,'Synthetic unrelated project')", project, owner, unrelatedProject, owner);
+        UUID globalLevel = saveLearningMemory(null, "learning.level", "PROFILE", "Synthetic global level");
+        UUID globalStyle = saveLearningMemory(null, "learning.explanation_style", "PREFERENCE", "Synthetic inherited style");
+        UUID globalLanguage = saveLearningMemory(null, "learning.code_language", "PREFERENCE", "Synthetic live global language");
+        UUID projectLevel = saveLearningMemory(project, "learning.level", "PROFILE", "Synthetic project level");
+        UUID projectLanguage = saveLearningMemory(project, "learning.code_language", "PREFERENCE", "Synthetic deleted project language");
+        UUID unrelated = saveLearningMemory(unrelatedProject, "learning.level", "PROFILE", "Synthetic unrelated level");
+        var liveGlobalLanguage = memories.get(session, globalLanguage);
+        var deleted = memories.get(session, projectLanguage);
+        UUID deletedSlot = db.queryForObject("SELECT slot_id FROM memories WHERE id=?", UUID.class, projectLanguage);
+        var service = context.getBean(MemoryDeletionService.class);
+        var prepared = service.prepare(session, UUID.randomUUID(), projectLanguage,
+                json(Map.of("expected_version", deleted.get("version"), "expected_generation", deleted.get("generation"))));
+        service.confirm(session, UUID.randomUUID(), UUID.fromString(prepared.get("id").toString()),
+                json(Map.of("payload_hash", prepared.get("payload_hash"), "expected_version", prepared.get("expected_version"),
+                        "expected_generation", prepared.get("expected_generation"), "confirm", true)));
+        long nextGeneration = ((Number) deleted.get("generation")).longValue() + 1;
+        var tombstone = memories.keyState(session, learningKey(project, "learning.code_language"));
+        assertEquals("DELETED", tombstone.get("status")); assertNull(tombstone.get("memory_id")); assertNull(tombstone.get("version"));
+        assertEquals(nextGeneration, tombstone.get("generation"));
+        var slot = db.queryForMap("SELECT tombstone,current_memory_id,generation FROM memory_slots WHERE owner_id=? AND id=?", owner, deletedSlot);
+        assertEquals(true, slot.get("tombstone")); assertNull(slot.get("current_memory_id")); assertEquals(nextGeneration, slot.get("generation"));
+        assertTrue(db.queryForObject("SELECT deleted_at IS NOT NULL AND payload_ref IS NULL FROM memories WHERE id=?", Boolean.class, projectLanguage));
+        assertEquals(liveGlobalLanguage, memories.get(session, globalLanguage));
+        assertEquals("ACTIVE", memories.keyState(session, learningKey(null, "learning.code_language")).get("status"));
+        assertEquals("ABSENT", memories.keyState(session, learningKey(project, "learning.explanation_style")).get("status"));
+        assertEquals(6L, count("memories")); // All synthetic records fit well below the existing selection cap.
+        UUID conversation = conversation("synthetic project learning");
+        db.update("UPDATE conversations SET project_id=? WHERE id=?", project, conversation);
+        // Finish every memory mutation before capture, so this exercises selection rather than invalidation.
+        UUID run = accept(conversation);
+        assertTrue(local.runOne()); assertEquals("SUCCEEDED", status(run)); assertEquals(1, client.calls);
+        assertEquals("STUDY_LESSON", client.captured.path("purpose").asText());
+        assertEquals(project.toString(), client.captured.path("project_context").path("id").asText());
+        assertSelectedLearningMemories(run, Set.of(projectLevel, globalStyle));
+        for (JsonNode item : client.captured.path("memories")) {
+            assertFalse(Set.of(globalLevel, globalLanguage, projectLanguage, unrelated).contains(UUID.fromString(item.path("id").asText())));
+            assertNotEquals("learning.code_language", item.path("key").asText());
+        }
+        assertEquals(liveGlobalLanguage, memories.get(session, globalLanguage));
+        assertNotNull(local.lesson(session, run).get("lesson"));
+    }
+
+    @Test void typedLessonWithoutLearningRecordsAddsNoProfileDefaultsOrMemoryWrites() {
+        UUID conversation = conversation("synthetic absent learning catalog");
+        Map<String,Long> before = new LinkedHashMap<>();
+        for (String table : List.of("memories", "memory_slots", "memory_revisions", "memory_mutations", "memory_write_intents")) {
+            before.put(table, count(table)); assertEquals(0L, before.get(table));
+        }
+        UUID run = accept(conversation);
+        assertTrue(local.runOne()); assertEquals("SUCCEEDED", status(run)); assertEquals(1, client.calls);
+        assertEquals("STUDY_LESSON", client.captured.path("purpose").asText());
+        assertSelectedLearningMemories(run, Set.of());
+        assertTrue(client.captured.path("context").path("profile_version").isNull());
+        Set<String> fields = new HashSet<>(); client.captured.propertyNames().forEach(fields::add);
+        assertEquals(Set.of("request_id", "run_id", "user_input", "current_time", "timezone", "context", "project_context",
+                "memories", "history", "evidence", "tool_results", "allowed_tool_ids", "purpose", "budget",
+                "model_id", "model_manifest_hash", "prompt_revision", "control"), fields);
+        for (String key : List.of("learning.level", "learning.explanation_style", "learning.code_language"))
+            assertFalse(Json.canonical(client.captured).contains(key));
+        before.forEach((table, countBefore) -> assertEquals(countBefore, count(table), table));
+        assertNotNull(local.lesson(session, run).get("lesson")); assertEquals(1L, measured(run));
+    }
+
 }
