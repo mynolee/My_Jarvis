@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/study-feedback-readiness.schema.json",
+  "type": "object",
+  "properties": {
+    "revision": {
+      "const": 1
+    },
+    "control_revision": {
+      "const": 1
+    },
+    "model_id": {
+      "const": "local-mlx-v1"
+    },
+    "model_manifest_hash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$(?![\\s\\S])"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ready": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "revision",
+    "control_revision",
+    "model_id",
+    "model_manifest_hash",
+    "ready"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ready": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "model_manifest_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$(?![\\s\\S])"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "context_revision": 1,
+  "max_memories": 20,
+  "max_history_pairs": 8,
+  "max_history_messages": 16,
+  "max_request_canonical_bytes": 262144,
+  "max_context_canonical_bytes": 196608,
+  "max_memories_canonical_bytes": 131072,
+  "max_history_canonical_bytes": 65536,
+  "max_memory_value_utf8_bytes": 8000,
+  "max_history_text_utf8_bytes": 64000,
+  "max_total_tokens": 4096,
+  "reserved_output_tokens": 512,
+  "max_admitted_input_tokens": 3584,
+  "max_pruning_removals": 28
+}

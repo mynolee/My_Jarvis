@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:myjarvis:study-feedback:v1",
+  "$ref": "urn:myjarvis:study-session:v1#/$defs/feedback"
+}
