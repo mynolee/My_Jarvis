@@ -55,7 +55,7 @@ final class WorkflowService {
     Map<String,Object> run(UUID owner,UUID id){return reads.execute(s->{
         var r=access.requireRun(owner,id);Map<String,Object> result=new LinkedHashMap<>();for(String k:List.of("id","status","version"))result.put(k,r.get(k));
         result.put("execution_mode",Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM inference_reservations WHERE owner_id=? AND run_id=?)",Boolean.class,owner,id))?"LOCAL_INFERENCE":"MOCK");
-        result.put("result",r.get("result_ref")==null?null:vault.open(owner,id,"result",(String)r.get("result_ref")));
+        result.put("result",StudyLessonResult.text(db,vault,owner,r));
         result.put("approval_id",db.queryForList("SELECT p.id FROM approvals p JOIN action_proposals a ON a.id=p.action_id AND a.owner_id=p.owner_id WHERE a.owner_id=? AND a.run_id=? ORDER BY p.id LIMIT 1",owner,id).stream().findFirst().map(x->x.get("id")).orElse(null));
         result.put("job_id",db.queryForList("SELECT id FROM jobs WHERE owner_id=? AND run_id=? ORDER BY created_at DESC LIMIT 1",owner,id).stream().findFirst().map(x->x.get("id")).orElse(null));return result;
     });}

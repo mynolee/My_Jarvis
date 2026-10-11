@@ -126,7 +126,7 @@ final class ConversationHistoryService {
         Map<String,Object> result = new LinkedHashMap<>();
         for (String key : List.of("id", "status", "version")) result.put(key, row.get(key));
         result.put("execution_mode", Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM inference_reservations WHERE owner_id=? AND run_id=?)", Boolean.class, owner, run)) ? "LOCAL_INFERENCE" : "MOCK");
-        result.put("result", row.get("result_ref") == null ? null : vault.open(owner, run, "result", (String) row.get("result_ref")));
+        result.put("result", StudyLessonResult.text(db, vault, owner, row));
         result.put("approval_id", db.queryForList("SELECT p.id FROM approvals p JOIN action_proposals a ON a.id=p.action_id AND a.owner_id=p.owner_id WHERE a.owner_id=? AND a.run_id=? ORDER BY p.id LIMIT 1", owner, run).stream().findFirst().map(r -> r.get("id")).orElse(null));
         result.put("job_id", db.queryForList("SELECT id FROM jobs WHERE owner_id=? AND run_id=? ORDER BY created_at DESC,id DESC LIMIT 1", owner, run).stream().findFirst().map(r -> r.get("id")).orElse(null));
         return result;

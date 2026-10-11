@@ -58,7 +58,7 @@ final class UsageService {
                     dispatch.owner(), dispatch.run(), dispatch.reservation());
             if (rows.isEmpty()) throw ApiException.missing();
             var reservation = rows.getFirst();
-            if (!requestId.equals(reservation.get("request_id")) || !"local-mlx-v1".equals(reservation.get("model_id"))
+            if (!StudyLessonResult.purpose(request).equals(reservation.get("purpose")) || !requestId.equals(reservation.get("request_id")) || !"local-mlx-v1".equals(reservation.get("model_id"))
                     || !Json.equal(manifest, (String)reservation.get("model_manifest_hash"))
                     || !Json.equal(digest, (String)reservation.get("body_hash")) || reservation.get("started_at") == null
                     || ((Number)reservation.get("budget_revision")).longValue() != 1

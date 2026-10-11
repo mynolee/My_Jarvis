@@ -22,19 +22,24 @@ final class LocalInferenceService {
     @org.springframework.beans.factory.annotation.Autowired
     LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness,UsageService usage){this.flow=flow;this.client=client;this.contexts=contexts;this.freshness=freshness;this.usage=usage;}
     Map<String,Object> status(){boolean ready=client.ready();return Map.of("mode","LOCAL_MLX","model_id","local-mlx-v1","ready",ready,"status",ready?"READY":client.enabled?"UNAVAILABLE":"DISABLED");}
-    Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body){
+    Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body){return accept(session,conversation,body,"CONVERSATION");}
+    Map<String,Object> acceptLesson(AuthService.Session session,UUID conversation,JsonNode body){return accept(session,conversation,body,StudyLessonResult.PURPOSE);}
+    private Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body,String purpose){
         AuthService.requireOwner(session);UUID owner=session.owner();
         Json.fields(body,"client_message_id","text");UUID messageId=Json.uuid(body,"client_message_id");String text=Json.string(body,"text",8000);
-        String canonical=Json.canonical(Map.of("conversation_id",conversation.toString(),"mode","LOCAL_INFERENCE","body",body));
+        // Ordinary canonical bytes remain unchanged, including pre-context replay compatibility.
+        Map<String,Object> admission=new LinkedHashMap<>(Map.of("conversation_id",conversation.toString(),"mode","LOCAL_INFERENCE","body",body));
+        if(StudyLessonResult.PURPOSE.equals(purpose))admission.put("purpose",purpose);
+        String canonical=Json.canonical(admission);
         String hash=contexts.requestDigest(owner,canonical);
         // Idempotent repeats can inspect an existing run even if the model is currently unavailable.
-        var existing=flow.tx.execute(s->{contexts.authorize(session,conversation);var prior=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);return prior.isEmpty()?null:prior(owner,hash,canonical,prior.getFirst());});
+        var existing=flow.tx.execute(s->{contexts.authorize(session,conversation);var prior=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);return prior.isEmpty()?null:prior(owner,hash,canonical,purpose,prior.getFirst());});
         if(existing!=null)return existing;
         if(!client.ready())throw new ApiException(503,"LOCAL_MODEL_UNAVAILABLE");
         return flow.tx.execute(s->{
             contexts.authorize(session,conversation);
             var again=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);
-            if(!again.isEmpty())return prior(owner,hash,canonical,again.getFirst());
+            if(!again.isEmpty())return prior(owner,hash,canonical,purpose,again.getFirst());
             var ownerRow=flow.owned("owners",owner,owner);if(Boolean.TRUE.equals(ownerRow.get("execution_paused")))throw new ApiException(409,"EXECUTION_PAUSED");
             long running=flow.db.queryForObject("SELECT count(*) FROM inference_reservations WHERE owner_id=? AND status IN ('QUEUED','STARTED','UNKNOWN')",Long.class,owner);
             if(running>=2)throw new ApiException(429,"INFERENCE_CAPACITY_RESERVED");
@@ -45,16 +50,18 @@ final class LocalInferenceService {
             UUID run=UUID.randomUUID(),message=UUID.randomUUID(),request=UUID.randomUUID(),reservation=UUID.randomUUID();
             flow.db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'QUEUED')",run,owner,conversation);
             flow.db.update("INSERT INTO messages(id,owner_id,conversation_id,run_id,client_message_id,body_hash,content_ref,role,trust) VALUES (?,?,?,?,?,?,?,'USER','USER_DIRECT')",message,owner,conversation,run,messageId,hash,flow.vault.seal(owner,message,"message",text));
-            flow.db.update("INSERT INTO inference_reservations(id,owner_id,run_id,request_id,body_hash,model_manifest_hash,status,max_compute_ms,reserved_output_tokens,security_epoch) VALUES (?,?,?,?,?,?,'QUEUED',60000,512,?)",reservation,owner,run,request,hash,client.manifestHash,ownerRow.get("security_epoch"));
+            flow.db.update("INSERT INTO inference_reservations(id,owner_id,run_id,request_id,body_hash,model_manifest_hash,status,max_compute_ms,reserved_output_tokens,security_epoch,purpose) VALUES (?,?,?,?,?,?,'QUEUED',60000,512,?,?)",reservation,owner,run,request,hash,client.manifestHash,ownerRow.get("security_epoch"),purpose);
             contexts.capture(session,conversation,run);flow.event(owner,run,"LOCAL_INFERENCE_RESERVED");return Map.of("run_id",run,"status","QUEUED");
         });
     }
-    private Map<String,Object> prior(UUID owner,String hash,String canonical,Map<String,Object> row){
+    private Map<String,Object> prior(UUID owner,String hash,String canonical,String purpose,Map<String,Object> row){
         if(row.get("content_deleted_at")!=null||row.get("body_hash")==null)throw new ApiException(409,"IDEMPOTENCY_CONFLICT");
         UUID run=(UUID)row.get("run_id");var existing=flow.owned("runs",owner,run);
+        var reservations=flow.db.queryForList("SELECT purpose FROM inference_reservations WHERE owner_id=? AND run_id=?",owner,run);
+        if(reservations.size()!=1||!purpose.equals(reservations.getFirst().get("purpose")))throw new ApiException(409,"IDEMPOTENCY_CONFLICT");
         boolean matches=Json.equal(hash,(String)row.get("body_hash"));
         // Read-only recovery of pre-context requests; never enqueue or write a legacy digest.
-        if(!matches&&Boolean.FALSE.equals(existing.get("context_history_eligible"))
+        if(!matches&&"CONVERSATION".equals(purpose)&&Boolean.FALSE.equals(existing.get("context_history_eligible"))
                 &&!flow.db.queryForList("SELECT id FROM inference_reservations WHERE owner_id=? AND run_id=?",owner,run).isEmpty())
             matches=Json.equal(Json.hash(canonical),(String)row.get("body_hash"));
         if(!matches)throw new ApiException(409,"IDEMPOTENCY_CONFLICT");
@@ -114,7 +121,7 @@ final class LocalInferenceService {
             active.remove(dispatch.run(),Thread.currentThread());Thread.interrupted();
             // Factual accounting commits independently before revocation/output gates or result encryption.
             usage.record(dispatch,response);
-            settle(dispatch,switch(response.get("kind").asText()){case "ANSWER" -> "SUCCEEDED";case "NEED_INPUT" -> "WAITING_INPUT";default -> "FAILED";},result);
+            settle(dispatch,switch(response.get("kind").asText()){case "ANSWER","LESSON" -> "SUCCEEDED";case "NEED_INPUT" -> "WAITING_INPUT";default -> "FAILED";},result,response);
         }catch(Exception uncertain){settle(dispatch,"UNKNOWN",null);}
         finally{active.remove(dispatch.run(),Thread.currentThread());Thread.interrupted();}
         return true;
@@ -135,22 +142,70 @@ final class LocalInferenceService {
     JsonNode request(Map<String,Object> row,String text,Map<String,Object> selected){
         Map<String,Object> body=new LinkedHashMap<>();body.put("request_id",row.get("request_id").toString());body.put("run_id",row.get("run_id").toString());body.put("user_input",text);body.putAll(selected);
         for(String field:List.of("evidence","tool_results","allowed_tool_ids"))body.put(field,List.of());
+        Object purpose=row.getOrDefault("purpose","CONVERSATION");
+        if(!Set.of("CONVERSATION",StudyLessonResult.PURPOSE).contains(purpose))throw ApiException.bad();
+        if(StudyLessonResult.PURPOSE.equals(purpose))body.put("purpose",purpose);
         body.put("budget",Map.of("reservation_id",row.get("id").toString(),"max_compute_ms",60000,"max_input_tokens",3584,"max_output_tokens",512,"max_model_calls",1));body.put("model_id","local-mlx-v1");body.put("model_manifest_hash",row.get("model_manifest_hash"));body.put("prompt_revision","local-v1");JsonNode result=Json.MAPPER.valueToTree(body);if(Json.canonical(result).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>262144)throw new ApiException(413,"CONTEXT_TOO_LARGE");return result;
     }
     static String validate(JsonNode response,JsonNode request){
         if(response==null)throw ApiException.bad();Json.validate(response);
-        String kind=Json.string(response,"kind",30);if(!Set.of("ANSWER","NEED_INPUT","ERROR").contains(kind))throw ApiException.bad();
-        if(kind.equals("ANSWER")){Json.fields(response,"kind","reply_text","cited_source_ids","usage");if(!response.path("cited_source_ids").isArray()||!response.path("cited_source_ids").isEmpty())throw ApiException.bad();}
+        String purpose=StudyLessonResult.purpose(request),kind=Json.string(response,"kind",30);
+        boolean study=StudyLessonResult.PURPOSE.equals(purpose);
+        if(!(study?Set.of("LESSON","NEED_INPUT","ERROR"):Set.of("ANSWER","NEED_INPUT","ERROR")).contains(kind))throw ApiException.bad();
+        if(study&&(!request.path("context").isObject()||!"local-mlx-v1".equals(request.path("model_id").asText())||!"local-v1".equals(request.path("prompt_revision").asText())||!request.path("allowed_tool_ids").isArray()||!request.path("allowed_tool_ids").isEmpty()))throw ApiException.bad();
+        if(kind.equals("LESSON"))StudyLessonResult.validateWire(response);
+        else if(kind.equals("ANSWER")){Json.fields(response,"kind","reply_text","cited_source_ids","usage");if(!response.path("cited_source_ids").isArray()||!response.path("cited_source_ids").isEmpty())throw ApiException.bad();}
         else if(kind.equals("NEED_INPUT")){Json.fields(response,"kind","question","missing_fields","usage");var missing=response.path("missing_fields");if(!missing.isArray()||missing.size()>32)throw ApiException.bad();for(var field:missing)if(!field.isTextual()||field.asText().isEmpty()||field.asText().codePointCount(0,field.asText().length())>80)throw ApiException.bad();}
         else{Json.fields(response,"kind","error_code","retryable","usage");if(!Set.of("MODEL_UNAVAILABLE","CONTRACT_VIOLATION","RESOURCE_LIMIT","CONTEXT_LIMIT","MODEL_OUTPUT_INVALID","GENERATION_TIMEOUT","CANCELLED").contains(Json.string(response,"error_code",40))||!response.path("retryable").isBoolean()||response.path("retryable").asBoolean())throw ApiException.bad();}
         JsonNode usage=response.get("usage");if(usage==null)throw ApiException.bad();Json.fields(usage,"inference_request_id","model_manifest_hash","input_tokens","output_tokens","compute_ms","peak_memory_bytes","reservation_id");
         if(!Json.string(usage,"inference_request_id",36).equals(request.get("request_id").asText())||!Json.string(usage,"reservation_id",36).equals(request.get("budget").get("reservation_id").asText())||!Json.equal(Json.string(usage,"model_manifest_hash",64),request.get("model_manifest_hash").asText()))throw ApiException.bad();
         for(String field:List.of("input_tokens","output_tokens","compute_ms","peak_memory_bytes"))if(Json.integer(usage,field)<0)throw ApiException.bad();
         if(Json.integer(usage,"input_tokens")>3584||Json.integer(usage,"output_tokens")>512||Json.integer(usage,"compute_ms")>60000)throw ApiException.bad();
+        if(kind.equals("LESSON"))return null; // IDs and retained representation are created only after settlement gates.
         if(kind.equals("NEED_INPUT"))return Json.string(response,"question",1000);
         if(kind.equals("ERROR"))return "Local inference stopped: "+response.get("error_code").asText()+". No automatic retry was made.";return Json.string(response,"reply_text",16000);
     }
-    private void settle(Dispatch d,String status,String text){flow.tx.executeWithoutResult(s->{flow.lockOwner(d.owner());if(!freshness.valid(d.owner(),d.run())){freshness.invalidateRun(d.owner(),d.run());return;}contexts.markSettled(d.owner(),d.run());int changed=flow.db.update("UPDATE inference_reservations SET status=?,completed_at=now() WHERE id=? AND status='STARTED' AND cancel_requested_at IS NULL",(status.equals("WAITING_INPUT")?"SUCCEEDED":status),d.reservation());if(changed==1){flow.setRun(d.owner(),d.run(),status,text);flow.event(d.owner(),d.run(),"LOCAL_INFERENCE_"+status);}});}
+    private void settle(Dispatch d,String status,String text){settle(d,status,text,null);}
+    private void settle(Dispatch d,String status,String text,JsonNode response){flow.tx.executeWithoutResult(s->{
+        flow.lockOwner(d.owner());
+        if(!freshness.valid(d.owner(),d.run())){freshness.invalidateRun(d.owner(),d.run());return;}
+        flow.access.requireRun(d.owner(),d.run());
+        var rows=flow.db.queryForList("SELECT * FROM inference_reservations WHERE owner_id=? AND run_id=? AND id=? FOR UPDATE",d.owner(),d.run(),d.reservation());
+        if(rows.size()!=1)throw ApiException.bad();var row=rows.getFirst();
+        if(!StudyLessonResult.purpose(d.body()).equals(row.get("purpose"))
+                ||!d.body().path("request_id").asText().equals(row.get("request_id").toString())
+                ||!Json.equal(contexts.requestDigest(d.owner(),Json.canonical(d.body())),(String)row.get("body_hash")))throw ApiException.bad();
+        if(!"STARTED".equals(row.get("status"))||row.get("cancel_requested_at")!=null)return;
+        var contextRows=flow.db.queryForList("SELECT session_hash,security_epoch FROM inference_contexts WHERE owner_id=? AND run_id=? AND id=? FOR UPDATE",d.owner(),d.run(),row.get("dispatch_context_id"));
+        if(contextRows.size()!=1)throw ApiException.bad();var context=contextRows.getFirst();
+        // Recheck after descendant waits, then mint IDs only for a currently accepted typed result.
+        if(!freshness.valid(d.owner(),d.run())){freshness.invalidateRun(d.owner(),d.run());return;}
+        String retained=text;
+        if("SUCCEEDED".equals(status)&&StudyLessonResult.PURPOSE.equals(row.get("purpose"))){
+            if(response==null||!"LESSON".equals(response.path("kind").asText()))throw ApiException.bad();
+            validate(response,d.body());retained=StudyLessonResult.admit(response);
+        }
+        contexts.markSettled(d.owner(),d.run());
+        int changed=flow.db.update("UPDATE inference_reservations SET status=?,completed_at=now() WHERE id=? AND status='STARTED' AND cancel_requested_at IS NULL",(status.equals("WAITING_INPUT")?"SUCCEEDED":status),d.reservation());
+        if(changed==1){
+            flow.setRun(d.owner(),d.run(),status,retained);flow.event(d.owner(),d.run(),"LOCAL_INFERENCE_"+status);
+            // Encryption/nonce reservation can also wait. Expiry here rolls back content only;
+            // the separately committed trusted usage receipt is never undone or fabricated.
+            flow.access.lockSession(new AuthService.Session((String)context.get("session_hash"),d.owner(),null,((Number)context.get("security_epoch")).longValue()));
+        }
+    });}
+    Map<String,Object> lesson(AuthService.Session session,UUID run){return flow.tx.execute(s->{
+        var row=flow.access.requireRun(session,run);
+        if(!StudyLessonResult.isLesson(flow.db,session.owner(),run))throw ApiException.missing();
+        Map<String,Object> result=new LinkedHashMap<>();result.put("run_id",run);result.put("status",row.get("status"));result.put("lesson",null);
+        if("SUCCEEDED".equals(row.get("status"))){
+            try {
+                String encoded=row.get("result_ref")==null?null:flow.vault.open(session.owner(),run,"result",(String)row.get("result_ref"));
+                result.put("lesson",StudyLessonResult.project(StudyLessonResult.stored(encoded)));
+            } catch(RuntimeException invalid){throw new ApiException(500,"STUDY_LESSON_UNAVAILABLE");}
+        }
+        flow.access.lockSession(session);return result;
+    });}
     void interruptOwner(UUID owner){for(var row:flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND cancel_requested_at IS NOT NULL",owner))interrupt((UUID)row.get("run_id"));}
     void interrupt(UUID run){active.computeIfPresent(run,(id,thread)->{thread.interrupt();return thread;});}
     @PreDestroy void close(){executor.shutdownNow();}
