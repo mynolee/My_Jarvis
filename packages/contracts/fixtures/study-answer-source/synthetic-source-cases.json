@@ -1,0 +1,1635 @@
+{
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "exact_owner_source_answer",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 2,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": [
+            {
+              "question_id": "00000000-0000-4000-8000-000000000011",
+              "id": "00000000-0000-4000-8000-000000000021",
+              "answer": "Negative edges are always fine.",
+              "feedback": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "exact_owned_project",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000099",
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000099",
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000099",
+          "version": 2,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": [
+            {
+              "question_id": "00000000-0000-4000-8000-000000000011",
+              "id": "00000000-0000-4000-8000-000000000021",
+              "answer": "Negative edges are always fine.",
+              "feedback": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "unavailable",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": null,
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "wrong_actor",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000099",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "wrong_study_owner",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000099",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "wrong_source_owner",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000099",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "wrong_conversation",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000099",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "unexpected_project",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000099",
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "wrong_message",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000099",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "wrong_selection",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000099",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "newer_source_version",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 8,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "older_source_version",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 6,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "stale_selection",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 6,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "substituted_text",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Different synthetic text"
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "substituted_answer",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Different synthetic answer"
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "assistant_role",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "ASSISTANT",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "model_proposal_trust",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "MODEL_PROPOSAL",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "external_trust",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "EXTERNAL_UNTRUSTED",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "tool_result_trust",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "TOOL_RESULT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "substituted_target_session_id",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000099",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "substituted_target_expected_version",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 2,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "substituted_target_question_id",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000012",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "substituted_target_attempt_id",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000099",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "missing_project",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000099",
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": null,
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    },
+    {
+      "name": "other_project",
+      "input": {
+        "state": {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000099",
+          "version": 1,
+          "lifecycle": "OPEN",
+          "lesson": {
+            "concepts": [
+              "A tentative distance is the best path length found so far.",
+              "Relaxation improves a distance using a candidate path.",
+              "The greedy settled-node argument requires nonnegative edge weights."
+            ],
+            "questions": [
+              {
+                "id": "00000000-0000-4000-8000-000000000011",
+                "text": "Which edge-weight assumption is needed by standard Dijkstra?"
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000012",
+                "text": "A to B costs 2; B to C costs 3; A to C costs 8. What is the shortest distance from A to C?"
+              }
+            ]
+          },
+          "attempts": []
+        },
+        "actor_owner_id": "00000000-0000-4000-8000-000000000002",
+        "selection": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "target": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "expected_version": 1,
+            "question_id": "00000000-0000-4000-8000-000000000011",
+            "attempt_id": "00000000-0000-4000-8000-000000000021"
+          }
+        },
+        "current_source": {
+          "message_id": "00000000-0000-4000-8000-000000000031",
+          "owner_id": "00000000-0000-4000-8000-000000000002",
+          "conversation_id": "00000000-0000-4000-8000-000000000003",
+          "project_id": "00000000-0000-4000-8000-000000000031",
+          "conversation_content_version": 7,
+          "role": "USER",
+          "trust": "USER_DIRECT",
+          "text": "Negative edges are always fine."
+        },
+        "event": {
+          "session_id": "00000000-0000-4000-8000-000000000001",
+          "expected_version": 1,
+          "kind": "ANSWER",
+          "question_id": "00000000-0000-4000-8000-000000000011",
+          "attempt_id": "00000000-0000-4000-8000-000000000021",
+          "answer": "Negative edges are always fine."
+        }
+      },
+      "expected": {
+        "error": "STUDY_SOURCE_UNAVAILABLE"
+      }
+    }
+  ]
+}

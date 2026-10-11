@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/export-job.schema.json",
+  "$comment": "Wire shape only. Runtime validates current owner/session/epoch, recent reauthentication, transaction ordering, exact scope, byte/deadline bounds and current-data release. No public bearer URL or stored export artifact.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "kind": {
+      "const": "EXPLICIT_MEMORIES"
+    },
+    "scope": {
+      "enum": [
+        "GLOBAL",
+        "PROJECT"
+      ]
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "format": {
+      "const": "JSON_UTF8"
+    },
+    "semantics": {
+      "const": "CURRENT_AT_DOWNLOAD"
+    },
+    "status": {
+      "enum": [
+        "AVAILABLE",
+        "EXPIRED"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    },
+    "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "scope",
+    "project_id",
+    "format",
+    "semantics",
+    "status",
+    "created_at",
+    "expires_at",
+    "checked_at"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "GLOBAL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "project_id": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,445 @@
+[
+  {
+    "name": "key-state-request",
+    "schema": "memory-key-state-request",
+    "instance": {
+      "scope": "GLOBAL",
+      "project_id": null,
+      "key": "display.language"
+    },
+    "valid": true
+  },
+  {
+    "name": "key-absent",
+    "schema": "memory-key-state",
+    "instance": {
+      "status": "ABSENT",
+      "generation": 0,
+      "memory_id": null,
+      "version": null
+    },
+    "valid": true
+  },
+  {
+    "name": "key-active",
+    "schema": "memory-key-state",
+    "instance": {
+      "status": "ACTIVE",
+      "generation": 1,
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "key-deleted",
+    "schema": "memory-key-state",
+    "instance": {
+      "status": "DELETED",
+      "generation": 2,
+      "memory_id": null,
+      "version": null
+    },
+    "valid": true
+  },
+  {
+    "name": "create-intent",
+    "schema": "memory-intent-request",
+    "instance": {
+      "tool_id": "memory.write",
+      "operation": "CREATE",
+      "target_id": null,
+      "arguments": {
+        "scope": "GLOBAL",
+        "project_id": null,
+        "key": "display.language",
+        "kind": "PREFERENCE",
+        "value": "Synthetic language setting",
+        "change_reason": "Synthetic owner form",
+        "expected_generation": 0,
+        "revive_deleted": false
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "create-request",
+    "schema": "memory-create-request",
+    "instance": {
+      "intent_id": "20000000-0000-4000-8000-000000000002",
+      "arguments": {
+        "scope": "GLOBAL",
+        "project_id": null,
+        "key": "display.language",
+        "kind": "PREFERENCE",
+        "value": "Synthetic language setting",
+        "change_reason": "Synthetic owner form",
+        "expected_generation": 0,
+        "revive_deleted": false
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "revise-intent",
+    "schema": "memory-intent-request",
+    "instance": {
+      "tool_id": "memory.write",
+      "operation": "REVISE",
+      "target_id": "10000000-0000-4000-8000-000000000001",
+      "arguments": {
+        "value": "Synthetic revised setting",
+        "change_reason": "Synthetic correction",
+        "expected_version": 1,
+        "expected_generation": 1
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "revise-request",
+    "schema": "memory-revise-request",
+    "instance": {
+      "intent_id": "20000000-0000-4000-8000-000000000002",
+      "arguments": {
+        "value": "Synthetic revised setting",
+        "change_reason": "Synthetic correction",
+        "expected_version": 1,
+        "expected_generation": 1
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "issued-intent",
+    "schema": "memory-intent-response",
+    "instance": {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "tool_id": "memory.write",
+      "operation": "CREATE",
+      "target_id": "10000000-0000-4000-8000-000000000001",
+      "expected_generation": 0,
+      "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expires_at": "2030-01-01T10:00:00Z",
+      "status": "ISSUED"
+    },
+    "valid": true
+  },
+  {
+    "name": "record",
+    "schema": "memory-record",
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "scope": "GLOBAL",
+      "project_id": null,
+      "key": "display.language",
+      "kind": "PREFERENCE",
+      "value": "Synthetic language setting",
+      "change_reason": "Synthetic owner form",
+      "source": {
+        "type": "EXPLICIT_OWNER_FORM",
+        "submission_id": "20000000-0000-4000-8000-000000000002",
+        "submitted_at": "2030-01-01T10:00:00Z",
+        "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "version": 1,
+      "generation": 1,
+      "confirmed_at": "2030-01-01T10:00:00Z",
+      "created_at": "2030-01-01T10:00:00Z",
+      "updated_at": "2030-01-01T10:00:00Z"
+    },
+    "valid": true
+  },
+  {
+    "name": "revision",
+    "schema": "memory-revision",
+    "instance": {
+      "version": 1,
+      "value": "Synthetic language setting",
+      "change_reason": "Synthetic owner form",
+      "source": {
+        "type": "EXPLICIT_OWNER_FORM",
+        "submission_id": "20000000-0000-4000-8000-000000000002",
+        "submitted_at": "2030-01-01T10:00:00Z",
+        "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "confirmed_at": "2030-01-01T10:00:00Z",
+      "memory_id": "10000000-0000-4000-8000-000000000001"
+    },
+    "valid": true
+  },
+  {
+    "name": "global-query",
+    "schema": "memory-list-query",
+    "instance": {
+      "scope": "GLOBAL"
+    },
+    "valid": true
+  },
+  {
+    "name": "project-query",
+    "schema": "memory-list-query",
+    "instance": {
+      "scope": "PROJECT",
+      "project_id": "20000000-0000-4000-8000-000000000002",
+      "limit": 50,
+      "cursor": "synthetic-cursor"
+    },
+    "valid": true
+  },
+  {
+    "name": "revisions-query",
+    "schema": "memory-revisions-query",
+    "instance": {},
+    "valid": true
+  },
+  {
+    "name": "list",
+    "schema": "memory-list",
+    "instance": {
+      "items": [
+        {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "scope": "GLOBAL",
+          "project_id": null,
+          "key": "display.language",
+          "kind": "PREFERENCE",
+          "value": "Synthetic language setting",
+          "change_reason": "Synthetic owner form",
+          "source": {
+            "type": "EXPLICIT_OWNER_FORM",
+            "submission_id": "20000000-0000-4000-8000-000000000002",
+            "submitted_at": "2030-01-01T10:00:00Z",
+            "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "version": 1,
+          "generation": 1,
+          "confirmed_at": "2030-01-01T10:00:00Z",
+          "created_at": "2030-01-01T10:00:00Z",
+          "updated_at": "2030-01-01T10:00:00Z"
+        }
+      ],
+      "next_cursor": null
+    },
+    "valid": true
+  },
+  {
+    "name": "revisions",
+    "schema": "memory-revisions",
+    "instance": {
+      "items": [
+        {
+          "version": 1,
+          "value": "Synthetic language setting",
+          "change_reason": "Synthetic owner form",
+          "source": {
+            "type": "EXPLICIT_OWNER_FORM",
+            "submission_id": "20000000-0000-4000-8000-000000000002",
+            "submitted_at": "2030-01-01T10:00:00Z",
+            "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "confirmed_at": "2030-01-01T10:00:00Z",
+          "memory_id": "10000000-0000-4000-8000-000000000001"
+        }
+      ],
+      "next_cursor": null
+    },
+    "valid": true
+  },
+  {
+    "name": "committed-receipt",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "generation": 1,
+      "operation": "CREATE"
+    },
+    "valid": true
+  },
+  {
+    "name": "not-observed-receipt",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "memory_id": null,
+      "version": null,
+      "generation": null,
+      "operation": null
+    },
+    "valid": true
+  },
+  {
+    "name": "redacted-create",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "REDACTED_DELETED",
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "generation": 1,
+      "operation": "CREATE"
+    },
+    "valid": true
+  },
+  {
+    "name": "redacted-revise",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "REDACTED_DELETED",
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "generation": 1,
+      "operation": "REVISE"
+    },
+    "valid": true
+  },
+  {
+    "name": "redacted-delete",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "REDACTED_DELETED",
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "generation": 1,
+      "operation": "DELETE"
+    },
+    "valid": true
+  },
+  {
+    "name": "prepare-request",
+    "schema": "memory-delete-prepare-request",
+    "instance": {
+      "expected_version": 1,
+      "expected_generation": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "preparation",
+    "schema": "memory-delete-preparation",
+    "instance": {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "memory": {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "scope": "GLOBAL",
+        "project_id": null,
+        "key": "display.language",
+        "kind": "PREFERENCE",
+        "value": "Synthetic language setting",
+        "change_reason": "Synthetic owner form",
+        "source": {
+          "type": "EXPLICIT_OWNER_FORM",
+          "submission_id": "20000000-0000-4000-8000-000000000002",
+          "submitted_at": "2030-01-01T10:00:00Z",
+          "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "version": 1,
+        "generation": 1,
+        "confirmed_at": "2030-01-01T10:00:00Z",
+        "created_at": "2030-01-01T10:00:00Z",
+        "updated_at": "2030-01-01T10:00:00Z"
+      },
+      "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_version": 1,
+      "expected_generation": 1,
+      "expires_at": "2030-01-01T10:00:00Z",
+      "status": "PREPARED"
+    },
+    "valid": true
+  },
+  {
+    "name": "confirm-request",
+    "schema": "memory-delete-confirm-request",
+    "instance": {
+      "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_version": 1,
+      "expected_generation": 1,
+      "confirm": true
+    },
+    "valid": true
+  },
+  {
+    "name": "mutation-headers",
+    "schema": "memory-mutation-headers",
+    "instance": {
+      "Idempotency-Key": "20000000-0000-4000-8000-000000000002"
+    },
+    "valid": true
+  },
+  {
+    "name": "false-confirm",
+    "schema": "memory-delete-confirm-request",
+    "instance": {
+      "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_version": 1,
+      "expected_generation": 1,
+      "confirm": false
+    },
+    "valid": false
+  },
+  {
+    "name": "global-project",
+    "schema": "memory-key-state-request",
+    "instance": {
+      "scope": "GLOBAL",
+      "project_id": "20000000-0000-4000-8000-000000000002",
+      "key": "display.language"
+    },
+    "valid": false
+  },
+  {
+    "name": "project-null",
+    "schema": "memory-key-state-request",
+    "instance": {
+      "scope": "PROJECT",
+      "project_id": null,
+      "key": "display.language"
+    },
+    "valid": false
+  },
+  {
+    "name": "injected-owner",
+    "schema": "memory-create-request",
+    "instance": {
+      "intent_id": "20000000-0000-4000-8000-000000000002",
+      "arguments": {
+        "scope": "GLOBAL",
+        "project_id": null,
+        "key": "display.language",
+        "kind": "PREFERENCE",
+        "value": "Synthetic language setting",
+        "change_reason": "Synthetic owner form",
+        "expected_generation": 0,
+        "revive_deleted": false,
+        "owner_id": "10000000-0000-4000-8000-000000000001"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "receipt-leak",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "generation": 1,
+      "operation": "CREATE",
+      "value": "Synthetic forbidden content"
+    },
+    "valid": false
+  },
+  {
+    "name": "delete-committed",
+    "schema": "memory-mutation-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "memory_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "generation": 1,
+      "operation": "DELETE"
+    },
+    "valid": false
+  }
+]

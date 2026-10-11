@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/notification-record.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "occurrence_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "schedule_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "schedule_version": {
+      "$ref": "#/$defs/version"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "$ref": "#/$defs/title"
+    },
+    "text": {
+      "$ref": "#/$defs/text"
+    },
+    "planned_fire_at_utc": {
+      "$ref": "#/$defs/utc"
+    },
+    "created_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "opened_at": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/utc"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "CREATED",
+        "OPENED"
+      ]
+    },
+    "lateness_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600
+    }
+  },
+  "required": [
+    "id",
+    "occurrence_id",
+    "schedule_id",
+    "schedule_version",
+    "project_id",
+    "title",
+    "text",
+    "planned_fire_at_utc",
+    "created_at",
+    "opened_at",
+    "status",
+    "lateness_seconds"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "CREATED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "opened_at": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "opened_at": {
+            "$ref": "#/$defs/utc"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+      "not": {
+        "pattern": "[\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]"
+      }
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+      "not": {
+        "pattern": "[\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]"
+      }
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9](?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    }
+  }
+}

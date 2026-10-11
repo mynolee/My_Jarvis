@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/schedule-occurrences-query.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "cursor": {
+      "$ref": "#/$defs/cursor"
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "$defs": {
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^[A-Za-z0-9_.-]+$(?![\\s\\S])"
+    }
+  }
+}
