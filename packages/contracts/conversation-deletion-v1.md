@@ -120,7 +120,7 @@ Counts alone are insufficient. Reconstruct and compare under lock before commit.
 
 The confirmation commitment binds owner_id, session_hash, security_epoch,
 preparation_id, conversation_id, tool_id `conversation.source.delete`, tool_version
-`1`, policy_version `conversation-source-v1-r5`, scope_policy
+`1`, policy_version `conversation-source-v1-r6`, scope_policy
 `CONVERSATION_SOURCE_V1`, expected_version, expected_digest, manifest_revision 1,
 prepared_at, expires_at and max_executions 1. Use separate keyed domains for
 manifest, confirmation and prepare/confirm request bindings. Protect temporary
@@ -263,7 +263,8 @@ erasure remain NOT_RUN unless independently exercised and separately reported.
 
 ## Durable-study scope revision
 
-The current reviewed schema is exactly 16 and the current deletion policy is r5.
+V16 introduced the durable-study storage revision; the current reviewed schema
+is exactly17 and the current deletion policy is r6.
 V16 revokes unconsumed older preparations; consumed historical values and immutable
 accounting are preserved. Additive study count fields default to zero for old
 records. The seven review counts are messages, runs, run_results, action_payloads,
@@ -280,3 +281,22 @@ physical database, audit or nonce-ledger size. Passive open study sessions do no
 constitute executing work. Existing inference/action quiescence requirements still
 apply. A source-deletion timestamp clears the study source without rewriting its
 historical version, lifecycle, receipt or authentication attribution.
+
+
+## Inference control metadata revision
+
+V17 adds forward-only control slots to the bounded inventory and revokes older
+unconsumed preparations. The seven public source counts remain unchanged.
+Each slot reserves128 protected-binding bytes and one scoped row at admission;
+there are at most1,000 slots within the existing shared limits. Late control facts
+fill that already-allocated metadata row and do not advance conversation versions
+or change source-byte reservations. Their decision and terminal observation fields
+are excluded from the source-content commitment, like separate usage observations.
+The immutable source/request/context bindings remain committed and protected.
+
+Control facts do not waive legacy quiescence or dispatch-provenance requirements.
+UNKNOWN and unsupported never-dispatched cancellation still refuse deletion.
+The slot and actual usage survive source deletion without source text. No model
+stop, new generation or remote reconciliation is performed by deletion itself.
+Bounded immutable insertion markers on runs/contexts are database metadata only;
+they are neither source content nor owner/model execution authority.
