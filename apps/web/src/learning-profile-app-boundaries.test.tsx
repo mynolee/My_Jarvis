@@ -35,7 +35,34 @@ async function stageLearning() { fireEvent.change(screen.getByLabelText('Learnin
 async function stageGeneric() { click('Open explicit memories'); await screen.findByText(original.value); click('learning.level · PROFILE · v1'); await screen.findByText(`Current saved value: ${original.value}`); fireEvent.change(screen.getByLabelText('Memory value'), { target: { value: 'Updated through generic editor' } }); fireEvent.change(screen.getByLabelText('Change reason'), { target: { value: 'Explicit generic update' } }); click('Review memory save'); await screen.findByRole('button', { name: 'Confirm exact memory save' }); await waitFor(() => expect((screen.getByRole('button', { name: 'Open learning profile' }) as HTMLButtonElement).disabled).toBe(false)); }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it('switches between mutually exclusive editors, discards staged forms and reads the same updated records', async () => {
-  const { api, request } = fixture(); render(<App api={api}/>); await openLearning(); await stageLearning(); await stageGeneric(); expect(screen.queryByRole('region', { name: 'Learning profile' })).toBeNull(); expect(screen.queryByRole('region', { name: 'Review exact learning field save' })).toBeNull(); click('Confirm exact memory save'); await screen.findByText(/Save confirmed/); click('Open learning profile'); await screen.findByText('Saved value: Updated through generic editor'); expect(screen.queryByRole('region', { name: 'Explicit memories' })).toBeNull(); expect((screen.getByLabelText('Learning value') as HTMLTextAreaElement).value).toBe(''); expect(request.mock.calls.filter(c => c[0] === `/memories/${id}` && c[1])).toHaveLength(1);
+  let committed = false;
+  let releaseRefresh!: (value: unknown) => void;
+  const refreshed = new Promise(resolve => { releaseRefresh = resolve; });
+  const { api, request } = fixture((path, body) => {
+    if (path === `/memories/${id}` && body) committed = true;
+    if (committed && path.startsWith('/memories?')) return refreshed;
+  });
+  render(<App api={api}/>);
+  await openLearning();
+  await stageLearning();
+  await stageGeneric();
+  expect(screen.queryByRole('region', { name: 'Learning profile' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Review exact learning field save' })).toBeNull();
+  click('Confirm exact memory save');
+  await screen.findByText(/Save confirmed/);
+  const learningToggle = screen.getByRole('button', { name: 'Open learning profile' }) as HTMLButtonElement;
+  expect(learningToggle.disabled).toBe(true);
+  // A committed receipt can precede list refresh; navigation remains fenced.
+  click('Open learning profile');
+  expect(screen.queryByRole('region', { name: 'Learning profile' })).toBeNull();
+  expect(screen.getByRole('region', { name: 'Explicit memories' })).toBeTruthy();
+  await act(async () => releaseRefresh({ items: [{ ...original, value: 'Updated through generic editor', change_reason: 'Explicit generic update', version: 2 }], next_cursor: null }));
+  await waitFor(() => expect(learningToggle.disabled).toBe(false));
+  click('Open learning profile');
+  await screen.findByText('Saved value: Updated through generic editor');
+  expect(screen.queryByRole('region', { name: 'Explicit memories' })).toBeNull();
+  expect((screen.getByLabelText('Learning value') as HTMLTextAreaElement).value).toBe('');
+  expect(request.mock.calls.filter(c => c[0] === `/memories/${id}` && c[1])).toHaveLength(1);
 });
 it('blocks editor switching and every existing memory-domain navigation fence during UNKNOWN', async () => {
   const { api, request } = fixture((path, body) => { if (path === `/memories/${id}` && body) throw new ApiError('UNKNOWN', true); }); render(<App api={api}/>); await openLearning(); click('Open internal tasks'); click('Choose project for a new conversation'); await stageLearning(); click('Confirm exact learning field save'); await screen.findByRole('button', { name: 'Check learning save outcome' });
