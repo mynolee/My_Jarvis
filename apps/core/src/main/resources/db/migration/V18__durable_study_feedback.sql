@@ -232,10 +232,10 @@ BEGIN
    OR EXISTS(SELECT 1 FROM runs r WHERE r.conversation_id=c.id AND (r.owner_id IS DISTINCT FROM NEW.owner_id OR (r.status NOT IN ('SUCCEEDED','PARTIAL_SUCCESS','FAILED','CANCELLED','EXPIRED','BLOCKED','WAITING_INPUT') AND NOT EXISTS(SELECT 1 FROM study_feedback_requests z WHERE z.owner_id=r.owner_id AND z.run_id=r.id AND study_feedback_execution_quiescent_v18(z.owner_id,z.reservation_id)))))
    OR EXISTS(SELECT 1 FROM inference_reservations q JOIN runs r ON r.id=q.run_id WHERE r.conversation_id=c.id AND q.purpose<>'STUDY_FEEDBACK' AND (q.status NOT IN ('SUCCEEDED','FAILED','CANCELLED') OR q.accounting_version<>1 OR q.started_at IS NULL OR q.dispatch_context_id IS NULL OR q.dispatch_cache_policy IS DISTINCT FROM 'CONTEXT_V1_NO_RESPONSE_CACHE' OR NOT r.context_history_eligible))
    OR EXISTS(SELECT 1 FROM inference_contexts x WHERE x.conversation_id=c.id AND (x.owner_id IS DISTINCT FROM NEW.owner_id OR x.state NOT IN ('SETTLED','INVALIDATED') OR NOT EXISTS(SELECT 1 FROM inference_reservations q WHERE q.owner_id=x.owner_id AND q.run_id=x.run_id AND (q.dispatch_context_id=x.id OR q.purpose='STUDY_FEEDBACK' AND study_feedback_execution_quiescent_v18(q.owner_id,q.id)))))
-   OR EXISTS(SELECT 1 FROM action_proposals a JOIN runs r ON r.id=a.run_id WHERE r.conversation_id=c.id AND a.status NOT IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED','BLOCKED'))
-   OR EXISTS(SELECT 1 FROM approvals a JOIN action_proposals p ON p.id=a.action_id JOIN runs r ON r.id=p.run_id WHERE r.conversation_id=c.id AND a.status NOT IN ('CONSUMED','REJECTED','EXPIRED','REVOKED'))
+   OR EXISTS(SELECT 1 FROM action_proposals action_row JOIN runs r ON r.id=action_row.run_id WHERE r.conversation_id=c.id AND action_row.status NOT IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED','BLOCKED'))
+   OR EXISTS(SELECT 1 FROM approvals approval_row JOIN action_proposals p ON p.id=approval_row.action_id JOIN runs r ON r.id=p.run_id WHERE r.conversation_id=c.id AND approval_row.status NOT IN ('CONSUMED','REJECTED','EXPIRED','REVOKED'))
    OR EXISTS(SELECT 1 FROM jobs j JOIN runs r ON r.id=j.run_id WHERE r.conversation_id=c.id AND j.status NOT IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED','BLOCKED'))
-   OR EXISTS(SELECT 1 FROM action_executions a JOIN action_proposals p ON p.id=a.action_id JOIN runs r ON r.id=p.run_id WHERE r.conversation_id=c.id AND (a.status NOT IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED','BLOCKED') OR a.finished_at IS NULL))
+   OR EXISTS(SELECT 1 FROM action_executions execution_row JOIN action_proposals p ON p.id=execution_row.action_id JOIN runs r ON r.id=p.run_id WHERE r.conversation_id=c.id AND (execution_row.status NOT IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED','BLOCKED') OR execution_row.finished_at IS NULL))
    THEN RAISE EXCEPTION 'Feedback admission requires a quiescent complete graph'; END IF;
   IF NEW.version<>1 OR NEW.state<>'QUEUED' OR NEW.output_authority<>'ACTIVE' OR NEW.result_ref IS NOT NULL OR NEW.closed_at IS NOT NULL
    OR NEW.created_at>n OR NEW.updated_at IS DISTINCT FROM NEW.created_at OR NEW.admission_conversation_version IS DISTINCT FROM c.content_version
@@ -370,8 +370,8 @@ BEGIN
   IF r.status IS DISTINCT FROM (CASE f.version WHEN 2 THEN 'CANCELLED' ELSE 'UNKNOWN' END) OR q.status IS DISTINCT FROM r.status OR r.cancel_requested_at IS NULL OR q.cancel_requested_at IS NULL OR q.completed_at IS NULL
    OR x.state<>'INVALIDATED' OR x.invalidated_at IS NULL OR (f.version=2) IS DISTINCT FROM (q.started_at IS NULL) THEN RAISE EXCEPTION 'Incomplete revoked feedback'; END IF;
  END IF;
- IF q.started_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM study_feedback_events d JOIN study_feedback_events a ON a.owner_id=d.owner_id AND a.feedback_id=d.feedback_id AND a.version=1
-  WHERE d.owner_id=p_owner AND d.feedback_id=f.id AND d.operation='DISPATCH' AND q.started_at>=a.committed_at AND q.started_at<=d.committed_at)
+ IF q.started_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM study_feedback_events d JOIN study_feedback_events admission_event ON admission_event.owner_id=d.owner_id AND admission_event.feedback_id=d.feedback_id AND admission_event.version=1
+  WHERE d.owner_id=p_owner AND d.feedback_id=f.id AND d.operation='DISPATCH' AND q.started_at>=admission_event.committed_at AND q.started_at<=d.committed_at)
   THEN RAISE EXCEPTION 'Feedback start is outside its immutable dispatch phase'; END IF;
  IF f.output_authority<>'ACTIVE' AND (q.completed_at>f.closed_at OR q.cancel_requested_at>f.closed_at OR r.cancel_requested_at>f.closed_at
   OR (f.state='REVOKED' AND (x.invalidated_at>f.closed_at OR q.cancel_requested_at<(SELECT committed_at FROM study_feedback_events WHERE owner_id=p_owner AND feedback_id=f.id AND version=f.version-1)
