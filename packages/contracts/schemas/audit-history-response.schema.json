@@ -1,0 +1,605 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/audit-history-response.schema.json",
+  "type": "object",
+  "properties": {
+    "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z(?![\\s\\S])"
+    },
+    "scope": {
+      "enum": [
+        "ALL",
+        "RUNS"
+      ]
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+          },
+          "event_type": {
+            "enum": [
+              "OWNER_CREATED",
+              "OWNER_PROFILE_UPDATED",
+              "EXECUTION_PAUSED",
+              "EXECUTION_RESUMED",
+              "PROJECT_CREATED",
+              "TASK_CREATED",
+              "TASK_UPDATED",
+              "TASK_INTENT_ISSUED",
+              "TASK_INTENT_CONSUMED",
+              "MEMORY_CREATED",
+              "MEMORY_REVISED",
+              "MEMORY_DELETED",
+              "MEMORY_INTENT_ISSUED",
+              "MEMORY_DELETE_PREPARED",
+              "MAIL_DRAFT_CREATED",
+              "MAIL_DRAFT_UPDATED",
+              "SCHEDULE_CREATE_CONFIRMED",
+              "SCHEDULE_REPLACE_CONFIRMED",
+              "SCHEDULE_DISABLED",
+              "SCHEDULE_PREPARED",
+              "REMINDER_PLANNED",
+              "REMINDER_BLOCKED",
+              "REMINDER_SKIPPED_MISSED",
+              "REMINDER_CANCELLED",
+              "REMINDER_INBOX_CREATED",
+              "NOTIFICATION_OPENED",
+              "RUN_ACCEPTED",
+              "RUN_CANCELLED",
+              "RUN_WAITING_INPUT",
+              "RUN_SUCCEEDED",
+              "RUN_WAITING_APPROVAL",
+              "RUN_BLOCKED",
+              "RUN_UNKNOWN",
+              "WORKER_UNCERTAIN_OR_FAILED",
+              "MOCK_EXECUTION_STARTED",
+              "LEASE_EXPIRED_UNKNOWN",
+              "MOCK_RECONCILED",
+              "APPROVAL_REJECTED",
+              "APPROVAL_CONSUMED",
+              "CANCEL_REQUESTED",
+              "LOCAL_INFERENCE_RESERVED",
+              "LOCAL_INFERENCE_STARTED",
+              "LOCAL_INFERENCE_UNKNOWN",
+              "LOCAL_INFERENCE_SUCCEEDED",
+              "LOCAL_INFERENCE_WAITING_INPUT",
+              "LOCAL_INFERENCE_FAILED",
+              "LOCAL_CONTEXT_BLOCKED",
+              "OTHER"
+            ]
+          },
+          "happened_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z(?![\\s\\S])"
+          },
+          "resource_kind": {
+            "enum": [
+              "OWNER",
+              "PROJECT",
+              "TASK",
+              "TASK_INTENT",
+              "MEMORY",
+              "MEMORY_INTENT",
+              "MEMORY_DELETE_PREPARATION",
+              "MAIL_DRAFT",
+              "SCHEDULE",
+              "SCHEDULE_PREPARATION",
+              "SCHEDULE_OCCURRENCE",
+              "NOTIFICATION",
+              "RUN",
+              "OTHER"
+            ]
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                  },
+                  "current_status": {
+                    "enum": [
+                      "ACCEPTED",
+                      "PLANNING",
+                      "WAITING_INPUT",
+                      "WAITING_APPROVAL",
+                      "QUEUED",
+                      "RUNNING",
+                      "SUCCEEDED",
+                      "PARTIAL_SUCCESS",
+                      "FAILED",
+                      "CANCEL_REQUESTED",
+                      "CANCELLED",
+                      "UNKNOWN",
+                      "EXPIRED",
+                      "BLOCKED"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "current_status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "happened_at",
+          "resource_kind",
+          "resource_id",
+          "run"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "OWNER_CREATED",
+                    "OWNER_PROFILE_UPDATED",
+                    "EXECUTION_PAUSED",
+                    "EXECUTION_RESUMED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "OWNER"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "PROJECT_CREATED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "PROJECT"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "TASK_CREATED",
+                    "TASK_UPDATED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "TASK"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "TASK_INTENT_ISSUED",
+                    "TASK_INTENT_CONSUMED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "TASK_INTENT"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "MEMORY_CREATED",
+                    "MEMORY_REVISED",
+                    "MEMORY_DELETED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "MEMORY"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "MEMORY_INTENT_ISSUED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "MEMORY_INTENT"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "MEMORY_DELETE_PREPARED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "MEMORY_DELETE_PREPARATION"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "MAIL_DRAFT_CREATED",
+                    "MAIL_DRAFT_UPDATED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "MAIL_DRAFT"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "SCHEDULE_CREATE_CONFIRMED",
+                    "SCHEDULE_REPLACE_CONFIRMED",
+                    "SCHEDULE_DISABLED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "SCHEDULE"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "SCHEDULE_PREPARED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "SCHEDULE_PREPARATION"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "REMINDER_PLANNED",
+                    "REMINDER_BLOCKED",
+                    "REMINDER_SKIPPED_MISSED",
+                    "REMINDER_CANCELLED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "SCHEDULE_OCCURRENCE"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "REMINDER_INBOX_CREATED",
+                    "NOTIFICATION_OPENED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "NOTIFICATION"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "enum": [
+                    "RUN_ACCEPTED",
+                    "RUN_CANCELLED",
+                    "RUN_WAITING_INPUT",
+                    "RUN_SUCCEEDED",
+                    "RUN_WAITING_APPROVAL",
+                    "RUN_BLOCKED",
+                    "RUN_UNKNOWN",
+                    "WORKER_UNCERTAIN_OR_FAILED",
+                    "MOCK_EXECUTION_STARTED",
+                    "LEASE_EXPIRED_UNKNOWN",
+                    "MOCK_RECONCILED",
+                    "APPROVAL_REJECTED",
+                    "APPROVAL_CONSUMED",
+                    "CANCEL_REQUESTED",
+                    "LOCAL_INFERENCE_RESERVED",
+                    "LOCAL_INFERENCE_STARTED",
+                    "LOCAL_INFERENCE_UNKNOWN",
+                    "LOCAL_INFERENCE_SUCCEEDED",
+                    "LOCAL_INFERENCE_WAITING_INPUT",
+                    "LOCAL_INFERENCE_FAILED",
+                    "LOCAL_CONTEXT_BLOCKED"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "RUN"
+                },
+                "resource_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "OTHER"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resource_kind": {
+                  "const": "OTHER"
+                },
+                "resource_id": {
+                  "type": "null"
+                },
+                "run": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 45,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]{43}(?![\\s\\S])"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "checked_at",
+    "scope",
+    "items",
+    "next_cursor"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "RUNS"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "resource_kind": {
+                  "const": "RUN"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

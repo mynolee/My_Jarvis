@@ -1,0 +1,153 @@
+[
+  {
+    "name": "create-project",
+    "schema": "project-create-request",
+    "instance": {
+      "name": "Synthetic project",
+      "description": ""
+    },
+    "valid": true
+  },
+  {
+    "name": "project-record",
+    "schema": "project-record",
+    "instance": {
+      "id": "abcdef01-2345-6789-abcd-ef0123456789",
+      "name": "Synthetic project",
+      "description": "Synthetic metadata only.",
+      "active": true,
+      "version": 1,
+      "created_at": "2030-01-02T03:04:05.123456Z"
+    },
+    "valid": true
+  },
+  {
+    "name": "project-list",
+    "schema": "project-list",
+    "instance": {
+      "items": [
+        {
+          "id": "abcdef01-2345-6789-abcd-ef0123456789",
+          "name": "Synthetic project",
+          "description": "Synthetic metadata only.",
+          "active": true,
+          "version": 1,
+          "created_at": "2030-01-02T03:04:05.123456Z"
+        }
+      ],
+      "next_cursor": null
+    },
+    "valid": true
+  },
+  {
+    "name": "empty-project-list",
+    "schema": "project-list",
+    "instance": {
+      "items": [],
+      "next_cursor": null
+    },
+    "valid": true
+  },
+  {
+    "name": "project-list-query",
+    "schema": "project-list-query",
+    "instance": {},
+    "valid": true
+  },
+  {
+    "name": "create-headers",
+    "schema": "project-create-headers",
+    "instance": {
+      "Idempotency-Key": "abcdef01-2345-6789-abcd-ef0123456789"
+    },
+    "valid": true
+  },
+  {
+    "name": "committed-receipt",
+    "schema": "project-create-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "project": {
+        "id": "abcdef01-2345-6789-abcd-ef0123456789",
+        "name": "Synthetic project",
+        "description": "Synthetic metadata only.",
+        "active": true,
+        "version": 1,
+        "created_at": "2030-01-02T03:04:05.123456Z"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "not-observed-receipt",
+    "schema": "project-create-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "project": null
+    },
+    "valid": true
+  },
+  {
+    "name": "not-observed-with-project",
+    "schema": "project-create-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "project": {
+        "id": "abcdef01-2345-6789-abcd-ef0123456789",
+        "name": "Synthetic project",
+        "description": "Synthetic metadata only.",
+        "active": true,
+        "version": 1,
+        "created_at": "2030-01-02T03:04:05.123456Z"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "committed-with-null",
+    "schema": "project-create-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "project": null
+    },
+    "valid": false
+  },
+  {
+    "name": "claimed-noncommit",
+    "schema": "project-create-receipt",
+    "instance": {
+      "status": "NOT_COMMITTED",
+      "project": null
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-with-retry",
+    "schema": "project-create-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "project": null,
+      "retryable": true
+    },
+    "valid": false
+  },
+  {
+    "name": "create-null-description",
+    "schema": "project-create-request",
+    "instance": {
+      "name": "Synthetic",
+      "description": null
+    },
+    "valid": false
+  },
+  {
+    "name": "create-owner-authority",
+    "schema": "project-create-request",
+    "instance": {
+      "name": "Synthetic",
+      "description": "",
+      "owner_id": "abcdef01-2345-6789-abcd-ef0123456789"
+    },
+    "valid": false
+  }
+]

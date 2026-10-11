@@ -1,0 +1,267 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "targetSHA",
+    "suiteRevision",
+    "ruleRevision",
+    "inputHashes",
+    "environmentHashes",
+    "toolHashes",
+    "dependencyHashes",
+    "executorIdentity",
+    "cases"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "targetSHA": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "suiteRevision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ruleRevision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputHashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "lock",
+        "policy",
+        "schema",
+        "skill",
+        "prompt",
+        "model",
+        "toolRegistry"
+      ],
+      "properties": {
+        "config": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "lock": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "skill": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prompt": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "toolRegistry": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "environmentHashes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "toolHashes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "dependencyHashes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "executorIdentity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "testId",
+          "status",
+          "executed",
+          "commandId",
+          "command",
+          "startedAt",
+          "endedAt",
+          "exitCode",
+          "totals",
+          "result",
+          "stdout",
+          "stderr",
+          "disabledFeature"
+        ],
+        "properties": {
+          "testId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NOT_RUN",
+              "UNKNOWN",
+              "NA_DISABLED"
+            ]
+          },
+          "executed": {
+            "type": "boolean"
+          },
+          "commandId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "command": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exitCode": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tests",
+              "passed",
+              "failed",
+              "skipped"
+            ],
+            "properties": {
+              "tests": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "passed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skipped": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "stdout": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "stderr": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "disabledFeature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local execution evidence bundle, version 1",
+  "description": "Structural schema only. evidence.py additionally enforces trusted policy bindings, required cases, timestamps, artifact contents and fail-closed verdicts."
+}

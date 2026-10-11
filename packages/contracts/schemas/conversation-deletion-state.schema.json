@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/conversation-deletion-state.schema.json",
+  "$comment": "Closed wire shape only. Strict UTF-8/integer-only JSON parsing and real calendar format assertions are required. Runtime enforces cross-field relationships, current owner/session/epoch, exact reviewed snapshot, quiescence, provenance, transaction limits and tombstone barriers.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "ACTIVE"
+        },
+        "conversation_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "content_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "content_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$(?![\\s\\S])"
+        },
+        "eligibility": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "ELIGIBLE"
+            },
+            "blockers": {
+              "type": "array",
+              "items": false,
+              "maxItems": 0
+            }
+          },
+          "required": [
+            "status",
+            "blockers"
+          ],
+          "additionalProperties": false
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "status",
+        "conversation_id",
+        "content_version",
+        "content_digest",
+        "eligibility",
+        "checked_at"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "ACTIVE"
+        },
+        "conversation_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "content_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "content_digest": {
+          "type": "null"
+        },
+        "eligibility": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "BLOCKED"
+            },
+            "blockers": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "ACTIVE_WORK",
+                  "UNKNOWN_WORK",
+                  "PENDING_APPROVAL",
+                  "UNSUPPORTED_LEGACY_INFERENCE",
+                  "INTEGRITY_UNVERIFIED"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "status",
+            "blockers"
+          ],
+          "additionalProperties": false
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "status",
+        "conversation_id",
+        "content_version",
+        "content_digest",
+        "eligibility",
+        "checked_at"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "DELETED"
+        },
+        "conversation_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "deletion_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "status",
+        "conversation_id",
+        "deletion_id",
+        "deleted_at",
+        "checked_at"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
