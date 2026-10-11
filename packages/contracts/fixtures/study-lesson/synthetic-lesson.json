@@ -1,0 +1,45 @@
+{
+  "synthetic": true,
+  "wire": {
+    "kind": "LESSON",
+    "concepts": [
+      "Synthetic one",
+      "Synthetic two",
+      "Synthetic three"
+    ],
+    "questions": [
+      "Synthetic first question?",
+      "Synthetic second question?"
+    ],
+    "usage": {
+      "inference_request_id": "00000000-0000-4000-8000-000000000001",
+      "model_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "input_tokens": 4,
+      "output_tokens": 30,
+      "compute_ms": 5,
+      "peak_memory_bytes": 1024,
+      "reservation_id": "00000000-0000-4000-8000-000000000002"
+    }
+  },
+  "read": {
+    "run_id": "00000000-0000-4000-8000-000000000003",
+    "status": "SUCCEEDED",
+    "lesson": {
+      "concepts": [
+        "Synthetic one",
+        "Synthetic two",
+        "Synthetic three"
+      ],
+      "questions": [
+        {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "text": "Synthetic first question?"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "text": "Synthetic second question?"
+        }
+      ]
+    }
+  }
+}

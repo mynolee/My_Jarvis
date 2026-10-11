@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "kind": "EXPLICIT_MEMORIES",
+  "scope": "GLOBAL",
+  "project_id": null,
+  "export_job_id": "70000000-0000-4000-8000-000000000001",
+  "exported_at": "2026-10-10T12:01:00Z",
+  "semantics": "CURRENT_AT_DOWNLOAD",
+  "items": [
+    {
+      "id": "71000000-0000-4000-8000-000000000001",
+      "key": "synthetic.preference",
+      "kind": "PREFERENCE",
+      "value": "가상의 기억 🐱",
+      "change_reason": "Synthetic explicit owner entry.",
+      "source": {
+        "type": "EXPLICIT_OWNER_FORM",
+        "submitted_at": "2026-10-10T11:00:00Z"
+      },
+      "version": 2,
+      "confirmed_at": "2026-10-10T11:00:00Z",
+      "created_at": "2026-10-09T11:00:00Z",
+      "updated_at": "2026-10-10T11:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "revision": 1,
+  "study_session_id": "00000066-0000-4000-8000-000000000066",
+  "conversation_id": "0000006f-0000-4000-8000-00000000006f",
+  "study_version": 3,
+  "conversation_version": 14,
+  "lifecycle": "OPEN",
+  "checked_at": "2030-01-01T00:00:00Z",
+  "targets": [
+    {
+      "question_id": "00000068-0000-4000-8000-000000000068",
+      "input_id": "00000069-0000-4000-8000-000000000069",
+      "attempt_id": "0000006a-0000-4000-8000-00000000006a",
+      "availability": "ALREADY_REQUESTED",
+      "request": {
+        "id": "00000065-0000-4000-8000-000000000065",
+        "feedback_version": 1,
+        "status": "QUEUED",
+        "output_authority": "ACTIVE",
+        "execution_evidence": "UNCONFIRMED",
+        "accounting": "PENDING",
+        "created_at": "2030-01-01T00:00:00Z",
+        "updated_at": "2030-01-01T00:00:00Z",
+        "result": null
+      }
+    },
+    {
+      "question_id": "0000006b-0000-4000-8000-00000000006b",
+      "input_id": "00000072-0000-4000-8000-000000000072",
+      "attempt_id": "00000073-0000-4000-8000-000000000073",
+      "availability": "CONVERSATION_BUSY",
+      "request": null
+    }
+  ]
+}

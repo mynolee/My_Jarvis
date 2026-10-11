@@ -1,0 +1,22 @@
+{
+  "kind": "FEEDBACK",
+  "assessment": "CORRECT",
+  "explanation": "Your answer describes first-in, first-out ordering.",
+  "example": "If A arrives before B, removing once returns A.",
+  "assumptions": [
+    "The queue has at least one item."
+  ],
+  "review_checklist": [
+    "Check the empty case.",
+    "Trace two insertions and one removal."
+  ],
+  "usage": {
+    "inference_request_id": "0000006c-0000-4000-8000-00000000006c",
+    "reservation_id": "00000070-0000-4000-8000-000000000070",
+    "model_manifest_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "input_tokens": 120,
+    "output_tokens": 65,
+    "compute_ms": 18,
+    "peak_memory_bytes": 1024
+  }
+}
