@@ -19,7 +19,7 @@ class FakeRuntime:
     def health(self):
         return {'ready':True,'status':'READY','model_id':'local-mlx-v1','model_manifest_hash':self.manifest_hash,
                 'download_complete':True,'integrity_verified':True,'runtime_ready':True,
-                'inference_verified':False,'integration_verified':False}
+                'inference_verified':False,'integration_verified':False,'control_revision':1}
     async def generate(self, turn, expiry):
         self.calls+=1
         return {'output':self.output,'input_tokens':100,'output_tokens':15,'compute_ms':1,'peak_memory_bytes':64}
@@ -63,7 +63,11 @@ class LocalBoundaryTests(__import__('unittest').TestCase):
         self.assertEqual(replay.json()['error_code'],'INFERENCE_UNKNOWN')
         self.assertEqual(self.runtime.calls,1)
     def test_readiness_no_inference(self):
-        for _ in range(4):self.assertEqual(self.client.get('/health/ready').json()['model_manifest_hash'],self.runtime.manifest_hash)
+        from jarvis_intelligence.contracts import validate
+        for _ in range(4):
+            readiness=validate('runtime-readiness',self.client.get('/health/ready').json())
+            self.assertEqual(readiness['model_manifest_hash'],self.runtime.manifest_hash)
+            self.assertEqual(readiness['control_revision'],1)
         self.assertEqual(self.runtime.calls,0)
     def test_wrong_manifest_never_generates(self):
         self.body['model_manifest_hash']='f'*64

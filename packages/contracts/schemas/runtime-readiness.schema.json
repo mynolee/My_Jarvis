@@ -40,6 +40,9 @@
           "pattern": "^[a-f0-9]{64}$"
         }
       ]
+    },
+    "control_revision": {
+      "const": 1
     }
   },
   "required": [
@@ -51,7 +54,8 @@
     "integration_verified",
     "ready",
     "model_id",
-    "model_manifest_hash"
+    "model_manifest_hash",
+    "control_revision"
   ],
   "additionalProperties": false,
   "allOf": [

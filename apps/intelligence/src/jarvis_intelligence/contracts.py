@@ -14,6 +14,11 @@ from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import BaseModel, ConfigDict, Field
 
 MAX_BODY_BYTES = 256 * 1024
+MAX_CONTROL_BYTES = 16 * 1024
+CONTROL_IDENTITY_FIELDS = (
+    "revision", "owner_id", "request_id", "reservation_id", "run_id", "context_id",
+    "purpose", "security_epoch", "origin_binding", "dispatch_commitment",
+)
 MAX_DEPTH = 16
 CONTRACT_ROOT = Path(__file__).resolve().parents[4] / "packages" / "contracts"
 
@@ -225,6 +230,28 @@ def validate_context(value):
             raise ContractViolation('history byte bound exceeded')
 
 
+class ControlDescriptor(StrictModel):
+    revision: Literal[1]
+    origin_binding: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$", min_length=64, max_length=64)]
+    dispatch_commitment: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$", min_length=64, max_length=64)]
+    security_epoch: Annotated[int, Field(ge=0, le=9007199254740991)]
+
+
+def control_identity(body, claims):
+    """Opaque Core HMACs are verified claims, never recomputed by Intelligence."""
+    if "control" not in body:
+        return None
+    if (body.get("context", {}).get("revision") != 1 or
+            body.get("model_id") != "local-mlx-v1" or body.get("prompt_revision") != "local-v1"):
+        raise ContractViolation("invalid control context")
+    value = {**body["control"], "owner_id": claims["owner_id"],
+             "request_id": body["request_id"], "reservation_id": body["budget"]["reservation_id"],
+             "run_id": body["run_id"], "context_id": body["context"]["id"],
+             "purpose": body.get("purpose", "CONVERSATION")}
+    validate("inference-control-request", {**value, "operation": "OBSERVE"})
+    return value
+
+
 class TurnRequest(StrictModel):
     request_id: str
     run_id: str
@@ -233,6 +260,7 @@ class TurnRequest(StrictModel):
     current_time: str
     timezone: Annotated[str, Field(min_length=1, max_length=80)]
     context: ContextV1 | None = None
+    control: ControlDescriptor | None = None
     history: Annotated[list[HistorySource], Field(max_length=16)] = Field(default_factory=list)
     project_context: ProjectContext | None
     memories: Annotated[list[MemorySource], Field(max_length=20)]

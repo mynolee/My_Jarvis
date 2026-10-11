@@ -17,7 +17,7 @@ import tools.jackson.databind.JsonNode;
 /** Atomic, exact-snapshot redaction of one closed source graph. Never calls a model or provider. */
 @Service
 final class ConversationDeletionService {
-    static final String SCOPE="CONVERSATION_SOURCE_V1", POLICY="conversation-source-v1-r5";
+    static final String SCOPE="CONVERSATION_SOURCE_V1", POLICY="conversation-source-v1-r6";
     static final int RUN_LIMIT=1000, MESSAGE_LIMIT=2000, ACTION_LIMIT=1000, ROW_LIMIT=40000, PREPARATION_LIMIT=100;
     static final long BUDGET_NANOS=5_000_000_000L;
     private static final Set<String> RUN_CLOSED=Set.of("SUCCEEDED","PARTIAL_SUCCESS","FAILED","CANCELLED","EXPIRED","BLOCKED","WAITING_INPUT");
@@ -155,15 +155,21 @@ final class ConversationDeletionService {
         new Scope("inference_context_memories","x.context_id IN ("+CONTEXTS+")","x.context_id,x.memory_id",ROW_LIMIT),
         new Scope("study_sessions","x.conversation_id=? OR x.lesson_run_id IN ("+RUNS+")","x.id",1000),
         new Scope("study_owner_answer_inputs","x.conversation_id=? OR x.study_session_id IN ("+STUDIES+")","x.id",2000),
-        new Scope("study_mutations","x.conversation_id=? OR x.study_session_id IN ("+STUDIES+") OR x.lesson_run_id IN ("+RUNS+") OR x.input_id IN ("+INPUTS+") OR x.attempt_id IN (SELECT attempt_id FROM study_owner_answer_inputs WHERE id IN ("+INPUTS+"))","x.idempotency_key",ROW_LIMIT)
+        new Scope("study_mutations","x.conversation_id=? OR x.study_session_id IN ("+STUDIES+") OR x.lesson_run_id IN ("+RUNS+") OR x.input_id IN ("+INPUTS+") OR x.attempt_id IN (SELECT attempt_id FROM study_owner_answer_inputs WHERE id IN ("+INPUTS+"))","x.idempotency_key",ROW_LIMIT),
+        new Scope("inference_control_slots","x.conversation_id=? OR x.run_id IN ("+RUNS+") OR x.context_id IN ("+CONTEXTS+") OR x.reservation_id IN (SELECT id FROM inference_reservations WHERE run_id IN ("+RUNS+"))","x.reservation_id",RUN_LIMIT)
     );
     private static Object[] parameters(String sql,UUID target){return Collections.nCopies((int)sql.chars().filter(c->c=='?').count(),target).toArray();}
     private static Object normalized(Object value){if(value instanceof Timestamp t)return t.toInstant().toString();if(value instanceof OffsetDateTime t)return t.toInstant().toString();if(value instanceof UUID u)return u.toString();return value;}
     private static Map<String,Object> canonicalRow(Map<String,Object> row){Map<String,Object> result=new TreeMap<>();row.forEach((k,v)->result.put(k,normalized(v)));return result;}
+    private static Map<String,Object> manifestRow(String table,Map<String,Object> row){
+        var result=canonicalRow(row);
+        if("inference_control_slots".equals(table))for(String field:List.of("decision","decision_at","terminal_kind","generation_id","ledger_instance_id","terminal_ordinal","recorded_at"))result.remove(field);
+        return result;
+    }
     private final class Graph {
         boolean studyAdmission; final Map<String,List<Map<String,Object>>> rows=new LinkedHashMap<>();final SortedSet<String> blockers=new TreeSet<>();final Map<String,Object> counts=new LinkedHashMap<>();String digest;
     }
-    private boolean exactSchema(){return "16".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1",String.class));}
+    private boolean exactSchema(){return "17".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1",String.class));}
     /** Shared structural admission boundary. Active/unknown work is not deletion permission. */
     void validateStudyGraph(UUID owner,UUID target){
         var c=conversation(owner,target);live(c);Graph g;try{g=graph(owner,c,true);}catch(ApiException e){if("CONVERSATION_DELETION_TIME_LIMIT".equals(e.code))throw new ApiException(503,"STUDY_TIME_LIMIT");throw e;}
@@ -174,15 +180,15 @@ final class ConversationDeletionService {
         long start=System.nanoTime();UUID target=(UUID)conversation.get("id");Graph graph=new Graph();graph.studyAdmission=studyAdmission;
         if(!exactSchema()){graph.blockers.add("INTEGRITY_UNVERIFIED");return graph;}
         // SQL performs every cap+1 metadata probe before byte accounting or source materialization.
-        db.queryForMap("SELECT * FROM conversation_source_inventory_v16(?,?)",owner,target);
+        db.queryForMap("SELECT * FROM conversation_source_inventory_v17(?,?)",owner,target);
         for(Scope scope:SCOPES){budget(start);String sql="SELECT x.* FROM "+scope.table+" x WHERE "+scope.condition+" ORDER BY "+scope.order+" LIMIT "+(scope.limit+1)+" FOR UPDATE OF x";graph.rows.put(scope.table,db.queryForList(sql,parameters(sql,target)));}
-        validateGraph(owner,target,graph);validateStudySources(owner,conversation,graph);
+        validateGraph(owner,target,graph);validateStudySources(owner,conversation,graph);validateControlSources(owner,target,graph);
         Object title=conversation.get("title");if(!(title instanceof String t)||t.isEmpty()||t.codePointCount(0,t.length())>200||t.indexOf('\0')>=0)graph.blockers.add("INTEGRITY_UNVERIFIED");
         graph.counts.put("messages",graph.rows.get("messages").size());graph.counts.put("runs",graph.rows.get("runs").size());graph.counts.put("run_results",graph.rows.get("runs").stream().filter(r->r.get("result_ref")!=null).count());graph.counts.put("action_payloads",graph.rows.get("action_proposals").stream().filter(r->r.get("payload_ref")!=null).count());graph.counts.put("inference_contexts",graph.rows.get("inference_contexts").size());graph.counts.put("study_sessions",graph.rows.get("study_sessions").stream().filter(r->r.get("lesson_binding_ref")!=null).count());graph.counts.put("study_answers",graph.rows.get("study_owner_answer_inputs").stream().filter(r->r.get("text_ref")!=null).count());
         if(graph.blockers.isEmpty()&&!studyAdmission){
             // Each row has its own keyed commitment; no transcript manifest is persisted or returned.
             StringBuilder manifest=new StringBuilder(Json.canonical(Map.of("revision",1,"scope_policy",SCOPE,"policy_version",POLICY,"conversation",canonicalRow(conversation),"counts",graph.counts)));
-            for(var table:graph.rows.entrySet()){manifest.append('|').append(table.getKey()).append(':');for(var row:table.getValue()){budget(start);manifest.append(keyed(owner,"manifest-row:"+table.getKey(),canonicalRow(row))).append(';');}}
+            for(var table:graph.rows.entrySet()){manifest.append('|').append(table.getKey()).append(':');for(var row:table.getValue()){budget(start);manifest.append(keyed(owner,"manifest-row:"+table.getKey(),manifestRow(table.getKey(),row))).append(';');}}
             graph.digest=memories.keys.digest(owner,"conversation-delete:manifest",manifest.toString());
         }budget(start);return graph;
     }
@@ -223,6 +229,19 @@ final class ConversationDeletionService {
         for(var a:inputs.values()){var s=studies.get(a.get("study_session_id"));check(g,s!=null&&target.equals(a.get("conversation_id"))&&Objects.equals(conversation.get("project_id"),a.get("project_id"))&&a.get("text_ref")!=null&&a.get("source_binding_ref")!=null&&a.get("content_deleted_at")==null);if(s!=null)check(g,Objects.equals(a.get("question_id"),s.get("question_1_id"))||Objects.equals(a.get("question_id"),s.get("question_2_id")));}
         for(var m:g.rows.get("study_mutations")){var s=studies.get(m.get("study_session_id"));check(g,s!=null&&target.equals(m.get("conversation_id"))&&Objects.equals(conversation.get("project_id"),m.get("project_id")));if(s!=null)check(g,Objects.equals(s.get("lesson_run_id"),m.get("lesson_run_id")));if("ANSWER".equals(m.get("operation")))check(g,inputs.containsKey(m.get("input_id")));}
         for(String table:List.of("study_owner_answer_inputs","study_mutations"))check(g,db.queryForList("SELECT 1 FROM "+table+" a LEFT JOIN sessions s ON s.token_hash=a.session_hash WHERE a.conversation_id=? AND (s.token_hash IS NULL OR s.owner_id IS DISTINCT FROM a.owner_id) LIMIT 1",target).isEmpty());
+    }
+    private void validateControlSources(UUID owner,UUID target,Graph g){
+        var slots=index(g.rows.get("inference_control_slots"),"reservation_id");
+        var reservations=index(g.rows.get("inference_reservations"),"id");
+        var contexts=index(g.rows.get("inference_contexts"),"id");var runs=index(g.rows.get("runs"),"id");
+        for(var q:reservations.values())check(g,number(q,"control_revision")==1?slots.containsKey(q.get("id")):number(q,"control_revision")==0&&!slots.containsKey(q.get("id")));
+        for(var slot:slots.values()){
+            var q=reservations.get(slot.get("reservation_id"));var c=contexts.get(slot.get("context_id"));var r=runs.get(slot.get("run_id"));
+            check(g,target.equals(slot.get("conversation_id"))&&q!=null&&c!=null&&r!=null&&number(slot,"revision")==1);
+            if(q!=null&&c!=null&&r!=null)check(g,Objects.equals(q.get("run_id"),slot.get("run_id"))&&Objects.equals(q.get("request_id"),slot.get("request_id"))&&Objects.equals(q.get("purpose"),slot.get("purpose"))&&Objects.equals(q.get("security_epoch"),slot.get("security_epoch"))&&Objects.equals(c.get("run_id"),slot.get("run_id"))&&target.equals(c.get("conversation_id")));
+            if(g.blockers.isEmpty())db.queryForList("SELECT verify_inference_control_slot(?,?)",owner,slot.get("reservation_id"));
+        }
+        // Stage A facts never waive any existing inference quiescence/cache-provenance test.
     }
     private static void eligible(Graph graph){if(graph.blockers.isEmpty())return;if(graph.blockers.contains("INTEGRITY_UNVERIFIED"))throw new ApiException(409,"CONVERSATION_GRAPH_UNVERIFIED");if(graph.blockers.contains("ACTIVE_WORK")||graph.blockers.contains("UNKNOWN_WORK")||graph.blockers.contains("PENDING_APPROVAL"))throw new ApiException(409,"CONVERSATION_NOT_QUIESCENT");throw new ApiException(409,"CONVERSATION_DELETION_UNSUPPORTED");}
 }

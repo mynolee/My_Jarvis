@@ -34,7 +34,7 @@ class LocalInferenceTransportTest {
         server.createContext("/health/ready",exchange->{
             exchange.sendResponseHeaders(200,0);
             if(stalled.get()){try{Thread.sleep(6000);}catch(InterruptedException e){Thread.currentThread().interrupt();}finally{exchange.close();}return;}
-            exchange.getResponseBody().write(Json.canonical(Map.of("ready",true,"status","READY","model_id","local-mlx-v1","model_manifest_hash","a".repeat(64),"download_complete",true,"integrity_verified",true,"runtime_ready",true,"inference_verified",false,"integration_verified",false)).getBytes(StandardCharsets.UTF_8));exchange.close();
+            exchange.getResponseBody().write(Json.canonical(Map.of("ready",true,"status","READY","model_id","local-mlx-v1","model_manifest_hash","a".repeat(64),"download_complete",true,"integrity_verified",true,"runtime_ready",true,"inference_verified",false,"integration_verified",false,"control_revision",1)).getBytes(StandardCharsets.UTF_8));exchange.close();
         });
         server.createContext("/internal/v1/turn",exchange->{try{
             String[] parts=exchange.getRequestHeaders().getFirst("X-Jarvis-Capability").split("\\.");byte[] raw=Base64.getUrlDecoder().decode(parts[0]);var signature=Signature.getInstance("Ed25519");signature.initVerify(signing.getPublic());signature.update(raw);assertTrue(signature.verify(Base64.getUrlDecoder().decode(parts[1])));

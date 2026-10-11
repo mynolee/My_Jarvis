@@ -576,6 +576,38 @@
         "STUDY_LESSON"
       ],
       "description": "Server-selected reserved-turn purpose. Omission preserves legacy CONVERSATION bytes."
+    },
+    "control": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "const": 1
+        },
+        "origin_binding": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dispatch_commitment": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "security_epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "revision",
+        "origin_binding",
+        "dispatch_commitment",
+        "security_epoch"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -705,6 +737,37 @@
           },
           "allowed_tool_ids": {
             "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "control"
+        ]
+      },
+      "then": {
+        "required": [
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "const": 1
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "model_id": {
+            "const": "local-mlx-v1"
+          },
+          "prompt_revision": {
+            "const": "local-v1"
           }
         }
       }

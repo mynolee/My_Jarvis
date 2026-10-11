@@ -18,9 +18,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from .contracts import ContractViolation, MAX_BODY_BYTES, TurnRequest, canonical, parse_json, validate
+from .contracts import ContractViolation, MAX_BODY_BYTES, MAX_CONTROL_BYTES, TurnRequest, canonical, control_identity, parse_json, validate
 from .ledger import Ledger, LedgerFull, ReplayConflict
-from .security import Unauthorized, verify_capability
+from .security import Unauthorized, verify_capability, verify_control_capability
 from .local_runtime import LocalConfig, LocalRuntime, RuntimeFailure
 
 MOCK_MANIFEST_HASH = hashlib.sha256(b"jarvis-m0-deterministic-mock-v1:no-model:no-tools:no-network").hexdigest()
@@ -136,6 +136,8 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
     local = (runtime or LocalRuntime(settings.local_config)) if settings.mode == "local_mlx" else None
     ledger = Ledger(settings.ledger_path, settings.cache_key, max_rows=settings.max_ledger_rows,
                     max_concurrency=3 if local else settings.max_concurrency)
+    if local is not None and hasattr(local, 'attach_control_ledger'):
+        local.attach_control_ledger(ledger)
     @asynccontextmanager
     async def lifespan(app):
         if local is not None:
@@ -162,6 +164,63 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
         if local is None:
             return {"ready": False, "status": "MODEL_UNAVAILABLE", "model_id": "mock-v1", "model_manifest_hash": MOCK_MANIFEST_HASH}
         return local.health()
+
+    async def control_endpoint(request: Request, operation: str):
+        def reject(status, code):
+            return JSONResponse(status_code=status, content={"error_code": code}, headers={"Cache-Control": "no-store"})
+
+        # Safety observation/stopping does not depend on model readiness.
+        if not _peer_allowed(request, settings):
+            return reject(401, "INVALID_CAPABILITY")
+        if sum(len(k) + len(v) + 4 for k, v in request.scope.get('headers', [])) > 8192:
+            return reject(400, "CONTRACT_VIOLATION")
+        auth = request.headers.getlist('x-jarvis-capability')
+        if len(auth) != 1:
+            return reject(401, "INVALID_CAPABILITY")
+        if (request.headers.get('content-type', '').split(';', 1)[0].lower() != 'application/json' or
+                request.headers.get('content-encoding') or request.url.query):
+            return reject(400, "CONTRACT_VIOLATION")
+        raw = bytearray()
+        try:
+            async with asyncio.timeout(3):
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > MAX_CONTROL_BYTES:
+                        return reject(400, "CONTRACT_VIOLATION")
+                    raw.extend(chunk)
+            body = validate('inference-control-request', parse_json(bytes(raw), limit=MAX_CONTROL_BYTES))
+            if body['operation'] != operation:
+                return reject(400, "CONTRACT_VIOLATION")
+        except (TimeoutError, ContractViolation, ValueError, TypeError):
+            return reject(400, "CONTRACT_VIOLATION")
+        try:
+            verify_control_capability(auth[0], body, settings.core_keys, clock())
+        except Unauthorized:
+            return reject(401, "INVALID_CAPABILITY")
+        try:
+            if local is not None and hasattr(local, 'control'):
+                result = await local.control(body)
+            else:
+                # An unavailable model still permits durable pre-arrival fences
+                # and read-only observation. Historical mock rows cannot upgrade.
+                result = ledger.control(body)
+            validate('inference-control-response', result)
+            if len(canonical(result)) > MAX_CONTROL_BYTES:
+                return reject(503, "CONTROL_UNAVAILABLE")
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        except ReplayConflict:
+            return reject(409, "REPLAY_CONFLICT")
+        except LedgerFull:
+            return reject(429, "RESOURCE_LIMIT")
+        except Exception:
+            return reject(503, "CONTROL_UNAVAILABLE")
+
+    @app.post('/internal/v1/inference-control')
+    async def fence_control_endpoint(request: Request):
+        return await control_endpoint(request, 'FENCE_OR_STOP')
+
+    @app.post('/internal/v1/inference-control/observe')
+    async def observe_control_endpoint(request: Request):
+        return await control_endpoint(request, 'OBSERVE')
 
     @app.post("/internal/v1/turn")
     async def turn_endpoint(request: Request):
@@ -202,7 +261,10 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
         if duration <= 0:
             return reject(401, "INVALID_CAPABILITY")
         try:
-            replay = ledger.begin(claims, clock(), duration, cache_response=turn.context is None)
+            identity = control_identity(body, claims)
+            if identity is not None and (local is None or not hasattr(local, 'control')):
+                return reject(503, "CONTROL_UNAVAILABLE")
+            replay = ledger.begin(claims, clock(), duration, cache_response=turn.context is None, control=identity)
         except ReplayConflict:
             return reject(409, "REPLAY_CONFLICT")
         except LedgerFull:

@@ -155,7 +155,7 @@ class StudyLessonLifecycleTest extends ConversationDeletionFixtures {
         var before = deletion.state(session, conversation);
         assertThrows(org.springframework.dao.DataAccessException.class, () -> db.update("UPDATE inference_reservations SET purpose='CONVERSATION' WHERE run_id=?", run));
         assertEquals(before.get("content_digest"), deletion.state(session, conversation).get("content_digest"));
-        assertEquals("16", db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1", String.class));
+        assertEquals("17", db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1", String.class));
     }
     @Test void queuedPauseAndLogoutCancelWithoutCallingTheProvider() {
         UUID paused = accept(conversation("queued pause")); flow.pause(session, true);

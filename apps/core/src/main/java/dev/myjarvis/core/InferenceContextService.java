@@ -13,6 +13,10 @@ final class InferenceContextService {
     private final Vault vault;private final InferenceContextFreshness freshness;
     InferenceContextService(JdbcTemplate db,MemoryService memories,OwnerProfileService profiles,Vault vault,InferenceContextFreshness freshness){this.db=db;this.memories=memories;this.profiles=profiles;this.vault=vault;this.freshness=freshness;}
     String requestDigest(UUID owner,String canonical){return memories.keys.digest(owner,"inference-context-request",canonical);}
+    String controlDigest(UUID owner,String domain,String canonical){
+        if(!Set.of("inference-control-origin-v1","inference-control-dispatch-v1").contains(domain))throw new IllegalArgumentException("Unsupported control digest domain");
+        return memories.keys.digest(owner,domain,canonical);
+    }
     void authorize(AuthService.Session session,UUID conversation){
         InferenceContextFreshness.transaction();var access=new ConversationAccess(db);var owner=access.lockSession(session);
         var row=access.requireLive(session,conversation);MemoryService.unpaused(owner);

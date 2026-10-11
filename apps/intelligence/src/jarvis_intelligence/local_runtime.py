@@ -223,6 +223,37 @@ class LocalRuntime:
         self._cancel = None
         self._restart_task = None
         self._closing = False
+        self._control_ledger = None
+        self._control_lock = asyncio.Lock()
+        self._generation_id = None
+        self._spawn_attempted = False
+
+    def attach_control_ledger(self, ledger):
+        if self._process is not None or self._generation_id is not None or self._control_ledger is not None:
+            raise ValueError('control ledger already attached or worker started')
+        self._control_ledger = ledger
+
+    def _verified_owner_lock(self):
+        info = os.fstat(self._owner_fd)
+        current = os.stat(self.config.lock_path, follow_symlinks=False)
+        if (not stat.S_ISREG(info.st_mode) or not stat.S_ISREG(current.st_mode) or
+                info.st_uid != os.getuid() or info.st_mode & 0o077 or
+                (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino)):
+            raise ValueError('worker lock changed')
+        return info.st_dev, info.st_ino
+
+    async def control(self, identity):
+        if self._control_ledger is None:
+            raise RuntimeFailure('MODEL_UNAVAILABLE')
+        async with self._control_lock:
+            result = self._control_ledger.control(identity)
+            if identity['operation'] == 'FENCE_OR_STOP' and result['state'] == 'PENDING':
+                # Never stop a later request which happens to reuse the process.
+                row = self._control_ledger.control_generation_for(identity['request_id'])
+                if (self._active == identity['request_id'] and row == self._generation_id and
+                        self._cancel is not None):
+                    self._cancel.set()
+            return result
 
     def health(self):
         alive = self._process is not None and self._process.is_alive()
@@ -231,7 +262,7 @@ class LocalRuntime:
                 'status': 'READY' if ready else 'MODEL_UNAVAILABLE',
                 'download_complete': self._integrity, 'integrity_verified': self._integrity,
                 'runtime_ready': ready, 'inference_verified': self._inference_verified,
-                'integration_verified': False}
+                'integration_verified': False, 'control_revision': 1}
 
     async def start(self):
         async with self._starting:
@@ -244,6 +275,7 @@ class LocalRuntime:
                 raise RuntimeFailure('MODEL_UNAVAILABLE')
             try:
                 import fcntl
+                acquired_lock = False
                 if self._owner_fd is None:
                     fd = os.open(self.config.lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
                     try:
@@ -255,15 +287,29 @@ class LocalRuntime:
                         os.close(fd)
                         raise
                     self._owner_fd = fd
+                    acquired_lock = True
+                lock_identity = self._verified_owner_lock()
+                if acquired_lock and self._control_ledger is not None:
+                    self._control_ledger.recover_control_generations(*lock_identity)
                 self._integrity = False
                 self._inference_verified = False
                 self.manifest_hash = await asyncio.wait_for(asyncio.to_thread(verify_artifacts, self.config), 300)
                 self._integrity = True
+                # Register before constructing/spawning any child. At capacity,
+                # readiness fails without losing older safety evidence.
+                if self._verified_owner_lock() != lock_identity:
+                    raise ValueError('worker lock changed')
+                if self._control_ledger is not None:
+                    self._generation_id = self._control_ledger.register_control_generation(*lock_identity)
+                self._spawn_attempted = False
                 context = multiprocessing.get_context('spawn')
                 self._pipe, child = context.Pipe()
                 self._cancel = context.Event()
                 # Child retains this same kernel lock if its parent dies.
                 self._process = context.Process(target=self._target, args=(child, self.config, self._cancel, _InheritedLock(self._owner_fd)), daemon=True)
+                if self._control_ledger is not None:
+                    self._control_ledger.control_child_starting(self._generation_id)
+                self._spawn_attempted = True
                 self._process.start()
                 child.close()
                 message = await self._receive(cold_deadline)
@@ -291,8 +337,12 @@ class LocalRuntime:
     async def _stop_worker(self):
         self._ready = False
         process = self._process
-        if process is not None:
-            try:
+        try:
+            if process is not None:
+                if self._spawn_attempted and getattr(process, 'pid', None) is None:
+                    # A partial Process.start failure is not proof that no child
+                    # inherited the lock. Retain ownership until real recovery.
+                    raise RuntimeFailure('WORKER_DEATH_UNCONFIRMED')
                 if getattr(process, 'pid', 1) is not None:
                     if process.is_alive():
                         process.terminate()
@@ -302,10 +352,16 @@ class LocalRuntime:
                         await asyncio.to_thread(process.join, 2)
                     if process.is_alive() or process.exitcode is None:
                         raise RuntimeFailure('WORKER_DEATH_UNCONFIRMED')
-                self._process = None
-            except BaseException:
-                self._poisoned = True
-                raise
+            elif self._spawn_attempted:
+                raise RuntimeFailure('WORKER_DEATH_UNCONFIRMED')
+            if self._control_ledger is not None and self._generation_id is not None:
+                self._control_ledger.control_worker_stopped(self._generation_id)
+            self._generation_id = None
+            self._spawn_attempted = False
+            self._process = None
+        except BaseException:
+            self._poisoned = True
+            raise
         if self._pipe is not None:
             self._pipe.close()
             self._pipe = None
@@ -330,10 +386,14 @@ class LocalRuntime:
             self._owner_fd = None
 
     async def cancel(self, request_id):
-        if self._active == request_id and self._cancel is not None:
-            self._cancel.set()
+        async with self._control_lock:
+            if self._active == request_id and self._cancel is not None:
+                self._cancel.set()
 
     async def generate(self, turn, deadline_epoch):
+        controlled = getattr(turn, 'control', None) is not None
+        if controlled and self._control_ledger is None:
+            raise RuntimeFailure('MODEL_UNAVAILABLE')
         study = getattr(turn, 'purpose', 'CONVERSATION') == 'STUDY_LESSON'
         if study and getattr(self.config, 'study_lesson_prompt_path', None) is None:
             raise RuntimeFailure('MODEL_UNAVAILABLE')
@@ -355,13 +415,16 @@ class LocalRuntime:
         finally:
             self._waiting -= 1
         acknowledged = False
+        claimed = False
+        generation_id = None
         try:
+            # A begin() winner may spend time behind another generation.
+            if controlled and not self._control_ledger.control_send_allowed(turn.request_id):
+                raise RuntimeFailure('CANCELLED')
             if not self.health()['runtime_ready']:
                 raise RuntimeFailure('MODEL_UNAVAILABLE')
             if turn.model_manifest_hash != self.manifest_hash:
                 raise RuntimeFailure('MODEL_UNAVAILABLE')
-            self._active = turn.request_id
-            self._cancel.clear()
             duration = min(60, turn.budget.max_compute_ms / 1000, deadline_epoch - time.time())
             if duration <= 0:
                 raise RuntimeFailure('GENERATION_TIMEOUT')
@@ -378,9 +441,29 @@ class LocalRuntime:
                 worker_request.update({key: wire[key] for key in
                                        ('context', 'project_context', 'memories', 'history',
                                         'evidence', 'tool_results')})
-            self._pipe.send(worker_request)
+            async with self._control_lock:
+                # This new wait may cross capability or compute expiry. Keep
+                # one monotonic deadline and recheck again after the DB claim.
+                claim_monotonic = time.monotonic()
+                remaining = min(worker_request['deadline_monotonic'] - claim_monotonic,
+                                deadline_epoch - time.time())
+                if remaining <= 0:
+                    raise RuntimeFailure('GENERATION_TIMEOUT')
+                worker_request['deadline_monotonic'] = min(worker_request['deadline_monotonic'], claim_monotonic + remaining)
+                if controlled:
+                    # The transaction is the final fence/send decision. Once
+                    # claimed, even send failure requires completion/death proof.
+                    generation_id = self._generation_id
+                    if not self._control_ledger.claim_control_send(turn.request_id, generation_id):
+                        raise RuntimeFailure('CANCELLED')
+                    claimed = True
+                if worker_request['deadline_monotonic'] <= time.monotonic() or deadline_epoch <= time.time():
+                    raise RuntimeFailure('GENERATION_TIMEOUT')
+                self._active = turn.request_id
+                self._cancel.clear()
+                self._pipe.send(worker_request)
             try:
-                message = await self._receive(time.monotonic() + max(0, duration))
+                message = await self._receive(worker_request['deadline_monotonic'])
             except (EOFError, OSError):
                 raise RuntimeFailure("INFERENCE_UNKNOWN") from None
             except RuntimeFailure as exc:
@@ -394,19 +477,35 @@ class LocalRuntime:
                 raise RuntimeFailure(message['error'])
             self._inference_verified = self._target is _worker_main
             return message
-        except (asyncio.CancelledError, RuntimeFailure, EOFError, OSError) as exc:
+        except BaseException:
             # Cancellation acknowledgement isn't inferred from client closure.
             # A completed cooperative response may reuse the worker. Otherwise
             # confirm death, then reload the same pinned artifact, never the turn.
-            if not acknowledged:
+            if not acknowledged and (not controlled or claimed):
+                previously_poisoned = self._poisoned
+                self._poisoned = True
                 await asyncio.shield(self._stop_worker())
+                self._poisoned = previously_poisoned
                 if not self._closing and not self._poisoned:
                     self._restart_task = asyncio.create_task(self._recover())
             raise
         finally:
-            self._active = None
-            if acquired and not self._poisoned:
-                self._serial.release()
+            # Completion is about the closed active request, not Python/GPU
+            # reference erasure. Failure to durably record it poisons ownership
+            # before a newer turn can reuse the warm generation.
+            try:
+                async with self._control_lock:
+                    if self._active == turn.request_id:
+                        self._active = None
+                    if controlled and claimed and acknowledged:
+                        try:
+                            self._control_ledger.control_completed(turn.request_id, generation_id)
+                        except BaseException:
+                            self._poisoned = True
+                            raise RuntimeFailure('INFERENCE_UNKNOWN') from None
+            finally:
+                if acquired and not self._poisoned:
+                    self._serial.release()
 
 
 def _worker_request_loop(pipe, adapter, cancel):

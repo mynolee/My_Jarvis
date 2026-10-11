@@ -913,7 +913,7 @@ class ConversationDeletionContractsTest(unittest.TestCase):
         self.assertEqual(kst(NOW), '2026-10-11 02:40:00 KST')
         self.assertEqual(fixture('preparation')['prepared_at'], NOW)
         self.assertEqual((LIMITS['display_timezone'], LIMITS['wire_timezone']), ('Asia/Seoul', 'UTC'))
-        self.assertEqual(LIMITS['policy_version'], 'conversation-source-v1-r5')
+        self.assertEqual(LIMITS['policy_version'], 'conversation-source-v1-r6')
 
 
 if __name__ == '__main__':

@@ -67,7 +67,8 @@ class LocalInferenceClient {
         if(!configured())return false;
         try {
             JsonNode response=exchange(HttpRequest.newBuilder(endpoint.resolve("/health/ready")).timeout(Duration.ofSeconds(3)).GET().build());
-            Json.fields(response,"ready","status","model_id","model_manifest_hash","download_complete","integrity_verified","runtime_ready","inference_verified","integration_verified");
+            Json.fields(response,"ready","status","model_id","model_manifest_hash","download_complete","integrity_verified","runtime_ready","inference_verified","integration_verified","control_revision");
+            if(response.size()!=10||Json.integer(response,"control_revision")!=1)return false;
             for(String field:List.of("ready","download_complete","integrity_verified","runtime_ready"))if(!response.path(field).isBoolean()||!response.path(field).asBoolean())return false;
             for(String field:List.of("inference_verified","integration_verified"))if(!response.path(field).isBoolean())return false;
             return "READY".equals(response.path("status").asText())&&"local-mlx-v1".equals(response.path("model_id").asText())&&Json.equal(manifestHash,response.path("model_manifest_hash").asText());
@@ -83,13 +84,43 @@ class LocalInferenceClient {
         byte[] payload=Json.canonical(claims).getBytes(StandardCharsets.UTF_8);var signature=Signature.getInstance("Ed25519");signature.initSign(key);signature.update(payload);
         var b64=Base64.getUrlEncoder().withoutPadding();return b64.encodeToString(payload)+"."+b64.encodeToString(signature.sign());
     }
+    static String controlCapability(PrivateKey key,String keyId,JsonNode body,Instant now)throws Exception {
+        InferenceControlResult.request(body);
+        if(keyId==null||!keyId.matches("[A-Za-z0-9_-]{1,80}"))throw ApiException.bad();
+        // Python's closed instant grammar has at most six fractional digits. Derive expiry
+        // from this same truncated instant; no future tolerance or rounded-up timestamp.
+        Instant issued=now.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        Map<String,Object> claims=new LinkedHashMap<>();
+        claims.put("issuer","jarvis-core");claims.put("audience","jarvis-inference-control");claims.put("key_id",keyId);
+        for(String field:InferenceControlResult.REQUEST_FIELDS)claims.put(field,body.get(field));
+        claims.put("body_hash",Json.hash(Json.canonical(body)));claims.put("max_model_calls",0);
+        claims.put("issued_at",issued.toString());claims.put("expires_at",issued.plusSeconds(60).toString());claims.put("nonce",UUID.randomUUID().toString());
+        byte[] payload=Json.canonical(claims).getBytes(StandardCharsets.UTF_8);var signature=Signature.getInstance("Ed25519");signature.initSign(key);signature.update(payload);
+        var b64=Base64.getUrlEncoder().withoutPadding();return b64.encodeToString(payload)+"."+b64.encodeToString(signature.sign());
+    }
+    InferenceControlResult control(JsonNode body)throws Exception {
+        if(!configured())throw new IllegalStateException("LOCAL_UNAVAILABLE");
+        InferenceControlResult.request(body);
+        String route=body.get("operation").asText().equals("OBSERVE")?"/internal/v1/inference-control/observe":"/internal/v1/inference-control";
+        String header=controlCapability(signingKey,keyId,body,Instant.now());
+        var request=HttpRequest.newBuilder(endpoint.resolve(route)).timeout(Duration.ofSeconds(3)).header("Content-Type","application/json").header("X-Jarvis-Capability",header).POST(HttpRequest.BodyPublishers.ofString(Json.canonical(body),StandardCharsets.UTF_8)).build();
+        return InferenceControlResult.verify(exchange(request,InferenceControlResult.MAX_BYTES,8192),body);
+    }
     JsonNode infer(UUID owner,JsonNode body)throws Exception {
         if(!configured())throw new IllegalStateException("LOCAL_UNAVAILABLE");
         String header=capability(signingKey,keyId,owner,body,Instant.now());
         return exchange(HttpRequest.newBuilder(endpoint.resolve("/internal/v1/turn")).timeout(Duration.ofSeconds(65)).header("Content-Type","application/json").header("X-Jarvis-Capability",header).POST(HttpRequest.BodyPublishers.ofString(Json.canonical(body),StandardCharsets.UTF_8)).build());
     }
     private JsonNode exchange(HttpRequest request)throws Exception {
-        var future=client.sendAsync(request,info->new BoundedBody());
+        return exchange(request,262144,Integer.MAX_VALUE);
+    }
+    private JsonNode exchange(HttpRequest request,int bodyLimit,int headerLimit)throws Exception {
+        var future=client.sendAsync(request,info->{
+            long bytes=0;
+            for(var entry:info.headers().map().entrySet())for(String value:entry.getValue())bytes+=entry.getKey().getBytes(StandardCharsets.UTF_8).length+value.getBytes(StandardCharsets.UTF_8).length+4;
+            if(bytes>headerLimit)throw new IllegalStateException("LOCAL_HEADER_LIMIT");
+            return new BoundedBody(bodyLimit);
+        });
         try {
             var response=future.get(request.timeout().orElse(Duration.ofSeconds(65)).toMillis(),java.util.concurrent.TimeUnit.MILLISECONDS);
             if(response.statusCode()!=200)throw new IllegalStateException("LOCAL_UNCERTAIN");
@@ -97,13 +128,16 @@ class LocalInferenceClient {
         }finally{if(!future.isDone())future.cancel(true);}
     }
     static final class BoundedBody implements HttpResponse.BodySubscriber<byte[]> {
+        final int limit;
+        BoundedBody(){this(262144);}
+        BoundedBody(int limit){this.limit=limit;}
         final java.util.concurrent.CompletableFuture<byte[]> result=new java.util.concurrent.CompletableFuture<>();
         final java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
         java.util.concurrent.Flow.Subscription subscription;
         public java.util.concurrent.CompletionStage<byte[]> getBody(){return result;}
         public void onSubscribe(java.util.concurrent.Flow.Subscription value){subscription=value;value.request(1);}
         public void onNext(List<java.nio.ByteBuffer> chunks){
-            for(var chunk:chunks){if(chunk.remaining()>262144-bytes.size()){subscription.cancel();result.completeExceptionally(new IllegalStateException("LOCAL_RESPONSE_LIMIT"));return;}byte[] part=new byte[chunk.remaining()];chunk.get(part);bytes.writeBytes(part);}
+            for(var chunk:chunks){if(chunk.remaining()>limit-bytes.size()){subscription.cancel();result.completeExceptionally(new IllegalStateException("LOCAL_RESPONSE_LIMIT"));return;}byte[] part=new byte[chunk.remaining()];chunk.get(part);bytes.writeBytes(part);}
             subscription.request(1);
         }
         public void onError(Throwable error){result.completeExceptionally(error);}

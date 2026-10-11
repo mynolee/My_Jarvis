@@ -43,7 +43,7 @@ class LocalContractTest(unittest.TestCase):
         v=validator('runtime-readiness')
         item={'status':'MODEL_UNAVAILABLE','ready':False,'model_id':'local-mlx-v1','model_manifest_hash':None,
               'download_complete':False,'integrity_verified':False,'runtime_ready':False,
-              'inference_verified':False,'integration_verified':False}
+              'inference_verified':False,'integration_verified':False,'control_revision':1}
         v.validate(item)
         self.assertFalse(v.is_valid({**item,'ready':True}))
         self.assertFalse(v.is_valid({**item,'status':'READY'}))

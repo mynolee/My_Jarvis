@@ -15,12 +15,14 @@ final class LocalInferenceService {
     private final LocalInferenceClient client;
     private final InferenceContextService contexts;private final InferenceContextFreshness freshness;
     private final UsageService usage;
+    final InferenceControlService controls;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
     private final java.util.concurrent.atomic.AtomicBoolean busy=new java.util.concurrent.atomic.AtomicBoolean();
     private final ConcurrentMap<UUID,Thread> active=new ConcurrentHashMap<>();
     LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness){this(flow,client,contexts,freshness,new UsageService(flow.db,flow.vault,contexts,Objects.requireNonNull(flow.tx.getTransactionManager())));}
+    LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness,UsageService usage){this(flow,client,contexts,freshness,usage,new InferenceControlService(flow,client,contexts,freshness));}
     @org.springframework.beans.factory.annotation.Autowired
-    LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness,UsageService usage){this.flow=flow;this.client=client;this.contexts=contexts;this.freshness=freshness;this.usage=usage;}
+    LocalInferenceService(WorkflowService flow,LocalInferenceClient client,InferenceContextService contexts,InferenceContextFreshness freshness,UsageService usage,InferenceControlService controls){this.flow=flow;this.client=client;this.contexts=contexts;this.freshness=freshness;this.usage=usage;this.controls=controls;}
     Map<String,Object> status(){boolean ready=client.ready();return Map.of("mode","LOCAL_MLX","model_id","local-mlx-v1","ready",ready,"status",ready?"READY":client.enabled?"UNAVAILABLE":"DISABLED");}
     Map<String,Object> accept(AuthService.Session session,UUID conversation,JsonNode body){return accept(session,conversation,body,"CONVERSATION");}
     Map<String,Object> acceptLesson(AuthService.Session session,UUID conversation,JsonNode body){return accept(session,conversation,body,StudyLessonResult.PURPOSE);}
@@ -36,7 +38,8 @@ final class LocalInferenceService {
         var existing=flow.tx.execute(s->{contexts.authorize(session,conversation);var prior=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);return prior.isEmpty()?null:prior(owner,hash,canonical,purpose,prior.getFirst());});
         if(existing!=null)return existing;
         if(!client.ready())throw new ApiException(503,"LOCAL_MODEL_UNAVAILABLE");
-        return flow.tx.execute(s->{
+        return controls.boundary(()->{
+            Instant entry=controls.now();
             contexts.authorize(session,conversation);
             var again=flow.db.queryForList("SELECT body_hash,run_id,content_deleted_at FROM messages WHERE owner_id=? AND client_message_id=?",owner,messageId);
             if(!again.isEmpty())return prior(owner,hash,canonical,purpose,again.getFirst());
@@ -50,8 +53,12 @@ final class LocalInferenceService {
             UUID run=UUID.randomUUID(),message=UUID.randomUUID(),request=UUID.randomUUID(),reservation=UUID.randomUUID();
             flow.db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'QUEUED')",run,owner,conversation);
             flow.db.update("INSERT INTO messages(id,owner_id,conversation_id,run_id,client_message_id,body_hash,content_ref,role,trust) VALUES (?,?,?,?,?,?,?,'USER','USER_DIRECT')",message,owner,conversation,run,messageId,hash,flow.vault.seal(owner,message,"message",text));
-            flow.db.update("INSERT INTO inference_reservations(id,owner_id,run_id,request_id,body_hash,model_manifest_hash,status,max_compute_ms,reserved_output_tokens,security_epoch,purpose) VALUES (?,?,?,?,?,?,'QUEUED',60000,512,?,?)",reservation,owner,run,request,hash,client.manifestHash,ownerRow.get("security_epoch"),purpose);
-            contexts.capture(session,conversation,run);flow.event(owner,run,"LOCAL_INFERENCE_RESERVED");return Map.of("run_id",run,"status","QUEUED");
+            flow.db.update("INSERT INTO inference_reservations(id,owner_id,run_id,request_id,body_hash,model_manifest_hash,status,max_compute_ms,reserved_output_tokens,security_epoch,purpose,control_revision) VALUES (?,?,?,?,?,?,'QUEUED',60000,512,?,?,1)",reservation,owner,run,request,hash,client.manifestHash,ownerRow.get("security_epoch"),purpose);
+            UUID context=contexts.capture(session,conversation,run);
+            controls.allocate(session,conversation,run,reservation,request,context,purpose);
+            flow.event(owner,run,"LOCAL_INFERENCE_RESERVED");
+            controls.finishAdmission(session,conversation,run,reservation,entry);
+            return Map.of("run_id",run,"status","QUEUED");
         });
     }
     private Map<String,Object> prior(UUID owner,String hash,String canonical,String purpose,Map<String,Object> row){
@@ -68,7 +75,7 @@ final class LocalInferenceService {
         return Map.of("run_id",run,"status",existing.get("status"));
     }
     @Scheduled(fixedDelay=500) void tick(){
-        interruptInvalidContexts();recover();if(!client.configured()||!busy.compareAndSet(false,true))return;
+        controls.kick();interruptInvalidContexts();recover();if(!client.configured()||!busy.compareAndSet(false,true))return;
         executor.submit(()->{try{runOne();}finally{busy.set(false);}});
     }
     void interruptInvalidContexts(){
@@ -87,7 +94,8 @@ final class LocalInferenceService {
         var candidates=flow.db.queryForList("SELECT i.owner_id,i.id FROM inference_reservations i JOIN runs r ON r.owner_id=i.owner_id AND r.id=i.run_id JOIN conversations c ON c.owner_id=r.owner_id AND c.id=r.conversation_id WHERE i.status='QUEUED' AND c.deleted_at IS NULL ORDER BY i.created_at LIMIT 1");if(candidates.isEmpty())return false;
         UUID owner=(UUID)candidates.getFirst().get("owner_id"),id=(UUID)candidates.getFirst().get("id");
         Dispatch dispatch;
-        try { dispatch=flow.tx.execute(s->{
+        try { dispatch=controls.boundary(()->{
+            Instant entry=controls.now();
             flow.lockOwner(owner);
             var identities=flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND id=? AND status='QUEUED'",owner,id);if(identities.isEmpty())return null;
             UUID run=(UUID)identities.getFirst().get("run_id");
@@ -104,13 +112,17 @@ final class LocalInferenceService {
             String digest=contexts.requestDigest(owner,Json.canonical(request));
             contexts.markDispatched(owner,run);
             if(flow.db.update("UPDATE inference_reservations SET status='STARTED',started_at=clock_timestamp(),body_hash=?,dispatch_context_id=?,dispatch_cache_policy='CONTEXT_V1_NO_RESPONSE_CACHE' WHERE owner_id=? AND id=? AND status='QUEUED' AND started_at IS NULL AND dispatch_context_id IS NULL AND dispatch_cache_policy IS NULL",digest,contextId,owner,id)!=1)throw new ApiException(409,"STALE_INFERENCE_CONTEXT");
-            flow.setRun(owner,run,"RUNNING",null);flow.event(owner,run,"LOCAL_INFERENCE_STARTED");return new Dispatch(owner,run,id,request);
+            flow.setRun(owner,run,"RUNNING",null);
+            if(controlRevision(row)==1)controls.bind(owner,id,request);
+            flow.event(owner,run,"LOCAL_INFERENCE_STARTED");
+            if(controlRevision(row)==1)controls.finishDispatch(owner,run,id,entry);
+            return new Dispatch(owner,run,id,request);
         });
         } catch(ApiException|IllegalStateException|java.time.DateTimeException invalidContext){
             flow.tx.executeWithoutResult(tx->{flow.lockOwner(owner);var pending=flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND id=? AND status='QUEUED'",owner,id);if(!pending.isEmpty()){UUID run=(UUID)pending.getFirst().get("run_id");if(!flow.access.liveRun(owner,run))return;freshness.invalidateRun(owner,run);flow.setRun(owner,run,"BLOCKED",null);flow.event(owner,run,"LOCAL_CONTEXT_BLOCKED");}});
-            return true;
+            controls.kick();return true;
         }
-        if(dispatch==null)return true;
+        if(dispatch==null){controls.kick();return true;}
         active.put(dispatch.run(),Thread.currentThread());
         try {
             // Last check after registration closes the cancel-before-registration race.
@@ -123,7 +135,7 @@ final class LocalInferenceService {
             usage.record(dispatch,response);
             settle(dispatch,switch(response.get("kind").asText()){case "ANSWER","LESSON" -> "SUCCEEDED";case "NEED_INPUT" -> "WAITING_INPUT";default -> "FAILED";},result,response);
         }catch(Exception uncertain){settle(dispatch,"UNKNOWN",null);}
-        finally{active.remove(dispatch.run(),Thread.currentThread());Thread.interrupted();}
+        finally{active.remove(dispatch.run(),Thread.currentThread());Thread.interrupted();controls.kick();}
         return true;
     }
     record Dispatch(UUID owner,UUID run,UUID reservation,JsonNode body){}
@@ -145,7 +157,14 @@ final class LocalInferenceService {
         Object purpose=row.getOrDefault("purpose","CONVERSATION");
         if(!Set.of("CONVERSATION",StudyLessonResult.PURPOSE).contains(purpose))throw ApiException.bad();
         if(StudyLessonResult.PURPOSE.equals(purpose))body.put("purpose",purpose);
-        body.put("budget",Map.of("reservation_id",row.get("id").toString(),"max_compute_ms",60000,"max_input_tokens",3584,"max_output_tokens",512,"max_model_calls",1));body.put("model_id","local-mlx-v1");body.put("model_manifest_hash",row.get("model_manifest_hash"));body.put("prompt_revision","local-v1");JsonNode result=Json.MAPPER.valueToTree(body);if(Json.canonical(result).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>262144)throw new ApiException(413,"CONTEXT_TOO_LARGE");return result;
+        body.put("budget",Map.of("reservation_id",row.get("id").toString(),"max_compute_ms",60000,"max_input_tokens",3584,"max_output_tokens",512,"max_model_calls",1));body.put("model_id","local-mlx-v1");body.put("model_manifest_hash",row.get("model_manifest_hash"));body.put("prompt_revision","local-v1");
+        if(controlRevision(row)==1)body.put("control",controls.descriptor(row,body));
+        JsonNode result=Json.MAPPER.valueToTree(body);if(Json.canonical(result).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>262144)throw new ApiException(413,"CONTEXT_TOO_LARGE");return result;
+    }
+    private static int controlRevision(Map<String,Object> row){
+        Object raw=row.getOrDefault("control_revision",0);
+        if(!(raw instanceof Number number)||(number.longValue()!=0&&number.longValue()!=1))throw new ApiException(409,"CONTROL_REVISION_UNSUPPORTED");
+        return number.intValue();
     }
     static String validate(JsonNode response,JsonNode request){
         if(response==null)throw ApiException.bad();Json.validate(response);
@@ -206,7 +225,7 @@ final class LocalInferenceService {
         }
         flow.access.lockSession(session);return result;
     });}
-    void interruptOwner(UUID owner){for(var row:flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND cancel_requested_at IS NOT NULL",owner))interrupt((UUID)row.get("run_id"));}
-    void interrupt(UUID run){active.computeIfPresent(run,(id,thread)->{thread.interrupt();return thread;});}
-    @PreDestroy void close(){executor.shutdownNow();}
+    void interruptOwner(UUID owner){for(var row:flow.db.queryForList("SELECT run_id FROM inference_reservations WHERE owner_id=? AND cancel_requested_at IS NOT NULL",owner))interrupt((UUID)row.get("run_id"));controls.kick();}
+    void interrupt(UUID run){active.computeIfPresent(run,(id,thread)->{thread.interrupt();return thread;});controls.kick();}
+    @PreDestroy void close(){executor.shutdownNow();controls.close();}
 }

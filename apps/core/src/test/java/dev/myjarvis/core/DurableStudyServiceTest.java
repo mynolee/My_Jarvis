@@ -123,7 +123,7 @@ class DurableStudyServiceTest extends DurableStudyFixtures {
         });
         error(() -> study.answer(session, UUID.randomUUID(), id, answerBody(id, 0, "No room")), 409, "VERSION_EXHAUSTED");
         error(() -> study.close(session, UUID.randomUUID(), id, closeBody(id)), 409, "VERSION_EXHAUSTED"); assertEquals(0L, count("study_owner_answer_inputs"));
-        flow.tx.executeWithoutResult(tx -> { tx.setRollbackOnly(); db.update("UPDATE flyway_schema_history SET version='17' WHERE version='16'");
+        flow.tx.executeWithoutResult(tx -> { tx.setRollbackOnly(); db.update("UPDATE flyway_schema_history SET version='18' WHERE version='17'");
             error(() -> view(id), 409, "CONVERSATION_GRAPH_UNVERIFIED"); });
     }
     @Test void contentFreeIndexAndNotObservedReadDoNotClaimAWriteOutcome() {
