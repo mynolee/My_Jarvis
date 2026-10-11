@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/execution-control-state.schema.json",
+  "$comment": "Closed wire snapshot only. checked_at observes current account state, never attributes a historical mutation or confirms cancellation of in-flight work. Owner/session authorization and transactional consistency require runtime checks.",
+  "type": "object",
+  "properties": {
+    "execution_paused": {"type": "boolean"},
+    "version": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])",
+      "description": "Actual database-clock UTC date/time, years 0001..9999, at most microsecond precision. Not a mutation receipt or transition timestamp."
+    }
+  },
+  "required": ["execution_paused", "version", "checked_at"],
+  "additionalProperties": false
+}

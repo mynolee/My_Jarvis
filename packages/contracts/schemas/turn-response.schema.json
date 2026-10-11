@@ -1,0 +1,447 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/turn-response.schema.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ANSWER"
+        },
+        "reply_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16000
+        },
+        "cited_source_ids": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inference_request_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "model_manifest_hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "compute_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "peak_memory_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reservation_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "inference_request_id",
+            "model_manifest_hash",
+            "input_tokens",
+            "output_tokens",
+            "compute_ms",
+            "peak_memory_bytes",
+            "reservation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "reply_text",
+        "cited_source_ids",
+        "usage"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "LESSON"
+        },
+        "concepts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+            "not": {
+              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+            }
+          }
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+            "not": {
+              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+            }
+          }
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inference_request_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "model_manifest_hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "compute_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "peak_memory_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reservation_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "inference_request_id",
+            "model_manifest_hash",
+            "input_tokens",
+            "output_tokens",
+            "compute_ms",
+            "peak_memory_bytes",
+            "reservation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "concepts",
+        "questions",
+        "usage"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "NEED_INPUT"
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "missing_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "maxItems": 32
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inference_request_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "model_manifest_hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "compute_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "peak_memory_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reservation_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "inference_request_id",
+            "model_manifest_hash",
+            "input_tokens",
+            "output_tokens",
+            "compute_ms",
+            "peak_memory_bytes",
+            "reservation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "question",
+        "missing_fields",
+        "usage"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "TOOL_PROPOSALS"
+        },
+        "proposals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool_id": {
+                "const": "calendar.event.create"
+              },
+              "tool_version": {
+                "const": "1"
+              },
+              "arguments": {
+                "type": "object",
+                "properties": {
+                  "calendar_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "start_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "end_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "attendees": {
+                    "type": "array",
+                    "maxItems": 0
+                  }
+                },
+                "required": [
+                  "calendar_id",
+                  "title",
+                  "start_at",
+                  "end_at",
+                  "timezone",
+                  "attendees"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "tool_id",
+              "tool_version",
+              "arguments"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 8
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inference_request_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "model_manifest_hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "compute_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "peak_memory_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reservation_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "inference_request_id",
+            "model_manifest_hash",
+            "input_tokens",
+            "output_tokens",
+            "compute_ms",
+            "peak_memory_bytes",
+            "reservation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "proposals",
+        "summary",
+        "usage"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ERROR"
+        },
+        "error_code": {
+          "enum": [
+            "MODEL_UNAVAILABLE",
+            "CONTRACT_VIOLATION",
+            "RESOURCE_LIMIT",
+            "CONTEXT_LIMIT",
+            "MODEL_OUTPUT_INVALID",
+            "GENERATION_TIMEOUT",
+            "CANCELLED"
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inference_request_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "model_manifest_hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "compute_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "peak_memory_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reservation_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "inference_request_id",
+            "model_manifest_hash",
+            "input_tokens",
+            "output_tokens",
+            "compute_ms",
+            "peak_memory_bytes",
+            "reservation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "error_code",
+        "retryable",
+        "usage"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

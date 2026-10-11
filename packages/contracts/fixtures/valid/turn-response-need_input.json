@@ -1,0 +1,16 @@
+{
+  "kind": "NEED_INPUT",
+  "question": "Which synthetic calendar?",
+  "missing_fields": [
+    "calendar_id"
+  ],
+  "usage": {
+    "inference_request_id": "10000000-0000-4000-8000-000000000001",
+    "model_manifest_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "compute_ms": 1,
+    "peak_memory_bytes": 1,
+    "reservation_id": "10000000-0000-4000-8000-000000000001"
+  }
+}

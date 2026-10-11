@@ -1,0 +1,773 @@
+[
+  {
+    "name": "empty-draft",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": true
+  },
+  {
+    "name": "populated-draft",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": "Candidate <sender@example.invalid>",
+      "to": [
+        "Recipient <recipient@example.invalid>"
+      ],
+      "cc": [],
+      "bcc": [],
+      "subject": "Synthetic draft",
+      "body": "Line one\nLine two\tdata",
+      "project_id": "10000000-0000-4000-8000-000000000001",
+      "attachments": []
+    },
+    "valid": true
+  },
+  {
+    "name": "incomplete-recipient",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [
+        "unfinished address"
+      ],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": true
+  },
+  {
+    "name": "record",
+    "schema": "mail-draft-record",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": [],
+      "id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "created_at": "2030-01-01T00:00:00Z",
+      "updated_at": "2030-01-01T00:00:00Z",
+      "delivery_status": "NOT_SENT"
+    },
+    "valid": true
+  },
+  {
+    "name": "metadata",
+    "schema": "mail-draft-metadata",
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "project_id": null,
+      "version": 1,
+      "created_at": "2030-01-01T00:00:00Z",
+      "updated_at": "2030-01-01T00:00:00Z",
+      "delivery_status": "NOT_SENT"
+    },
+    "valid": true
+  },
+  {
+    "name": "committed",
+    "schema": "mail-draft-mutation-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "draft_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "operation": "CREATE"
+    },
+    "valid": true
+  },
+  {
+    "name": "not-observed",
+    "schema": "mail-draft-mutation-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED",
+      "draft_id": null,
+      "version": null,
+      "operation": null
+    },
+    "valid": true
+  },
+  {
+    "name": "mutation-result",
+    "schema": "mail-draft-mutation-result",
+    "instance": {
+      "draft": {
+        "sender_candidate": null,
+        "to": [],
+        "cc": [],
+        "bcc": [],
+        "subject": "",
+        "body": "",
+        "project_id": null,
+        "attachments": [],
+        "id": "10000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "created_at": "2030-01-01T00:00:00Z",
+        "updated_at": "2030-01-01T00:00:00Z",
+        "delivery_status": "NOT_SENT"
+      },
+      "mutation": {
+        "status": "COMMITTED",
+        "draft_id": "10000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "operation": "CREATE"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "list",
+    "schema": "mail-draft-list",
+    "instance": {
+      "items": [
+        {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "project_id": null,
+          "version": 1,
+          "created_at": "2030-01-01T00:00:00Z",
+          "updated_at": "2030-01-01T00:00:00Z",
+          "delivery_status": "NOT_SENT"
+        }
+      ],
+      "next_cursor": null
+    },
+    "valid": true
+  },
+  {
+    "name": "query",
+    "schema": "mail-draft-list-query",
+    "instance": {},
+    "valid": true
+  },
+  {
+    "name": "query-all",
+    "schema": "mail-draft-list-query",
+    "instance": {
+      "limit": "100",
+      "cursor": "abc.DEF_123-xyz",
+      "project_id": "10000000-0000-4000-8000-000000000001"
+    },
+    "valid": true
+  },
+  {
+    "name": "headers",
+    "schema": "mail-draft-mutation-headers",
+    "instance": {
+      "Idempotency-Key": "10000000-0000-4000-8000-000000000001"
+    },
+    "valid": true
+  },
+  {
+    "name": "path",
+    "schema": "mail-draft-path",
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001"
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-sender_candidate",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "sender_candidate": null,
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-to",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "to": [],
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-cc",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "cc": [],
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-bcc",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "bcc": [],
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-subject",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "subject": "",
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-body",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "body": "",
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-project_id",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "project_id": null,
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "patch-attachments",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "attachments": [],
+      "expected_version": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "missing-sender_candidate",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-to",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-cc",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-bcc",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-subject",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-body",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-project_id",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-attachments",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null
+    },
+    "valid": false
+  },
+  {
+    "name": "subject-cr",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "x\ry",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "subject-lf",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "x\ny",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "subject-too-long",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "body-nul",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "x\u0000y",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "body-control",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "xy",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "sender-blank",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": " ﻿",
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "sender-cr",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": "a\rb",
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "recipient-blank",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [
+        " "
+      ],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "recipient-lf",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [
+        "a\nb"
+      ],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "recipient-too-long",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "too-many-to",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a",
+        "a"
+      ],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "attachments",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": [
+        {
+          "id": "10000000-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "bad-project",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": "x",
+      "attachments": []
+    },
+    "valid": false
+  },
+  {
+    "name": "extra-authority",
+    "schema": "mail-draft-create-request",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": [],
+      "approved": true
+    },
+    "valid": false
+  },
+  {
+    "name": "patch-version-only",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "expected_version": 1
+    },
+    "valid": false
+  },
+  {
+    "name": "patch-zero-version",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "subject": "x",
+      "expected_version": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "patch-bool-version",
+    "schema": "mail-draft-patch-request",
+    "instance": {
+      "subject": "x",
+      "expected_version": true
+    },
+    "valid": false
+  },
+  {
+    "name": "sent-record",
+    "schema": "mail-draft-record",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": [],
+      "id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "created_at": "2030-01-01T00:00:00Z",
+      "updated_at": "2030-01-01T00:00:00Z",
+      "delivery_status": "SENT"
+    },
+    "valid": false
+  },
+  {
+    "name": "metadata-private-content",
+    "schema": "mail-draft-metadata",
+    "instance": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "project_id": null,
+      "version": 1,
+      "created_at": "2030-01-01T00:00:00Z",
+      "updated_at": "2030-01-01T00:00:00Z",
+      "delivery_status": "NOT_SENT",
+      "subject": "private"
+    },
+    "valid": false
+  },
+  {
+    "name": "receipt-private-content",
+    "schema": "mail-draft-mutation-receipt",
+    "instance": {
+      "status": "COMMITTED",
+      "draft_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "operation": "CREATE",
+      "body": "private"
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-not-observed-null",
+    "schema": "mail-draft-mutation-receipt",
+    "instance": {
+      "status": "NOT_OBSERVED"
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid-day",
+    "schema": "mail-draft-record",
+    "instance": {
+      "sender_candidate": null,
+      "to": [],
+      "cc": [],
+      "bcc": [],
+      "subject": "",
+      "body": "",
+      "project_id": null,
+      "attachments": [],
+      "id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "created_at": "2030-02-30T00:00:00Z",
+      "updated_at": "2030-01-01T00:00:00Z",
+      "delivery_status": "NOT_SENT"
+    },
+    "valid": false
+  },
+  {
+    "name": "query-extra",
+    "schema": "mail-draft-list-query",
+    "instance": {
+      "status": "SENT"
+    },
+    "valid": false
+  },
+  {
+    "name": "query-leading-zero",
+    "schema": "mail-draft-list-query",
+    "instance": {
+      "limit": "01"
+    },
+    "valid": false
+  },
+  {
+    "name": "cursor-newline",
+    "schema": "mail-draft-list-query",
+    "instance": {
+      "cursor": "abc\n"
+    },
+    "valid": false
+  },
+  {
+    "name": "result-not-observed-rejected",
+    "schema": "mail-draft-mutation-result",
+    "instance": {
+      "draft": {
+        "sender_candidate": null,
+        "to": [],
+        "cc": [],
+        "bcc": [],
+        "subject": "",
+        "body": "",
+        "project_id": null,
+        "attachments": [],
+        "id": "10000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "created_at": "2030-01-01T00:00:00Z",
+        "updated_at": "2030-01-01T00:00:00Z",
+        "delivery_status": "NOT_SENT"
+      },
+      "mutation": {
+        "status": "NOT_OBSERVED",
+        "draft_id": null,
+        "version": null,
+        "operation": null
+      }
+    },
+    "valid": false
+  }
+]
