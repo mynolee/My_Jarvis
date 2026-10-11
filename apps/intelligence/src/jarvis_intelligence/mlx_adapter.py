@@ -9,17 +9,18 @@ from __future__ import annotations
 import json
 import time
 from .contracts import CONTRACT_ROOT, ContractViolation, canonical, parse_json
-from .local_runtime import RuntimeFailure, load_study_lesson_prompt
+from .local_runtime import RuntimeFailure, load_study_lesson_prompt, load_study_feedback_prompt
 
 
 def output_schema(allowed_tools, purpose='CONVERSATION'):
-    if purpose not in {'CONVERSATION', 'STUDY_LESSON'}:
+    if purpose not in {'CONVERSATION', 'STUDY_LESSON', 'STUDY_FEEDBACK'}:
         raise ContractViolation('invalid generation purpose')
     schema = json.loads((CONTRACT_ROOT / 'schemas/turn-response.schema.json').read_text())
     variants = []
     for branch in schema['oneOf']:
         kind = branch['properties']['kind']['const']
-        kinds = {'LESSON', 'NEED_INPUT'} if purpose == 'STUDY_LESSON' else {'ANSWER', 'NEED_INPUT', 'TOOL_PROPOSALS'}
+        kinds = ({'FEEDBACK'} if purpose == 'STUDY_FEEDBACK' else
+                 {'LESSON', 'NEED_INPUT'} if purpose == 'STUDY_LESSON' else {'ANSWER', 'NEED_INPUT', 'TOOL_PROPOSALS'})
         if kind not in kinds or (kind == 'TOOL_PROPOSALS' and not allowed_tools):
             continue
         branch['properties'].pop('usage')
@@ -43,6 +44,7 @@ def admit(input_ids, max_input, max_output):
 class MLXAdapter:
     def __init__(self, config):
         self.study_lesson_system = load_study_lesson_prompt(config)
+        self.study_feedback_system = load_study_feedback_prompt(config)
         import mlx.core as mx
         from mlx_vlm import load, stream_generate
         from mlx_vlm.prompt_utils import apply_chat_template
@@ -72,8 +74,9 @@ class MLXAdapter:
         deadline = min(start + 60, request.get('deadline_monotonic', start + 60))
         purpose = request.get('purpose', 'CONVERSATION')
         system = self.system
-        if purpose == 'STUDY_LESSON':
-            system = getattr(self, 'study_lesson_system', None)
+        feedback = purpose == 'STUDY_FEEDBACK'
+        if purpose in {'STUDY_LESSON', 'STUDY_FEEDBACK'}:
+            system = getattr(self, 'study_feedback_system' if feedback else 'study_lesson_system', None)
             if system is None:
                 raise RuntimeFailure('MODEL_UNAVAILABLE')
         schema = output_schema(request['allowed_tool_ids'], purpose)
@@ -84,10 +87,13 @@ class MLXAdapter:
             if time.monotonic() >= deadline:
                 raise RuntimeFailure('GENERATION_TIMEOUT')
 
+        if feedback and (any(request.get(key) for key in ('memories', 'history', 'evidence', 'tool_results', 'allowed_tool_ids')) or
+                         'user_input' in request or request.get('max_input_tokens') != 3584 or request.get('max_output_tokens') != 512):
+            raise RuntimeFailure('MODEL_OUTPUT_INVALID')
         memories = list(request.get('memories', []))
         history = list(request.get('history', []))
         # At most 28 removals; final candidate still uses the actual preparation path.
-        for attempt in range(29):
+        for attempt in range(1 if feedback else 29):
             checkpoint()
             messages = [{'role': 'system', 'content': system + '\n' + canonical(schema).decode() + '\n' + canonical({'current_time': request['current_time'], 'timezone': request['timezone']}).decode()}]
             if request.get('context') is not None:
@@ -95,7 +101,12 @@ class MLXAdapter:
                 data.update(memories=memories, history=[{key: value for key, value in item.items() if key != 'text'} for item in history])
                 messages.append({'role': 'user', 'content': canonical(data).decode()})
                 messages.extend({'role': item['role'].lower(), 'content': item['text']} for item in history)
-            messages.append({'role': 'user', 'content': request['user_input']})
+            if feedback:
+                # The saved source remains a single data-only user message. It
+                # cannot supply a system role, tool, or additional instruction.
+                messages.append({'role': 'user', 'content': canonical({'feedback_source': request['feedback_source']}).decode()})
+            else:
+                messages.append({'role': 'user', 'content': request['user_input']})
             prompt = self.render(self.processor, self.config, messages,
                                  add_generation_prompt=True, tokenize=False, enable_thinking=False)
             checkpoint()
@@ -110,7 +121,7 @@ class MLXAdapter:
                 count = admit(input_ids, request['max_input_tokens'], request['max_output_tokens'])
                 break
             except RuntimeFailure:
-                if request.get('context') is None or attempt == 28:
+                if feedback or request.get('context') is None or attempt == 28:
                     raise
                 if memories:
                     memories.pop()

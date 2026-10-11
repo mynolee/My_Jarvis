@@ -11,6 +11,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
+import stat
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -38,71 +40,171 @@ CONTROL_COLUMNS = tuple(name for name in CONTROL_IDENTITY_FIELDS if name != "rev
 
 
 class Ledger:
-    def __init__(self, path: Path, cache_key: bytes, *, max_rows=10000, max_concurrency=4):
-        if len(cache_key) != 32 or not path.is_absolute() or str(path) == ":memory:":
+    def __init__(self, path: Path, cache_key: bytes, *, max_rows=10000, max_concurrency=4, ownership_lease=None):
+        if len(cache_key) != 32 or not path.is_absolute() or path.resolve() != path or str(path) == ":memory:":
             raise ValueError("persistent ledger and AES-256 key required")
         self.path = path
         self.max_rows, self.max_concurrency = max_rows, max_concurrency
+        self.ownership_lease = ownership_lease
+        self._initialized = False
+        self._new_cache_authority = False
+        self.schema_revision = None
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        # Refuse symlink-based storage. Deployment must own and protect parent.
-        fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        os.close(fd)
-        os.chmod(path, 0o600)
+        existed = path.exists()
+        if ownership_lease is not None:
+            ownership_lease.verify()
+        flags = os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK
+        fd = os.open(path, flags if existed else flags | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            info = os.fstat(fd)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or
+                    info.st_mode & 0o077 or info.st_nlink != 1):
+                raise ReplayConflict('private ledger required')
+            self._file_identity = (info.st_dev, info.st_ino)
+        finally:
+            os.close(fd)
+        if ownership_lease is not None:
+            ownership_lease.bind_ledger(path, self._file_identity)
         with self.connect() as db:
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("""CREATE TABLE IF NOT EXISTS replay (
-                request_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, reservation_id TEXT NOT NULL UNIQUE,
-                run_id TEXT NOT NULL, body_hash TEXT NOT NULL, state TEXT NOT NULL,
-                deadline REAL NOT NULL, cache_until REAL, nonce BLOB UNIQUE, response BLOB,
-                CHECK (state IN ('STARTED','COMPLETED','UNKNOWN'))
-            )""")
             db.execute("BEGIN IMMEDIATE")
             try:
-                db.execute("CREATE TABLE IF NOT EXISTS cache_domain (singleton INTEGER PRIMARY KEY CHECK(singleton=1), salt BLOB NOT NULL CHECK(length(salt)=32))")
-                domain = db.execute("SELECT salt FROM cache_domain WHERE singleton=1").fetchone()
-                if domain is None:
-                    salt = os.urandom(32)
-                    db.execute("INSERT INTO cache_domain VALUES (1,?)", (salt,))
+                tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 9")}
+                fresh = not tables
+                upgrading_existing_control = False
+                if fresh and existed:
+                    raise ReplayConflict('missing ledger authority')
+                if fresh:
+                    self._new_cache_authority = True
+                    self._create_cache_storage(db)
+                    for statement in self._control_schema(2): db.execute(statement)
+                    db.execute('INSERT INTO control_meta VALUES (1,2,?,1)', (str(uuid4()),))
                 else:
-                    salt = domain[0]
+                    if 'replay' not in tables:
+                        raise ReplayConflict('missing replay authority')
+                    columns = {row[1] for row in db.execute('PRAGMA table_info(replay)')}
+                    if 'control_revision' not in columns:
+                        if ownership_lease is None:
+                            raise ReplayConflict('original ownership lease required for upgrade')
+                        self._upgrade_legacy_cache(db)
+                        for statement in self._control_schema(1): db.execute(statement)
+                        db.execute('INSERT INTO control_meta VALUES (1,1,?,1)', (str(uuid4()),))
+                    # No CREATE IF NOT EXISTS may reconstruct missing authority.
+                    self._validate_storage(db)
+                    revision = db.execute('SELECT schema_revision FROM control_meta WHERE singleton=1').fetchone()[0]
+                    if revision == 1:
+                        upgrading_existing_control = "control_revision" in columns
+                        self._upgrade_feedback(db, cache_key if upgrading_existing_control else None)
+                self._validate_storage(db, expected_revision=2)
+                salt_row = db.execute('SELECT salt FROM cache_domain WHERE singleton=1').fetchone()
+                if salt_row is None or len(salt_row[0]) != 32:
+                    raise ReplayConflict('missing cache domain')
+                salt = salt_row[0]
                 key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt,
                            info=b"jarvis-inference-response-cache/v1\x00" + os.fsencode(path.resolve())).derive(cache_key)
                 self.binding_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt,
                                         info=b"jarvis-context-binding/v1\x00" + os.fsencode(path.resolve())).derive(cache_key)
                 self.aes = AESGCM(key)
                 self.key_id = hashlib.sha256(b"jarvis-response-cache-key\x00" + key).hexdigest()
-                columns = {row[1] for row in db.execute("PRAGMA table_info(replay)")}
-                for name, declaration in (("cache_key_id", "TEXT"), ("aad_version", "INTEGER NOT NULL DEFAULT 0"),
-                                          ("account_id", "TEXT"), ("cache_response", "INTEGER NOT NULL DEFAULT 1"),
-                                          ("control_revision", "INTEGER NOT NULL DEFAULT 0 CHECK(control_revision IN (0,1))")):
-                    if name not in columns:
-                        db.execute(f"ALTER TABLE replay ADD COLUMN {name} {declaration}")
-                db.execute("""CREATE TABLE IF NOT EXISTS cache_key_usage (
-                    key_id TEXT PRIMARY KEY, used INTEGER NOT NULL CHECK (used >= 0 AND used <= 16777216)
-                )""")
-                db.execute("""CREATE TABLE IF NOT EXISTS cache_nonces (
-                    key_id TEXT NOT NULL, nonce BLOB NOT NULL CHECK(length(nonce)=12),
-                    PRIMARY KEY(key_id, nonce)
-                )""")
-                db.execute("INSERT OR IGNORE INTO cache_key_usage VALUES (?,0)", (self.key_id,))
-                # Old replay rows retained their nonce even after cache expiry. Reserve
-                # those for every opening key conservatively; never delete reservations.
-                db.execute("INSERT OR IGNORE INTO cache_nonces SELECT ?,nonce FROM replay WHERE nonce IS NOT NULL AND cache_key_id IS NULL",
-                           (self.key_id,))
-                db.execute("UPDATE cache_key_usage SET used=MAX(used,(SELECT COUNT(*) FROM cache_nonces WHERE key_id=?)) WHERE key_id=?",
-                           (self.key_id, self.key_id))
-                self._migrate_control(db, first_migration="control_revision" not in columns)
+                if upgrading_existing_control:
+                    if not db.execute('SELECT 1 FROM cache_key_usage WHERE key_id=?', (self.key_id,)).fetchone():
+                        raise ReplayConflict('original cache key domain required for upgrade')
+                else:
+                    db.execute('INSERT OR IGNORE INTO cache_key_usage VALUES (?,0)', (self.key_id,))
+                if fresh or 'control_revision' not in columns:
+                    db.execute('INSERT OR IGNORE INTO cache_nonces SELECT ?,nonce FROM replay WHERE nonce IS NOT NULL AND cache_key_id IS NULL', (self.key_id,))
+                    db.execute('UPDATE cache_key_usage SET used=MAX(used,(SELECT COUNT(*) FROM cache_nonces WHERE key_id=?)) WHERE key_id=?', (self.key_id,self.key_id))
+                self._new_cache_authority = False
+                self._validate_cache_rows(db)
+                self.ledger_instance_id = db.execute('SELECT ledger_instance_id FROM control_meta WHERE singleton=1').fetchone()[0]
+                if ownership_lease is not None: ownership_lease.verify()
+                self._upgrade_checkpoint('before_commit')
                 db.commit()
+                self.schema_revision = 2
+                self._initialized = True
+                self._upgrade_checkpoint('after_commit')
             except BaseException:
                 db.rollback()
                 raise
+        # WAL is a storage policy, not a migration authority or proof.
+        with self.connect() as db: db.execute('PRAGMA journal_mode=WAL')
+
+    @staticmethod
+    def _cache_schema():
+        return [
+            """CREATE TABLE replay (request_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, reservation_id TEXT NOT NULL UNIQUE,
+                run_id TEXT NOT NULL, body_hash TEXT NOT NULL, state TEXT NOT NULL,
+                deadline REAL NOT NULL, cache_until REAL, nonce BLOB UNIQUE, response BLOB,
+                CHECK (state IN ('STARTED','COMPLETED','UNKNOWN')))""",
+            "CREATE TABLE cache_domain (singleton INTEGER PRIMARY KEY CHECK(singleton=1), salt BLOB NOT NULL CHECK(length(salt)=32))",
+            "CREATE TABLE cache_key_usage (key_id TEXT PRIMARY KEY, used INTEGER NOT NULL CHECK (used >= 0 AND used <= 16777216))",
+            "CREATE TABLE cache_nonces (key_id TEXT NOT NULL, nonce BLOB NOT NULL CHECK(length(nonce)=12), PRIMARY KEY(key_id, nonce))",
+        ]
+
+    @staticmethod
+    def _replay_additions():
+        return (("cache_key_id", "TEXT"), ("aad_version", "INTEGER NOT NULL DEFAULT 0"),
+                ("account_id", "TEXT"), ("cache_response", "INTEGER NOT NULL DEFAULT 1"),
+                ("control_revision", "INTEGER NOT NULL DEFAULT 0 CHECK(control_revision IN (0,1))"))
+
+    def _create_cache_storage(self, db):
+        for statement in self._cache_schema(): db.execute(statement)
+        for name, declaration in self._replay_additions():
+            db.execute(f'ALTER TABLE replay ADD COLUMN {name} {declaration}')
+        db.execute('INSERT INTO cache_domain VALUES (1,?)', (os.urandom(32),))
+
+    def _upgrade_legacy_cache(self, db):
+        # The original revision-zero cache upgrade gives old rows revision zero,
+        # never a control identity, generation or terminal fact.
+        names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 9")}
+        if names - {'replay','cache_domain','cache_key_usage','cache_nonces'} or db.execute("SELECT 1 FROM sqlite_master WHERE type IN ('view','trigger')").fetchone():
+            raise ReplayConflict('partial legacy control storage')
+        self._validate_replay_sql(db, allow_legacy=True)
+        cache_tables = {'cache_domain','cache_key_usage','cache_nonces'}
+        columns = {row[1] for row in db.execute('PRAGMA table_info(replay)')}
+        raw_legacy = names == {'replay'}
+        if raw_legacy:
+            self._new_cache_authority = True
+            if any(name in columns for name,_ in self._replay_additions()):
+                raise ReplayConflict('missing established legacy cache authority')
+            for statement in self._cache_schema()[1:]: db.execute(statement)
+            db.execute('INSERT INTO cache_domain VALUES (1,?)', (os.urandom(32),))
+        else:
+            if names != {'replay'} | cache_tables:
+                raise ReplayConflict('partial legacy cache authority')
+            for statement in self._cache_schema()[1:]:
+                name = statement.split()[2]
+                actual = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
+                if actual is None or self._sql_normalized(actual[0]) != self._sql_normalized(statement):
+                    raise ReplayConflict('changed legacy cache authority')
+            self._validate_cache_rows(db)
+        columns = {row[1] for row in db.execute('PRAGMA table_info(replay)')}
+        for name, declaration in self._replay_additions():
+            if name not in columns: db.execute(f'ALTER TABLE replay ADD COLUMN {name} {declaration}')
+
+    @staticmethod
+    def _validate_cache_rows(db, *, allow_empty_keys=False):
+        domain = db.execute('SELECT singleton,salt FROM cache_domain LIMIT 2').fetchall()
+        if len(domain) != 1 or domain[0][0] != 1 or not isinstance(domain[0][1], bytes) or len(domain[0][1]) != 32:
+            raise ReplayConflict('missing original cache domain')
+        if ((not allow_empty_keys and not db.execute('SELECT 1 FROM cache_key_usage').fetchone()) or
+                db.execute("SELECT 1 FROM cache_key_usage WHERE key_id IS NULL OR typeof(used)<>'integer' OR used<0 OR used>16777216").fetchone() or
+                db.execute("SELECT 1 FROM cache_nonces WHERE typeof(nonce)<>'blob'").fetchone() or
+                db.execute('SELECT 1 FROM cache_nonces n LEFT JOIN cache_key_usage k ON k.key_id=n.key_id WHERE k.key_id IS NULL').fetchone() or
+                db.execute('SELECT 1 FROM cache_key_usage k WHERE k.used<(SELECT COUNT(*) FROM cache_nonces n WHERE n.key_id=k.key_id)').fetchone()):
+            raise ReplayConflict('missing original nonce authority')
 
     @contextmanager
     def connect(self):
+        current = os.stat(self.path, follow_symlinks=False)
+        if (not stat.S_ISREG(current.st_mode) or current.st_uid != os.getuid() or current.st_mode & 0o077 or
+                current.st_nlink != 1 or (current.st_dev, current.st_ino) != self._file_identity):
+            raise ReplayConflict('ledger file changed')
+        if self.ownership_lease is not None: self.ownership_lease.verify()
         db = sqlite3.connect(self.path, timeout=1, isolation_level=None)
         db.execute("PRAGMA synchronous=FULL")
         db.execute("PRAGMA foreign_keys=ON")
         try:
+            if self._initialized: self._check_control_meta(db)
             yield db
         finally:
             db.close()
@@ -245,34 +347,21 @@ class Ledger:
                 f"substr({name},19,1)='-' AND substr({name},24,1)='-' AND "
                 f"length(replace({name},'-',''))=32 AND replace({name},'-','') NOT GLOB '*[^0-9a-f]*'")
 
-    def _migrate_control(self, db, *, first_migration):
-        """Upgrade once atomically; a damaged upgraded ledger must never reset."""
-        expected_tables = {'control_meta', 'control_identity', 'control_generation'}
-        expected_triggers = {f'{table}_no_delete' for table in expected_tables} | {
-            'control_identity_update_guard', 'control_generation_update_guard', 'control_meta_update_guard',
-            'replay_control_revision_guard', 'replay_control_insert_guard', 'control_identity_insert_guard'}
-        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'control_%'")}
-        triggers = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='trigger'")}
-        if first_migration:
-            if tables or expected_triggers & triggers:
-                raise ReplayConflict('partial control migration')
-        elif not expected_tables <= tables or not expected_triggers <= triggers:
-            raise ReplayConflict('incomplete control storage')
-        elif db.execute('SELECT COUNT(*) FROM control_meta WHERE singleton=1').fetchone()[0] != 1:
-            raise ReplayConflict('missing control authority')
-        uuid = self._uuid_check
-        db.execute(f"""CREATE TABLE IF NOT EXISTS control_meta (
+    @classmethod
+    def _control_schema(cls, revision):
+        if revision not in (1, 2): raise ReplayConflict('unsupported control ledger')
+        uuid = cls._uuid_check
+        purposes = "'CONVERSATION','STUDY_LESSON'" + (",'STUDY_FEEDBACK'" if revision == 2 else '')
+        identities = ','.join(f"{name} TEXT {'PRIMARY KEY NOT NULL' if name == 'request_id' else 'NOT NULL'} CHECK({uuid(name)})" for name in ('request_id','reservation_id','owner_id','run_id','context_id'))
+        immutable = ' OR '.join(f'NEW.{name} IS NOT OLD.{name}' for name in (*CONTROL_COLUMNS, 'cache_policy'))
+        statements = [
+            f"""CREATE TABLE IF NOT EXISTS control_meta (
             singleton INTEGER PRIMARY KEY CHECK(singleton=1),
-            schema_revision INTEGER NOT NULL CHECK(schema_revision=1),
+            schema_revision INTEGER NOT NULL CHECK(schema_revision={revision}),
             ledger_instance_id TEXT NOT NULL CHECK({uuid('ledger_instance_id')}),
             next_ordinal INTEGER NOT NULL CHECK(typeof(next_ordinal)='integer' AND next_ordinal BETWEEN 1 AND {MAX_SAFE_INTEGER})
-        )""")
-        db.execute("INSERT OR IGNORE INTO control_meta VALUES (1,1,?,1)", (str(uuid4()),))
-        meta = db.execute("SELECT schema_revision,ledger_instance_id FROM control_meta WHERE singleton=1").fetchone()
-        if meta is None or meta[0] != 1:
-            raise ReplayConflict('unsupported control ledger')
-        self.ledger_instance_id = meta[1]
-        db.execute(f"""CREATE TABLE IF NOT EXISTS control_generation (
+        )""",
+            f"""CREATE TABLE IF NOT EXISTS control_generation (
             id TEXT PRIMARY KEY NOT NULL CHECK({uuid('id')}),
             ordinal INTEGER NOT NULL UNIQUE CHECK(typeof(ordinal)='integer' AND ordinal BETWEEN 1 AND {MAX_SAFE_INTEGER}),
             ledger_instance_id TEXT NOT NULL CHECK({uuid('ledger_instance_id')}),
@@ -282,12 +371,10 @@ class Ledger:
             child_started INTEGER NOT NULL CHECK(child_started IN (0,1)),
             exit_observed INTEGER NOT NULL CHECK(exit_observed IN (0,1)),
             CHECK((state='OWNED' AND exit_observed=0) OR (state='RETIRED' AND exit_observed=1))
-        )""")
-        identities = ','.join(f"{name} TEXT {'PRIMARY KEY NOT NULL' if name == 'request_id' else 'NOT NULL'} CHECK({uuid(name)})" for name in
-                              ('request_id','reservation_id','owner_id','run_id','context_id'))
-        db.execute(f"""CREATE TABLE IF NOT EXISTS control_identity (
+        )""",
+            f"""CREATE TABLE IF NOT EXISTS control_identity (
             {identities},
-            purpose TEXT NOT NULL CHECK(purpose IN ('CONVERSATION','STUDY_LESSON')),
+            purpose TEXT NOT NULL CHECK(purpose IN ({purposes})),
             security_epoch INTEGER NOT NULL CHECK(typeof(security_epoch)='integer' AND security_epoch BETWEEN 0 AND {MAX_SAFE_INTEGER}),
             origin_binding TEXT NOT NULL CHECK(length(origin_binding)=64 AND origin_binding NOT GLOB '*[^0-9a-f]*'),
             dispatch_commitment TEXT NOT NULL CHECK(length(dispatch_commitment)=64 AND dispatch_commitment NOT GLOB '*[^0-9a-f]*'),
@@ -301,46 +388,208 @@ class Ledger:
                   (terminal_kind IS NOT NULL AND terminal_ordinal IS NOT NULL AND
                    ((terminal_kind='UNSTARTED_FENCED' AND generation_id IS NULL AND fence=1) OR
                     (terminal_kind IN ('COMPLETED','WORKER_STOPPED') AND generation_id IS NOT NULL))))
-        )""")
-        immutable = ' OR '.join(f'NEW.{name} IS NOT OLD.{name}' for name in (*CONTROL_COLUMNS, 'cache_policy'))
-        db.execute(f"""CREATE TRIGGER IF NOT EXISTS control_identity_update_guard BEFORE UPDATE ON control_identity
+        )""",
+            f"""CREATE TRIGGER IF NOT EXISTS control_identity_update_guard BEFORE UPDATE ON control_identity
             WHEN {immutable} OR NEW.fence<OLD.fence OR
                  (OLD.generation_id IS NOT NULL AND NEW.generation_id IS NOT OLD.generation_id) OR
                  (OLD.terminal_kind IS NOT NULL AND
                   (NEW.terminal_kind IS NOT OLD.terminal_kind OR NEW.terminal_ordinal IS NOT OLD.terminal_ordinal OR NEW.generation_id IS NOT OLD.generation_id))
-            BEGIN SELECT RAISE(ABORT,'immutable control identity'); END""")
-        db.execute("""CREATE TRIGGER IF NOT EXISTS control_generation_update_guard BEFORE UPDATE ON control_generation
+            BEGIN SELECT RAISE(ABORT,'immutable control identity'); END""",
+            """CREATE TRIGGER IF NOT EXISTS control_generation_update_guard BEFORE UPDATE ON control_generation
             WHEN NEW.id IS NOT OLD.id OR NEW.ordinal IS NOT OLD.ordinal OR
                  NEW.ledger_instance_id IS NOT OLD.ledger_instance_id OR NEW.lock_device IS NOT OLD.lock_device OR
                  NEW.lock_inode IS NOT OLD.lock_inode OR NEW.child_started<OLD.child_started OR
                  NEW.exit_observed<OLD.exit_observed OR (OLD.state='RETIRED' AND NEW.state IS NOT OLD.state)
-            BEGIN SELECT RAISE(ABORT,'immutable control generation'); END""")
-        db.execute("""CREATE TRIGGER IF NOT EXISTS control_meta_update_guard BEFORE UPDATE ON control_meta
+            BEGIN SELECT RAISE(ABORT,'immutable control generation'); END""",
+            """CREATE TRIGGER IF NOT EXISTS control_meta_update_guard BEFORE UPDATE ON control_meta
             WHEN NEW.singleton IS NOT OLD.singleton OR NEW.schema_revision IS NOT OLD.schema_revision OR
                  NEW.ledger_instance_id IS NOT OLD.ledger_instance_id OR NEW.next_ordinal<=OLD.next_ordinal
-            BEGIN SELECT RAISE(ABORT,'immutable control authority'); END""")
-        db.execute("""CREATE TRIGGER IF NOT EXISTS replay_control_revision_guard BEFORE UPDATE OF control_revision ON replay
+            BEGIN SELECT RAISE(ABORT,'immutable control authority'); END""",
+            """CREATE TRIGGER IF NOT EXISTS replay_control_revision_guard BEFORE UPDATE OF control_revision ON replay
             WHEN NEW.control_revision IS NOT OLD.control_revision
-            BEGIN SELECT RAISE(ABORT,'immutable control revision'); END""")
-        db.execute("""CREATE TRIGGER IF NOT EXISTS replay_control_insert_guard BEFORE INSERT ON replay
+            BEGIN SELECT RAISE(ABORT,'immutable control revision'); END""",
+            """CREATE TRIGGER IF NOT EXISTS replay_control_insert_guard BEFORE INSERT ON replay
             WHEN (NEW.control_revision=1 AND (NEW.cache_response<>0 OR NOT EXISTS (
                 SELECT 1 FROM control_identity c WHERE c.request_id=NEW.request_id AND c.reservation_id=NEW.reservation_id
                   AND c.owner_id=NEW.owner_id AND c.run_id=NEW.run_id AND c.fence=0 AND c.terminal_kind IS NULL))) OR
                  (NEW.control_revision=0 AND EXISTS (SELECT 1 FROM control_identity c
                     WHERE c.request_id=NEW.request_id OR c.reservation_id=NEW.reservation_id))
-            BEGIN SELECT RAISE(ABORT,'invalid control replay'); END""")
-        db.execute("""CREATE TRIGGER IF NOT EXISTS control_identity_insert_guard BEFORE INSERT ON control_identity
+            BEGIN SELECT RAISE(ABORT,'invalid control replay'); END""",
+            """CREATE TRIGGER IF NOT EXISTS control_identity_insert_guard BEFORE INSERT ON control_identity
             WHEN EXISTS (SELECT 1 FROM replay r WHERE r.request_id=NEW.request_id OR r.reservation_id=NEW.reservation_id)
                  OR NEW.generation_id IS NOT NULL OR NEW.terminal_kind IS NOT NULL OR NEW.terminal_ordinal IS NOT NULL
-            BEGIN SELECT RAISE(ABORT,'invalid initial control identity'); END""")
+            BEGIN SELECT RAISE(ABORT,'invalid initial control identity'); END""",
+        ]
         for table in ('control_identity', 'control_generation', 'control_meta'):
-            db.execute(f"""CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table}
-                BEGIN SELECT RAISE(ABORT,'control evidence cannot be deleted'); END""")
+            statements.append(f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} BEGIN SELECT RAISE(ABORT,'control evidence cannot be deleted'); END")
+        return statements
+
+    @staticmethod
+    def _sql_normalized(sql):
+        # sqlite_master removes IF NOT EXISTS and quotes renamed identifiers.
+        tokens = re.findall(r"'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|\s+|[^\s'\"]+", sql.replace('IF NOT EXISTS', ''))
+        return ''.join(token[1:-1].replace('""', '"') if token.startswith('"') else token
+                       for token in tokens if not token.isspace())
+
+    def _validate_replay_sql(self, db, *, allow_legacy=False):
+        sql = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='replay'").fetchone()
+        if sql is None: raise ReplayConflict('missing replay table')
+        normalized = self._sql_normalized(sql[0])
+        columns = {row[1] for row in db.execute('PRAGMA table_info(replay)')}
+        for name, declaration in reversed(self._replay_additions()):
+            if name in columns:
+                fragment = ',' + self._sql_normalized(name + ' ' + declaration)
+                if normalized.count(fragment) != 1: raise ReplayConflict('changed replay schema')
+                normalized = normalized.replace(fragment, '', 1)
+            elif not allow_legacy:
+                raise ReplayConflict('missing replay revision marker')
+        # The original supported replay-only predecessor had exactly this DDL.
+        # Its missing state CHECK is compensated by explicit row validation;
+        # no other omitted/reordered constraint or third fingerprint is accepted.
+        historical = ("CREATE TABLE replay (request_id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,"
+                      "reservation_id TEXT UNIQUE NOT NULL,run_id TEXT NOT NULL,body_hash TEXT NOT NULL,"
+                      "state TEXT NOT NULL,deadline REAL NOT NULL,cache_until REAL,nonce BLOB UNIQUE,response BLOB)")
+        approved = {self._sql_normalized(self._cache_schema()[0]),self._sql_normalized(historical)}
+        if normalized not in approved:
+            raise ReplayConflict('changed replay schema')
+        if db.execute("SELECT 1 FROM replay WHERE request_id IS NULL OR owner_id IS NULL OR reservation_id IS NULL OR run_id IS NULL OR body_hash IS NULL OR state IS NULL OR state NOT IN ('STARTED','COMPLETED','UNKNOWN')").fetchone():
+            raise ReplayConflict('invalid legacy replay row')
+
+    def _validate_storage(self, db, *, expected_revision=None):
+        tables = {'replay','cache_domain','cache_key_usage','cache_nonces','control_meta','control_identity','control_generation'}
+        if {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 9")} != tables:
+            raise ReplayConflict('unknown or partial ledger schema')
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='view' OR name LIKE '%_upgrade_v2%'").fetchone():
+            raise ReplayConflict('unexpected ledger view')
+        meta = db.execute('SELECT singleton,schema_revision,ledger_instance_id,next_ordinal FROM control_meta LIMIT 2').fetchall()
+        if len(meta) != 1 or meta[0][0] != 1 or meta[0][1] not in (1,2) or (expected_revision is not None and meta[0][1] != expected_revision):
+            raise ReplayConflict('unsupported control ledger')
+        expected = {}
+        for sql in self._control_schema(meta[0][1]) + self._cache_schema()[1:]:
+            words = sql.replace('IF NOT EXISTS ', '').split()
+            expected[(words[1].lower(), words[2])] = self._sql_normalized(sql)
+        actual = {(kind,name): self._sql_normalized(sql) for kind,name,sql in db.execute("SELECT type,name,sql FROM sqlite_master WHERE type IN ('table','trigger') AND name<>'replay' LIMIT 17")}
+        if actual != expected: raise ReplayConflict('ledger schema fingerprint mismatch')
+        self._validate_replay_sql(db)
+        indexes = {'replay': {('request_id',),('reservation_id',),('nonce',)},
+                   'cache_domain': set(), 'cache_key_usage': {('key_id',)}, 'cache_nonces': {('key_id','nonce')},
+                   'control_meta': set(), 'control_generation': {('id',),('ordinal',)},
+                   'control_identity': {('request_id',),('reservation_id',),('terminal_ordinal',)}}
+        for table in sorted(tables):
+            rows = db.execute(f'PRAGMA index_list({table})').fetchall()
+            if any(not row[1].startswith('sqlite_autoindex_') or row[2] != 1 or row[4] != 0 for row in rows):
+                raise ReplayConflict('unexpected ledger index')
+            keys = {tuple(item[2] for item in db.execute(f'PRAGMA index_info({row[1]})')) for row in rows}
+            if len(rows) != len(indexes[table]) or keys != indexes[table]:
+                raise ReplayConflict('ledger index mismatch')
+            fks = db.execute(f'PRAGMA foreign_key_list({table})').fetchall()
+            if table == 'control_identity':
+                if len(fks) != 1 or fks[0][2:] != ('control_generation','generation_id','id','NO ACTION','NO ACTION','NONE'):
+                    raise ReplayConflict('control generation foreign key changed')
+            elif fks:
+                raise ReplayConflict('unexpected inbound ledger foreign key')
+        self._validate_cache_rows(db, allow_empty_keys=self._new_cache_authority)
+        self._validate_control_rows(db, meta[0])
+
+    def _validate_control_rows(self, db, meta):
+        for table,limit in (('replay',self.max_rows),('control_identity',self.max_rows),('control_generation',MAX_CONTROL_GENERATIONS)):
+            if db.execute(f'SELECT COUNT(*) FROM (SELECT 1 FROM {table} LIMIT ?)',(limit+1,)).fetchone()[0] > limit:
+                raise LedgerFull('ledger migration capacity exceeded')
+        if db.execute('PRAGMA foreign_key_check').fetchone(): raise ReplayConflict('ledger foreign key mismatch')
+        if self._logical_count(db) > self.max_rows or db.execute('SELECT COUNT(*) FROM control_generation').fetchone()[0] > MAX_CONTROL_GENERATIONS:
+            raise LedgerFull('ledger migration capacity exceeded')
+        if db.execute("SELECT 1 FROM control_generation WHERE ledger_instance_id<>? OR ordinal>=?", (meta[2],meta[3])).fetchone():
+            raise ReplayConflict('generation authority mismatch')
+        if db.execute('SELECT 1 FROM control_identity WHERE terminal_ordinal>=?', (meta[3],)).fetchone():
+            raise ReplayConflict('terminal ordinal mismatch')
+        if db.execute('SELECT ordinal FROM control_generation INTERSECT SELECT terminal_ordinal FROM control_identity').fetchone():
+            raise ReplayConflict('duplicate control ordinal')
+        if db.execute("SELECT 1 FROM replay r LEFT JOIN control_identity c ON c.request_id=r.request_id WHERE (r.control_revision=1 AND (c.request_id IS NULL OR r.cache_response<>0 OR r.owner_id<>c.owner_id OR r.run_id<>c.run_id OR r.reservation_id<>c.reservation_id)) OR (r.control_revision=0 AND c.request_id IS NOT NULL)").fetchone():
+            raise ReplayConflict('control replay lineage mismatch')
+        if db.execute('SELECT 1 FROM replay r JOIN control_identity c ON c.reservation_id=r.reservation_id WHERE c.request_id<>r.request_id').fetchone():
+            raise ReplayConflict('reservation authority mismatch')
+        if db.execute("SELECT 1 FROM control_identity c LEFT JOIN replay r ON r.request_id=c.request_id WHERE r.request_id IS NULL AND NOT COALESCE((c.fence=1 AND c.generation_id IS NULL AND c.terminal_kind='UNSTARTED_FENCED' AND c.terminal_ordinal IS NOT NULL),0)").fetchone():
+            raise ReplayConflict('orphan control identity')
+        if db.execute("SELECT 1 FROM replay WHERE control_revision NOT IN (0,1) OR cache_response NOT IN (0,1) OR (control_revision=1 AND (response IS NOT NULL OR nonce IS NOT NULL OR cache_until IS NOT NULL OR length(body_hash)<>64))").fetchone():
+            raise ReplayConflict('invalid controlled replay storage')
+        if self.ownership_lease is not None:
+            device,inode = self.ownership_lease.verify()
+            if db.execute('SELECT 1 FROM control_generation WHERE lock_device<>? OR lock_inode<>?', (device,inode)).fetchone():
+                raise ReplayConflict('original ownership lock changed')
+
+    @staticmethod
+    def _upgrade_checkpoint(stage):
+        """Fault injection seam. Production never executes a second connection."""
+
+    def _upgrade_feedback(self, db, opening_cache_key=None):
+        if self.ownership_lease is None:
+            raise ReplayConflict('original ownership lease required for upgrade')
+        self.ownership_lease.verify()
+        self._validate_storage(db, expected_revision=1)
+        if opening_cache_key is not None:
+            salt = db.execute('SELECT salt FROM cache_domain WHERE singleton=1').fetchone()[0]
+            original = HKDF(algorithm=hashes.SHA256(),length=32,salt=salt,
+                            info=b"jarvis-inference-response-cache/v1\x00" + os.fsencode(self.path.resolve())).derive(opening_cache_key)
+            original_key_id = hashlib.sha256(b"jarvis-response-cache-key\x00" + original).hexdigest()
+            if not db.execute('SELECT 1 FROM cache_key_usage WHERE key_id=?', (original_key_id,)).fetchone():
+                raise ReplayConflict('original cache key domain required for upgrade')
+        # Exact bounded pre-drop row witnesses survive the original table drops.
+        identities = db.execute('SELECT * FROM control_identity ORDER BY request_id LIMIT ?', (self.max_rows + 1,)).fetchall()
+        metadata = db.execute('SELECT * FROM control_meta').fetchall()
+        if len(identities) > self.max_rows or len(metadata) != 1: raise LedgerFull('upgrade witness bound exceeded')
+        self._upgrade_checkpoint('before_create')
+        definitions = self._control_schema(2)
+        for name in ('control_identity','control_meta'):
+            statement = next(sql for sql in definitions if sql.startswith(f'CREATE TABLE IF NOT EXISTS {name} ('))
+            db.execute(statement.replace(f'IF NOT EXISTS {name}', f'{name}_upgrade_v2', 1))
+            self._upgrade_checkpoint('after_create_' + name)
+        db.execute('INSERT INTO control_identity_upgrade_v2 SELECT * FROM control_identity')
+        self._upgrade_checkpoint('after_copy_identity')
+        db.execute('INSERT INTO control_meta_upgrade_v2 SELECT singleton,2,ledger_instance_id,next_ordinal FROM control_meta')
+        self._upgrade_checkpoint('after_copy_meta')
+        if db.execute('SELECT * FROM control_identity_upgrade_v2 ORDER BY request_id').fetchall() != identities:
+            raise ReplayConflict('upgrade identity copy mismatch')
+        wanted_meta = [(metadata[0][0],2,*metadata[0][2:])]
+        if db.execute('SELECT * FROM control_meta_upgrade_v2').fetchall() != wanted_meta:
+            raise ReplayConflict('upgrade authority copy mismatch')
+        if db.execute('PRAGMA foreign_key_check').fetchone(): raise ReplayConflict('upgrade foreign key mismatch')
+        self._upgrade_checkpoint('after_copy_validation')
+        affected = ('control_identity_update_guard','control_identity_insert_guard','control_identity_no_delete',
+                    'control_meta_update_guard','control_meta_no_delete','replay_control_insert_guard')
+        for name in affected:
+            db.execute('DROP TRIGGER ' + name)
+            self._upgrade_checkpoint('after_drop_trigger_' + name)
+        for name in ('control_identity','control_meta'):
+            db.execute('DROP TABLE ' + name)
+            self._upgrade_checkpoint('after_drop_' + name)
+            db.execute(f'ALTER TABLE {name}_upgrade_v2 RENAME TO {name}')
+            self._upgrade_checkpoint('after_rename_' + name)
+        for name in affected:
+            statement = next(sql for sql in definitions if sql.startswith(f'CREATE TRIGGER IF NOT EXISTS {name} '))
+            db.execute(statement)
+            self._upgrade_checkpoint('after_create_trigger_' + name)
+        self._validate_storage(db, expected_revision=2)
+        if db.execute('SELECT * FROM control_identity ORDER BY request_id').fetchall() != identities or db.execute('SELECT * FROM control_meta').fetchall() != wanted_meta:
+            raise ReplayConflict('upgrade final row witness mismatch')
+        self.ownership_lease.verify()
+        self._upgrade_checkpoint('after_final_validation')
 
     def _check_control_meta(self, db):
         row = db.execute('SELECT schema_revision,ledger_instance_id FROM control_meta WHERE singleton=1').fetchone()
-        if row != (1, self.ledger_instance_id):
+        if row != (2, self.ledger_instance_id):
             raise ReplayConflict('control ledger changed')
+
+    def feedback_ready(self):
+        """Read-only current storage gate; a cached startup marker is insufficient."""
+        try:
+            if self.schema_revision != 2 or self.ownership_lease is None:
+                return False
+            self.ownership_lease.verify()
+            with self.connect() as db:
+                self._check_control_meta(db)
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def _logical_count(db):

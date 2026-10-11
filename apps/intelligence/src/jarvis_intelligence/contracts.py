@@ -205,6 +205,8 @@ def validate_context(value):
     if 'context' not in value:
         return
     subset = {key: value[key] for key in ('context', 'project_context', 'memories', 'history')}
+    if value.get('purpose') == 'STUDY_FEEDBACK':
+        subset['feedback_source'] = value['feedback_source']
     for item, limit in ((value, MAX_BODY_BYTES), (subset, 196608),
                         (value['memories'], 131072), (value['history'], 65536)):
         if len(canonical(item)) > limit:
@@ -252,11 +254,9 @@ def control_identity(body, claims):
     return value
 
 
-class TurnRequest(StrictModel):
+class TurnFields(StrictModel):
     request_id: str
     run_id: str
-    purpose: Literal["CONVERSATION", "STUDY_LESSON"] = "CONVERSATION"
-    user_input: Annotated[str, Field(min_length=1, max_length=16000)]
     current_time: str
     timezone: Annotated[str, Field(min_length=1, max_length=80)]
     context: ContextV1 | None = None
@@ -276,9 +276,53 @@ class TurnRequest(StrictModel):
     def from_wire(cls, value):
         validate("turn-request", value)
         validate_context(value)
-        result = cls.model_validate(value)
+        # Select the discriminator before ever requiring a generic message.
+        if value.get("purpose") == "STUDY_FEEDBACK":
+            validate_feedback_source(value["feedback_source"])
+            validate_feedback_identities(value)
+            result = FeedbackTurnRequest.model_validate(value)
+        else:
+            result = TurnRequest.model_validate(value)
         try:
             ZoneInfo(result.timezone)
         except (ValueError, KeyError) as exc:
             raise ContractViolation("invalid timezone") from exc
         return result
+
+
+def validate_feedback_source(value):
+    validate("durable-study-feedback-source", value)
+    questions = value["lesson"]["questions"]
+    ids = [question["id"] for question in questions]
+    if len(set(ids)) != 2 or value["question_id"] not in ids:
+        raise ContractViolation("invalid feedback target")
+    # Cross-domain execution/source identities must not alias. The selected
+    # question_id is deliberately one of the original two question identities.
+    targets = [value[key] for key in ("feedback_id", "study_session_id", "lesson_run_id", "input_id", "attempt_id")]
+    if len(set(targets + ids)) != len(targets) + 2:
+        raise ContractViolation("duplicate feedback identity")
+    if len(value["answer"]["text"].encode("utf-8")) > 32000:
+        raise ContractViolation("feedback answer byte bound exceeded")
+    return value
+
+
+def validate_feedback_identities(value):
+    source = value['feedback_source']
+    identities = [value['request_id'], value['run_id'], value['budget']['reservation_id'],
+                  value['context']['id'], value['context']['conversation_id']]
+    identities.extend(source[key] for key in ('feedback_id','study_session_id','lesson_run_id','input_id','attempt_id'))
+    identities.extend(question['id'] for question in source['lesson']['questions'])
+    if len(identities) != len(set(identities)):
+        raise ContractViolation('aliased feedback execution identity')
+
+
+class TurnRequest(TurnFields):
+    purpose: Literal["CONVERSATION", "STUDY_LESSON"] = "CONVERSATION"
+    user_input: Annotated[str, Field(min_length=1, max_length=16000)]
+
+
+class FeedbackTurnRequest(TurnFields):
+    purpose: Literal["STUDY_FEEDBACK"]
+    feedback_source: dict
+    context: ContextV1
+    control: ControlDescriptor

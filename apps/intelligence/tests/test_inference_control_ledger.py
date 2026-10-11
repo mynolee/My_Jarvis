@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from jarvis_intelligence.contracts import control_identity
 from jarvis_intelligence.ledger import Ledger, LedgerFull, MAX_SAFE_INTEGER, ReplayConflict
+from jarvis_intelligence.local_runtime import OwnershipLease
 from test_inference_control_contract import fixture, control_turn
 
 
@@ -187,10 +188,13 @@ class ControlLedgerTests(unittest.TestCase):
         # Model the baseline ledger by dropping A-only tables/column on a fresh
         # unused fixture, then introduce a legacy replay using its unchanged SQL.
         path=Path(self.tmp.name)/'legacy.sqlite'
+        lease=OwnershipLease.acquire(path.with_suffix('.lock'))
+        self.addCleanup(lease.close)
         with sqlite3.connect(path) as db:
             db.execute("CREATE TABLE replay (request_id TEXT PRIMARY KEY,owner_id TEXT NOT NULL,reservation_id TEXT NOT NULL UNIQUE,run_id TEXT NOT NULL,body_hash TEXT NOT NULL,state TEXT NOT NULL,deadline REAL NOT NULL,cache_until REAL,nonce BLOB UNIQUE,response BLOB,CHECK(state IN ('STARTED','COMPLETED','UNKNOWN')))")
             db.execute("INSERT INTO replay(request_id,owner_id,reservation_id,run_id,body_hash,state,deadline) VALUES ('old','owner','reservation','run','hash','UNKNOWN',1)")
-        migrated=Ledger(path,b's'*32)
+        path.chmod(0o600)
+        migrated=Ledger(path,b's'*32,ownership_lease=lease)
         with migrated.connect() as db:
             self.assertEqual(db.execute("SELECT request_id,state,control_revision FROM replay").fetchall(),[('old','UNKNOWN',0)])
             self.assertEqual(db.execute('SELECT COUNT(*) FROM control_identity').fetchone()[0],0)

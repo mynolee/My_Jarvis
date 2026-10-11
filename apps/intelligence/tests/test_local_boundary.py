@@ -32,6 +32,9 @@ class LocalBoundaryTests(__import__('unittest').TestCase):
     send=boundary.BoundaryTests.send
     def setUp(self):
         boundary.BoundaryTests.setUp(self)
+        self.client.close()
+        self.path = self.path.with_name("local-replay.sqlite")
+        self.settings = replace(self.settings, ledger_path=self.path)
         config=fixture(self.path.parent)
         self.runtime=FakeRuntime(config)
         self.settings=replace(self.settings,mode='local_mlx',allow_loopback_mock_without_mtls=False,local_config=config)
@@ -39,7 +42,10 @@ class LocalBoundaryTests(__import__('unittest').TestCase):
         self.client=TestClient(self.app,client=('127.0.0.1',45000))
         self.body.update(model_id='local-mlx-v1',prompt_revision='local-v1',model_manifest_hash=self.runtime.manifest_hash)
         self.body['budget']['max_input_tokens']=3584
-    tearDown=boundary.BoundaryTests.tearDown
+    def tearDown(self):
+        self.client.close()
+        self.app.state.ledger.ownership_lease.close()
+        self.temp.cleanup()
     def test_missing_mtls_never_calls_runtime(self):
         self.assertEqual(self.send().status_code,401)
         self.assertEqual(self.runtime.calls,0)

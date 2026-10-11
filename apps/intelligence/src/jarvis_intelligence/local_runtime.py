@@ -48,13 +48,17 @@ class LocalConfig:
     study_lesson_prompt_path: Path | None = field(default=None, repr=False)
     study_lesson_prompt_sha256: str | None = field(default=None, repr=False)
 
+    study_feedback_prompt_path: Path | None = field(default=None, repr=False)
+    study_feedback_prompt_sha256: str | None = field(default=None, repr=False)
+
     def __post_init__(self):
-        path, pin = self.study_lesson_prompt_path, self.study_lesson_prompt_sha256
-        if (path is None) != (pin is None):
-            raise ValueError('incomplete study prompt configuration')
-        if path is not None and (not isinstance(path, Path) or not path.is_absolute() or
-                                 not isinstance(pin, str) or not re.fullmatch('[a-f0-9]{64}', pin)):
-            raise ValueError('invalid study prompt configuration')
+        for path, pin in ((self.study_lesson_prompt_path, self.study_lesson_prompt_sha256),
+                          (self.study_feedback_prompt_path, self.study_feedback_prompt_sha256)):
+            if (path is None) != (pin is None):
+                raise ValueError('incomplete study prompt configuration')
+            if path is not None and (not isinstance(path, Path) or not path.is_absolute() or
+                                     not isinstance(pin, str) or not re.fullmatch('[a-f0-9]{64}', pin)):
+                raise ValueError('invalid study prompt configuration')
 
     @classmethod
     def from_file(cls, path: Path):
@@ -65,8 +69,9 @@ class LocalConfig:
             raise ValueError('configuration must be owner-only')
         value = parse_json(path.read_bytes())
         names = set(cls.__dataclass_fields__)
-        optional = {'study_lesson_prompt_path', 'study_lesson_prompt_sha256'}
-        if type(value) is not dict or set(value) not in (names, names - optional):
+        optional = {'study_lesson_prompt_path', 'study_lesson_prompt_sha256',
+                    'study_feedback_prompt_path', 'study_feedback_prompt_sha256'}
+        if type(value) is not dict or not names - optional <= set(value) or not set(value) <= names:
             raise ValueError('invalid local configuration')
         for name in value:
             if not isinstance(value[name], str) or not value[name]:
@@ -83,7 +88,14 @@ class LocalConfig:
 
 def load_study_lesson_prompt(config: LocalConfig) -> str | None:
     """Read only the exact privately pinned bytes; never disclose path or text."""
-    path, pin = config.study_lesson_prompt_path, config.study_lesson_prompt_sha256
+    return _load_private_prompt(config.study_lesson_prompt_path, config.study_lesson_prompt_sha256)
+
+
+def load_study_feedback_prompt(config: LocalConfig) -> str | None:
+    return _load_private_prompt(config.study_feedback_prompt_path, config.study_feedback_prompt_sha256)
+
+
+def _load_private_prompt(path, pin):
     if path is None and pin is None:
         return None
     if (not isinstance(path, Path) or not path.is_absolute() or
@@ -126,6 +138,9 @@ def verify_artifacts(config: LocalConfig) -> str:
     if manifest.get('study_lesson_prompt_sha256') != config.study_lesson_prompt_sha256:
         raise ValueError('manifest study prompt binding mismatch')
     load_study_lesson_prompt(config)
+    if manifest.get('study_feedback_prompt_sha256') != config.study_feedback_prompt_sha256:
+        raise ValueError('manifest feedback prompt binding mismatch')
+    load_study_feedback_prompt(config)
     if manifest.get('complete') is not True or not re.fullmatch('[a-f0-9]{40}', manifest.get('revision', '')):
         raise ValueError('model revision incomplete')
     if not isinstance(manifest.get('repo'), str) or not manifest['repo']:
@@ -203,6 +218,74 @@ class _InheritedLock:
         return _detach_fd, (DupFd(self.fd),)
 
 
+class OwnershipLease:
+    """One verified inherited lock, acquired before any ledger migration.
+
+    The lease never deletes/reset storage and never unlocks a live child. The
+    same open file description is adopted by the supervisor and inherited by
+    its worker. A replaced path or lost ledger is not process-death evidence.
+    """
+    def __init__(self, path, fd, identity):
+        self.path, self.fd, self.identity = path, fd, identity
+        self.ledger_path = None
+        self.ledger_identity = None
+
+    @classmethod
+    def acquire(cls, path, ledger_path=None):
+        import fcntl
+        if not isinstance(path, Path) or not path.is_absolute() or path.resolve() != path:
+            raise ValueError('canonical ownership lock required')
+        existing_lock = path.exists()
+        if ledger_path is not None:
+            existing_ledger = ledger_path.exists()
+            if existing_ledger != existing_lock:
+                raise ValueError('original ownership domain missing')
+        fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK |
+                     (0 if existing_lock else os.O_CREAT | os.O_EXCL), 0o600)
+        try:
+            info = os.fstat(fd)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or
+                    info.st_mode & 0o077 or info.st_nlink != 1):
+                raise ValueError('worker lock must be owner-only regular file')
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lease = cls(path, fd, (info.st_dev,info.st_ino))
+            lease.verify()
+            if ledger_path is not None and existing_ledger:
+                ledger = os.stat(ledger_path, follow_symlinks=False)
+                lease.bind_ledger(ledger_path, (ledger.st_dev,ledger.st_ino))
+            return lease
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def bind_ledger(self, path, identity):
+        if self.ledger_path is not None and (path != self.ledger_path or identity != self.ledger_identity):
+            raise ValueError('ledger ownership changed')
+        self.ledger_path, self.ledger_identity = path, identity
+        self.verify()
+
+    def verify(self):
+        if self.fd is None: raise ValueError('ownership lease closed')
+        opened = os.fstat(self.fd)
+        current = os.stat(self.path, follow_symlinks=False)
+        if (not stat.S_ISREG(opened.st_mode) or not stat.S_ISREG(current.st_mode) or
+                opened.st_uid != os.getuid() or opened.st_mode & 0o077 or opened.st_nlink != 1 or
+                (opened.st_dev,opened.st_ino) != self.identity or
+                (current.st_dev,current.st_ino) != self.identity):
+            raise ValueError('worker lock changed')
+        if self.ledger_path is not None:
+            ledger = os.stat(self.ledger_path, follow_symlinks=False)
+            if (not stat.S_ISREG(ledger.st_mode) or ledger.st_uid != os.getuid() or ledger.st_mode & 0o077 or
+                    ledger.st_nlink != 1 or (ledger.st_dev,ledger.st_ino) != self.ledger_identity):
+                raise ValueError('ledger ownership changed')
+        return self.identity
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+
 class LocalRuntime:
     """One generation and two waiters. Never release a live orphan's slot."""
     def __init__(self, config: LocalConfig, *, worker_target=None):
@@ -212,6 +295,8 @@ class LocalRuntime:
         self._process = None
         self._pipe = None
         self._owner_fd = None
+        self._ownership_lease = None
+        self._recover_ownership = False
         self._serial = asyncio.Lock()
         self._starting = asyncio.Lock()
         self._waiting = 0
@@ -228,12 +313,22 @@ class LocalRuntime:
         self._generation_id = None
         self._spawn_attempted = False
 
-    def attach_control_ledger(self, ledger):
+    def attach_control_ledger(self, ledger, *, ownership_lease=None):
         if self._process is not None or self._generation_id is not None or self._control_ledger is not None:
             raise ValueError('control ledger already attached or worker started')
+        if ownership_lease is not None:
+            if ledger.ownership_lease is not ownership_lease or self._owner_fd is not None:
+                raise ValueError('control ownership lease mismatch')
+            ownership_lease.verify()
+            self._ownership_lease = ownership_lease
+            self._owner_fd = ownership_lease.fd
+            self._recover_ownership = True
         self._control_ledger = ledger
 
     def _verified_owner_lock(self):
+        if self._ownership_lease is not None:
+            if self._owner_fd != self._ownership_lease.fd: raise ValueError("ownership descriptor changed")
+            return self._ownership_lease.verify()
         info = os.fstat(self._owner_fd)
         current = os.stat(self.config.lock_path, follow_symlinks=False)
         if (not stat.S_ISREG(info.st_mode) or not stat.S_ISREG(current.st_mode) or
@@ -264,6 +359,15 @@ class LocalRuntime:
                 'runtime_ready': ready, 'inference_verified': self._inference_verified,
                 'integration_verified': False, 'control_revision': 1}
 
+    def feedback_health(self):
+        ready = bool(self.health()['ready'] and self._integrity and
+                     self.config.study_feedback_prompt_path is not None and
+                     self._control_ledger is not None and self._control_ledger.schema_revision == 2 and
+                     self._ownership_lease is not None and self._control_ledger.ownership_lease is self._ownership_lease and
+                     self._control_ledger.feedback_ready())
+        return {'revision': 1, 'control_revision': 1, 'model_id': 'local-mlx-v1',
+                'model_manifest_hash': self.manifest_hash, 'ready': ready}
+
     async def start(self):
         async with self._starting:
             if self._closing:
@@ -274,23 +378,18 @@ class LocalRuntime:
             if self._poisoned or (self._process is not None and self._process.is_alive()):
                 raise RuntimeFailure('MODEL_UNAVAILABLE')
             try:
-                import fcntl
-                acquired_lock = False
                 if self._owner_fd is None:
-                    fd = os.open(self.config.lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
-                    try:
-                        info = os.fstat(fd)
-                        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
-                            raise ValueError('worker lock must be owner-only regular file')
-                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    except BaseException:
-                        os.close(fd)
-                        raise
-                    self._owner_fd = fd
-                    acquired_lock = True
+                    # Standalone legacy tests may start without a ledger. The
+                    # application path has already acquired and attached its
+                    # lease before Ledger construction; this is never an
+                    # upgrade fallback.
+                    self._ownership_lease = OwnershipLease.acquire(self.config.lock_path)
+                    self._owner_fd = self._ownership_lease.fd
+                    self._recover_ownership = True
                 lock_identity = self._verified_owner_lock()
-                if acquired_lock and self._control_ledger is not None:
+                if self._recover_ownership and self._control_ledger is not None:
                     self._control_ledger.recover_control_generations(*lock_identity)
+                    self._recover_ownership = False
                 self._integrity = False
                 self._inference_verified = False
                 self.manifest_hash = await asyncio.wait_for(asyncio.to_thread(verify_artifacts, self.config), 300)
@@ -381,7 +480,11 @@ class LocalRuntime:
             except (RuntimeFailure, asyncio.CancelledError):
                 pass
         await self._stop_worker()
-        if self._owner_fd is not None:
+        if self._ownership_lease is not None:
+            self._ownership_lease.close()
+            self._ownership_lease = None
+            self._owner_fd = None
+        elif self._owner_fd is not None:
             os.close(self._owner_fd)
             self._owner_fd = None
 
@@ -394,7 +497,11 @@ class LocalRuntime:
         controlled = getattr(turn, 'control', None) is not None
         if controlled and self._control_ledger is None:
             raise RuntimeFailure('MODEL_UNAVAILABLE')
-        study = getattr(turn, 'purpose', 'CONVERSATION') == 'STUDY_LESSON'
+        purpose = getattr(turn, 'purpose', 'CONVERSATION')
+        study = purpose == 'STUDY_LESSON'
+        feedback = purpose == 'STUDY_FEEDBACK'
+        if feedback and not self.feedback_health()['ready']:
+            raise RuntimeFailure('MODEL_UNAVAILABLE')
         if study and getattr(self.config, 'study_lesson_prompt_path', None) is None:
             raise RuntimeFailure('MODEL_UNAVAILABLE')
         if not self.health()['runtime_ready']:
@@ -428,14 +535,19 @@ class LocalRuntime:
             duration = min(60, turn.budget.max_compute_ms / 1000, deadline_epoch - time.time())
             if duration <= 0:
                 raise RuntimeFailure('GENERATION_TIMEOUT')
-            worker_request = {'request_id': turn.request_id, 'user_input': turn.user_input,
+            worker_request = {'request_id': turn.request_id,
                               'allowed_tool_ids': list(turn.allowed_tool_ids),
                               'current_time': turn.current_time, 'timezone': turn.timezone,
                               'max_input_tokens': turn.budget.max_input_tokens,
                               'max_output_tokens': turn.budget.max_output_tokens,
                               'deadline_monotonic': time.monotonic() + duration}
-            if study:
-                worker_request['purpose'] = 'STUDY_LESSON'
+            if feedback:
+                worker_request['purpose'] = 'STUDY_FEEDBACK'
+                worker_request['feedback_source'] = turn.feedback_source
+            else:
+                worker_request['user_input'] = turn.user_input
+                if study:
+                    worker_request['purpose'] = 'STUDY_LESSON'
             if getattr(turn, 'context', None) is not None:
                 wire = turn.model_dump(mode='json', exclude_unset=True)
                 worker_request.update({key: wire[key] for key in

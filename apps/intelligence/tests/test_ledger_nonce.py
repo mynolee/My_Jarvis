@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from jarvis_intelligence.contracts import canonical
 from jarvis_intelligence.ledger import Ledger, LedgerFull, ReplayConflict, MAX_KEY_ENCRYPTIONS, MAX_NONCE_ATTEMPTS
+from jarvis_intelligence.local_runtime import OwnershipLease
 
 
 class LedgerNonceTests(unittest.TestCase):
@@ -88,10 +89,10 @@ class LedgerNonceTests(unittest.TestCase):
         with patch("jarvis_intelligence.ledger.os.urandom", return_value=b"a" * 12):
             with self.assertRaises(sqlite3.IntegrityError):
                 self.ledger.complete(claims, self.response, 101)
-        self.ledger = Ledger(self.path, self.key)
         with self.ledger.connect() as db:
             self.assertEqual(db.execute("SELECT state,response FROM replay").fetchone(), ("STARTED", None))
             db.execute("DROP TRIGGER reject_response")
+        self.ledger = Ledger(self.path, self.key)
         with patch("jarvis_intelligence.ledger.os.urandom", side_effect=[b"a" * 12, b"b" * 12]):
             self.ledger.complete(claims, self.response, 102)
         self.assertEqual(self.usage(), 2)
@@ -187,6 +188,7 @@ class LedgerNonceTests(unittest.TestCase):
         copied_path = self.path.with_name("copied.sqlite")
         with self.ledger.connect() as source, sqlite3.connect(copied_path) as target:
             source.backup(target)
+        copied_path.chmod(0o600)
         copied = Ledger(copied_path, self.key)
         self.assertNotEqual(copied.key_id, self.ledger.key_id)
         with self.assertRaises(ReplayConflict):
@@ -222,6 +224,8 @@ with patch("jarvis_intelligence.ledger.os.urandom", return_value=b"a" * 12):
     def test_legacy_ciphertext_fails_closed_and_started_survives(self):
         legacy_path = self.path.with_name("legacy.sqlite")
         claims = self.claims()
+        lease = OwnershipLease.acquire(legacy_path.with_suffix(".lock"))
+        self.addCleanup(lease.close)
         nonce = b"a" * 12
         encrypted = AESGCM(self.key).encrypt(nonce, canonical(self.response), canonical(claims))
         with sqlite3.connect(legacy_path) as db:
@@ -231,7 +235,8 @@ with patch("jarvis_intelligence.ledger.os.urandom", return_value=b"a" * 12):
             started = self.claims("started")
             db.execute("INSERT INTO replay VALUES (?,?,?,?,?,'STARTED',160,NULL,NULL,NULL)",
                        tuple(started[k] for k in ("request_id", "owner_id", "reservation_id", "run_id", "body_hash")))
-        migrated = Ledger(legacy_path, self.key)
+        legacy_path.chmod(0o600)
+        migrated = Ledger(legacy_path, self.key, ownership_lease=lease)
         with self.assertRaises(ReplayConflict):
             migrated.begin(claims, 102, 60)
         self.assertEqual(migrated.begin(started, 102, 60), "UNKNOWN")

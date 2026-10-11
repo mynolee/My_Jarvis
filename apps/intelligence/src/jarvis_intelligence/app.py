@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from .contracts import ContractViolation, MAX_BODY_BYTES, MAX_CONTROL_BYTES, TurnRequest, canonical, control_identity, parse_json, validate
 from .ledger import Ledger, LedgerFull, ReplayConflict
 from .security import Unauthorized, verify_capability, verify_control_capability
-from .local_runtime import LocalConfig, LocalRuntime, RuntimeFailure
+from .local_runtime import LocalConfig, LocalRuntime, RuntimeFailure, OwnershipLease
 
 MOCK_MANIFEST_HASH = hashlib.sha256(b"jarvis-m0-deterministic-mock-v1:no-model:no-tools:no-network").hexdigest()
 
@@ -92,17 +92,24 @@ def _validate_output(output, turn, *, measured=None):
     # rejects risk/approved/verified/owner fields nested inside tool arguments.
     if type(output) is not dict or "usage" in output:
         raise ContractViolation("provider cannot set usage")
-    study = getattr(turn, "purpose", "CONVERSATION") == "STUDY_LESSON"
-    if study:
+    purpose = getattr(turn, "purpose", "CONVERSATION")
+    study = purpose == "STUDY_LESSON"
+    feedback = purpose == "STUDY_FEEDBACK"
+    if feedback:
+        if measured is None or output.get("kind") != "FEEDBACK":
+            raise ContractViolation("invalid feedback output mode")
+        if len(canonical(output)) > 65536:
+            raise ContractViolation("feedback output byte bound exceeded")
+    elif study:
         if output.get("kind") not in {"LESSON", "NEED_INPUT", "ERROR"}:
             raise ContractViolation("invalid study output mode")
-    elif output.get("kind") == "LESSON":
-        raise ContractViolation("lesson outside study purpose")
+    elif output.get("kind") in {"LESSON", "FEEDBACK"}:
+        raise ContractViolation("study output outside matching purpose")
     if measured is None and len(canonical(output)) > turn.budget.max_output_tokens:
         raise ContractViolation("output bound exceeded")
     usage = _usage(turn)
     if measured is not None:
-        native_kinds = {"LESSON", "NEED_INPUT"} if study else {"ANSWER", "NEED_INPUT", "TOOL_PROPOSALS"}
+        native_kinds = {"FEEDBACK"} if feedback else {"LESSON", "NEED_INPUT"} if study else {"ANSWER", "NEED_INPUT", "TOOL_PROPOSALS"}
         if output.get("kind") not in native_kinds:
             raise ContractViolation("invalid model output mode")
         for key in ("input_tokens", "output_tokens", "compute_ms", "peak_memory_bytes"):
@@ -113,11 +120,13 @@ def _validate_output(output, turn, *, measured=None):
         if usage["input_tokens"] + 512 > 4096 or usage["input_tokens"] > turn.budget.max_input_tokens or usage["output_tokens"] > min(512, turn.budget.max_output_tokens):
             raise ContractViolation("measured budget exceeded")
     if getattr(turn, 'context', None) is not None:
-        context_kinds = {'LESSON', 'NEED_INPUT', 'ERROR'} if study else {'ANSWER', 'NEED_INPUT', 'ERROR'}
+        context_kinds = {'FEEDBACK', 'ERROR'} if feedback else {'LESSON', 'NEED_INPUT', 'ERROR'} if study else {'ANSWER', 'NEED_INPUT', 'ERROR'}
         if output.get('kind') not in context_kinds or output.get('cited_source_ids', []) != []:
             raise ContractViolation('context output authority exceeded')
     complete = {**output, "usage": usage}
     validate("turn-response", complete)
+    if feedback and (usage["compute_ms"] > 60000 or len(canonical(complete)) > 65536):
+        raise ContractViolation("feedback measured envelope bound exceeded")
     if complete["kind"] == "TOOL_PROPOSALS":
         for proposal in complete["proposals"]:
             if proposal["tool_id"] not in turn.allowed_tool_ids:
@@ -134,10 +143,17 @@ def _validate_output(output, turn, *, measured=None):
 
 def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=time.time, runtime=None):
     local = (runtime or LocalRuntime(settings.local_config)) if settings.mode == "local_mlx" else None
-    ledger = Ledger(settings.ledger_path, settings.cache_key, max_rows=settings.max_ledger_rows,
-                    max_concurrency=3 if local else settings.max_concurrency)
-    if local is not None and hasattr(local, 'attach_control_ledger'):
-        local.attach_control_ledger(ledger)
+    # The canonical inherited ownership lock precedes opening/upgrading SQLite.
+    # Keep this exact lease across attach, startup, recovery and child spawn.
+    lease = OwnershipLease.acquire(settings.local_config.lock_path, settings.ledger_path) if local is not None else None
+    try:
+        ledger = Ledger(settings.ledger_path, settings.cache_key, max_rows=settings.max_ledger_rows,
+                        max_concurrency=3 if local else settings.max_concurrency, ownership_lease=lease)
+        if local is not None and hasattr(local, 'attach_control_ledger'):
+            local.attach_control_ledger(ledger, ownership_lease=lease)
+    except BaseException:
+        if lease is not None: lease.close()
+        raise
     @asynccontextmanager
     async def lifespan(app):
         if local is not None:
@@ -150,6 +166,7 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
         finally:
             if local is not None:
                 await local.close()
+                if lease is not None: lease.close()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.ledger = ledger
@@ -164,6 +181,20 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
         if local is None:
             return {"ready": False, "status": "MODEL_UNAVAILABLE", "model_id": "mock-v1", "model_manifest_hash": MOCK_MANIFEST_HASH}
         return local.health()
+
+    @app.get('/health/study-feedback')
+    async def study_feedback_ready(request: Request):
+        if not _peer_allowed(request, settings):
+            return JSONResponse(status_code=401, content={'error_code': 'SERVICE_AUTH_REQUIRED'}, headers={'Cache-Control': 'no-store'})
+        if request.url.query or sum(len(k) + len(v) + 4 for k, v in request.scope.get('headers', [])) > 8192:
+            return JSONResponse(status_code=400, content={'error_code': 'CONTRACT_VIOLATION'}, headers={'Cache-Control': 'no-store'})
+        result = (local.feedback_health() if local is not None and hasattr(local, 'feedback_health') else
+                  {'revision': 1, 'control_revision': 1, 'model_id': 'local-mlx-v1',
+                   'model_manifest_hash': None, 'ready': False})
+        validate('study-feedback-readiness', result)
+        if len(canonical(result)) > MAX_CONTROL_BYTES:
+            return JSONResponse(status_code=503, content={'error_code': 'MODEL_UNAVAILABLE'}, headers={'Cache-Control': 'no-store'})
+        return JSONResponse(result, headers={'Cache-Control': 'no-store'})
 
     async def control_endpoint(request: Request, operation: str):
         def reject(status, code):
@@ -254,6 +285,8 @@ def create_app(settings: Settings, *, generate: Callable = mock_generate, clock=
             return reject(401, "INVALID_CAPABILITY")
         if turn.model_id != ("local-mlx-v1" if local else "mock-v1") or turn.prompt_revision != ("local-v1" if local else "mock-v1") or turn.model_manifest_hash != (local.manifest_hash if local else MOCK_MANIFEST_HASH):
             return reject(400, "MODEL_MANIFEST_MISMATCH")
+        if getattr(turn, "purpose", "CONVERSATION") == "STUDY_FEEDBACK" and (local is None or not hasattr(local, "feedback_health") or not local.feedback_health()["ready"]):
+            return reject(503, "MODEL_UNAVAILABLE")
         if local is None and len(turn.user_input.encode()) > turn.budget.max_input_tokens:
             return reject(429, "INPUT_BUDGET_EXCEEDED")
         expiry = datetime.fromisoformat(claims["expires_at"].replace("Z", "+00:00")).timestamp()

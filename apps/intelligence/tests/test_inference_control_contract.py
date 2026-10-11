@@ -62,7 +62,7 @@ class ControlContractTests(unittest.TestCase):
                 TurnRequest.from_wire(body)
 
     def test_closed_request_forbids_generation_source_and_feedback(self):
-        for change in (lambda b: b.update(purpose='STUDY_FEEDBACK'),
+        for change in (lambda b: b.update(purpose='UNSUPPORTED_STUDY_PURPOSE'),
                        lambda b: b.update(generation_id=fixture()['completed']['terminal']['generation_id']),
                        lambda b: b.update(user_input='synthetic'), lambda b: b.update(body_hash='a' * 64),
                        lambda b: b.update(owner_id='AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'),
