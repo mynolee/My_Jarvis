@@ -1,0 +1,13 @@
+{
+  "transport_raw_body_bytes": 262144,
+  "request_canonical_utf8_bytes": 4096,
+  "export_rows": 1000,
+  "export_utf8_bytes": 8388608,
+  "transaction_build_ms": 5000,
+  "job_lifetime_seconds": 900,
+  "retained_jobs_per_owner": 100,
+  "metadata_retention_seconds": 86400,
+  "semantics": "CURRENT_AT_DOWNLOAD",
+  "display_timezone": "Asia/Seoul",
+  "file_timezone": "UTC"
+}

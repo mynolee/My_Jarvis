@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/action-payload.schema.json",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "action_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "tool_id": {
+      "const": "calendar.event.create"
+    },
+    "tool_version": {
+      "const": "1"
+    },
+    "arguments": {
+      "type": "object",
+      "properties": {
+        "calendar_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "start_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "attendees": {
+          "type": "array",
+          "maxItems": 0
+        }
+      },
+      "required": [
+        "calendar_id",
+        "title",
+        "start_at",
+        "end_at",
+        "timezone",
+        "attendees"
+      ],
+      "additionalProperties": false
+    },
+    "policy_revision": {
+      "const": "m0-v1"
+    },
+    "security_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "max_executions": {
+      "const": 1
+    },
+    "max_cost_usd_micro": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "owner_id",
+    "action_id",
+    "tool_id",
+    "tool_version",
+    "arguments",
+    "policy_revision",
+    "security_epoch",
+    "max_executions",
+    "max_cost_usd_micro",
+    "issued_at",
+    "expires_at"
+  ],
+  "additionalProperties": false
+}

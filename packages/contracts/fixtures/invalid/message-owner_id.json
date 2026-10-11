@@ -1,0 +1,9 @@
+{
+  "schema": "message-request",
+  "instance": {
+    "client_message_id": "10000000-0000-4000-8000-000000000001",
+    "text": "Synthetic example",
+    "attachment_ids": [],
+    "owner_id": true
+  }
+}

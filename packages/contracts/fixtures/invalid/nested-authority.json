@@ -1,0 +1,16 @@
+{
+  "schema": "tool-proposal",
+  "instance": {
+    "tool_id": "calendar.event.create",
+    "tool_version": "1",
+    "arguments": {
+      "calendar_id": "10000000-0000-4000-8000-000000000001",
+      "title": "Synthetic study session",
+      "start_at": "2030-01-01T10:00:00Z",
+      "end_at": "2030-01-01T11:00:00Z",
+      "timezone": "UTC",
+      "attendees": [],
+      "approved": true
+    }
+  }
+}

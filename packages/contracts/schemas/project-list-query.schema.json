@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/project-list-query.schema.json",
+  "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Implementation decision: opaque owner-scoped authenticated cursor; created_at then id descending. Shape validation does not establish authenticity."
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}
