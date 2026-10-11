@@ -889,6 +889,9 @@ ALLOWED_TESTS = {
         'everyProductionProofOmissionAndIdentitySwapIsRejectedWithoutSourceWrites',
         'exactProducerReplayIsStableAndEveryConflictingTerminalFactRollsBack',
         'closedOutputReasonCannotBeForgedWithoutExactFailedFeedbackErrorReceipt',
+        'independentChecklistTaskAndEncryptedCopiesRemainAfterQuiescentSourceDeletion',
+        'independentIntentCanApplyAfterSourceDeletionWithoutLiveSourceAttestation',
+        'independentTaskCreateAndExplicitCompletionNeverMutateStudyOrInferenceEvidence',
     ),
     'StudyFeedbackFixtures': (
     ),

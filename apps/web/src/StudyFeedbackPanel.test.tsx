@@ -34,3 +34,23 @@ it.each([false, true])('a verified revoke receipt rejects contradictory retained
 
 it('refresh retains the verified terminal revoke anchor', async () => { const f = fixture(); f.state.value = projection(queued()); render(<StudyFeedbackPanel {...f.props}/>); await waitFor(() => expect(button('Do not keep question 1 result').disabled).toBe(false)); fireEvent.click(button('Do not keep question 1 result')); await screen.findByText('Request: REVOKED'); f.state.value = { ...projection(acceptedFeedback()), conversation_version: 21 }; fireEvent.click(button('Refresh feedback status')); await screen.findByText(/INVALID_FEEDBACK_RESPONSE/); expect(screen.queryByText('Synthetic boundary feedback')).toBeNull(); expect(f.props.onBarrierChange).toHaveBeenLastCalledWith(false); expect(writes(f)).toHaveLength(1); });
 it.each(['checked', 'updated'])('receipt readback rejects stale %s chronology', async field => { const f = await open(), held = deferred<unknown>(); f.state.mutation = held.promise; fireEvent.click(button('Request feedback for question 1')); const receipt = outcome({ ...pending(), key: writes(f)[0][2]! }); const committed = '2026-10-11T00:00:01Z'; if (receipt.status === 'COMMITTED') receipt.receipt.committed_at = committed; receipt.checked_at = committed; f.state.value = projection(queued()); if (field === 'updated') f.state.value.checked_at = committed; await act(async () => held.resolve(receipt)); await screen.findByText(/operation receipt was verified/); expect(screen.queryByText('Request: QUEUED')).toBeNull(); expect(writes(f)).toHaveLength(1); });
+
+it('accepted checklist selections are unchecked content choices and never task or feedback writes', async () => {
+  const f = fixture(); f.state.value = projection(acceptedFeedback()); const onCopyReviewSelection = vi.fn();
+  render(<StudyFeedbackPanel {...f.props} onCopyReviewSelection={onCopyReviewSelection}/>);
+  const checkbox = await screen.findByRole<HTMLInputElement>('checkbox', { name: 'Include review item 1 from question 1 in task draft' });
+  expect(checkbox.checked).toBe(false); expect(button('Copy selected items to task draft').disabled).toBe(true);
+  fireEvent.click(checkbox); expect(button('Copy selected items to task draft').disabled).toBe(false); expect(writes(f)).toHaveLength(0); expect(onCopyReviewSelection).not.toHaveBeenCalled();
+  fireEvent.click(button('Copy selected items to task draft')); expect(onCopyReviewSelection).toHaveBeenCalledTimes(1);
+  expect(onCopyReviewSelection.mock.calls[0][0]).toMatchObject({ conversation_id: cid, study_session_id: sid, feedback_version: 3, selected_items: [{ index: 0, text: 'Check the last element.' }] }); expect(writes(f)).toHaveLength(0);
+});
+it.each(['writes', 'copy', 'selection'])('blocks review copying while %s is disabled without hiding accepted execution evidence', async pause => {
+  const f = fixture(); f.state.value = projection({ ...acceptedFeedback(), execution_evidence: 'UNCONFIRMED' });
+  render(<StudyFeedbackPanel {...f.props} onCopyReviewSelection={vi.fn()} writesPaused={pause === 'writes'} copyDisabled={pause === 'copy'} selectionDisabled={pause === 'selection'}/>);
+  const checkbox = await screen.findByRole<HTMLInputElement>('checkbox'); expect(checkbox.disabled).toBe(true); expect(screen.getByText('Execution evidence: UNCONFIRMED')).toBeTruthy(); expect(writes(f)).toHaveLength(0);
+});
+it('refresh discards checklist selection and accepts retained feedback when the other model target is unavailable', async () => {
+  const f = fixture(); f.state.value = projection(acceptedFeedback()); f.state.value.targets[1].availability = 'MODEL_UNAVAILABLE'; render(<StudyFeedbackPanel {...f.props} onCopyReviewSelection={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole('checkbox')); expect(button('Copy selected items to task draft').disabled).toBe(false); fireEvent.click(button('Refresh feedback status'));
+  await waitFor(() => expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(false)); expect(button('Copy selected items to task draft').disabled).toBe(true); expect(writes(f)).toHaveLength(0);
+});

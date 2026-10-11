@@ -131,4 +131,58 @@ class StudyFeedbackDeletionTest extends StudyFeedbackFixtures {
         assertThrows(RuntimeException.class,()->db.update("UPDATE inference_control_slots SET decision='FEEDBACK_OUTPUT_CLOSED',decision_at=clock_timestamp() WHERE reservation_id=?",feedbackReservation));assertFalse(quiescent(id));
     }
 
+    private Map<String,Object> independentReviewFields() {
+        var retained=json(feedback.read(session,studyId));
+        String selected=retained.get("targets").get(0).get("request").get("result").get("review_checklist").get(0).asText();
+        var fields=new LinkedHashMap<String,Object>();fields.put("title","Review study question 1");fields.put("description","- "+selected);
+        fields.put("project_id",null);fields.put("due_at",null);fields.put("priority","NORMAL");fields.put("estimated_minutes",null);return fields;
+    }
+    private Map<String,Object> independentReviewIntent(UUID target,Map<String,Object> fields) {
+        var body=new LinkedHashMap<String,Object>();body.put("tool_id",target==null?"task.create":"task.update");body.put("target_id",target);body.put("arguments",fields);
+        return context.getBean(TaskIntentService.class).issue(session,UUID.randomUUID(),json(body));
+    }
+    private tools.jackson.databind.JsonNode independentReviewMutation(Map<String,Object> intent,Map<String,Object> fields) {
+        var body=new LinkedHashMap<>(fields);body.put("user_intent_id",intent.get("id"));return json(body);
+    }
+    private Map<String,Object> independentReviewSourceSnapshot() {
+        var snapshot=new LinkedHashMap<String,Object>();
+        for(String table:List.of("study_sessions","study_feedback_requests","study_feedback_events","study_owner_answer_inputs","inference_reservations","inference_usage_receipts","inference_control_slots","runs","jobs")) snapshot.put(table,db.queryForList("SELECT * FROM "+table));
+        snapshot.put("conversation_version",conversationVersion(targetConversation));snapshot.put("owner_epochs",db.queryForMap("SELECT history_epoch,context_epoch FROM owners WHERE id=?",owner));snapshot.put("feedback_calls",feedbackClient.calls);return snapshot;
+    }
+    @Test void independentChecklistTaskAndEncryptedCopiesRemainAfterQuiescentSourceDeletion() throws Exception {
+        saveTwo();UUID feedbackId=requestFeedback(0);complete(feedbackId);assertFalse(quiescent(feedbackId));proof(feedbackId,"COMPLETED");assertTrue(quiescent(feedbackId));
+        var fields=independentReviewFields();var intent=independentReviewIntent(null,fields);var tasks=context.getBean(TaskService.class);UUID key=UUID.randomUUID();
+        assertEquals(0L,count("tasks"));var task=tasks.create(session,key,independentReviewMutation(intent,fields));UUID taskId=UUID.fromString(task.get("id").toString());
+        assertEquals("TODO",task.get("status"));assertEquals(1L,task.get("version"));
+        var taskRow=db.queryForMap("SELECT * FROM tasks WHERE id=?",taskId);var intentRow=db.queryForMap("SELECT * FROM task_user_intents WHERE id=?",intent.get("id"));var mutationRow=db.queryForMap("SELECT * FROM task_mutations WHERE idempotency_key=?",key);
+        for(var row:List.of(intentRow,mutationRow)) assertFalse(row.get("response_ref").toString().contains(fields.get("description").toString()));
+        assertFalse(taskRow.get("description_ref").toString().contains(fields.get("description").toString()));
+        commit(prepare(targetConversation),UUID.randomUUID());error(()->feedback.read(session,studyId),410,"CONVERSATION_DELETED");
+        assertEquals(taskRow,db.queryForMap("SELECT * FROM tasks WHERE id=?",taskId));assertEquals(intentRow,db.queryForMap("SELECT * FROM task_user_intents WHERE id=?",intent.get("id")));assertEquals(mutationRow,db.queryForMap("SELECT * FROM task_mutations WHERE idempotency_key=?",key));
+        assertEquals(Json.canonical(task),Json.canonical(tasks.get(session,taskId)));assertEquals(Json.canonical(task),Json.canonical(tasks.reconcile(session,key).get("task")));
+        assertNull(feedbackRow(feedbackId).get("result_ref"));assertNull(feedbackRow(feedbackId).get("source_binding_ref"));assertEquals(1L,count("tasks"));assertEquals(1L,count("task_user_intents"));assertEquals(1L,count("task_mutations"));
+        assertEquals(Set.of(TaskService.CREATE_FIELDS),fields.keySet());assertFalse(fields.containsKey("study_session_id"));
+    }
+    @Test void independentIntentCanApplyAfterSourceDeletionWithoutLiveSourceAttestation() throws Exception {
+        saveTwo();UUID feedbackId=requestFeedback(0);complete(feedbackId);proof(feedbackId,"COMPLETED");assertTrue(quiescent(feedbackId));
+        var fields=independentReviewFields();var intent=independentReviewIntent(null,fields);var stored=db.queryForMap("SELECT * FROM task_user_intents WHERE id=?",intent.get("id"));
+        assertNotNull(stored.get("response_ref"));assertNull(stored.get("consumed_at"));assertEquals(0L,count("tasks"));
+        commit(prepare(targetConversation),UUID.randomUUID());error(()->feedback.read(session,studyId),410,"CONVERSATION_DELETED");
+        assertEquals(stored,db.queryForMap("SELECT * FROM task_user_intents WHERE id=?",intent.get("id")));
+        var source=independentReviewSourceSnapshot();var task=context.getBean(TaskService.class).create(session,UUID.randomUUID(),independentReviewMutation(intent,fields));
+        assertEquals("TODO",task.get("status"));assertEquals(fields.get("description"),task.get("description"));assertEquals(source,independentReviewSourceSnapshot());assertNull(feedbackRow(feedbackId).get("result_ref"));
+    }
+    @Test void independentTaskCreateAndExplicitCompletionNeverMutateStudyOrInferenceEvidence() throws Exception {
+        saveTwo();UUID feedbackId=requestFeedback(0);complete(feedbackId);proof(feedbackId,"COMPLETED");
+        var source=independentReviewSourceSnapshot();var fields=independentReviewFields();var intent=independentReviewIntent(null,fields);assertEquals(source,independentReviewSourceSnapshot());
+        var tasks=context.getBean(TaskService.class);var task=tasks.create(session,UUID.randomUUID(),independentReviewMutation(intent,fields));UUID taskId=UUID.fromString(task.get("id").toString());
+        assertEquals("TODO",task.get("status"));assertEquals(source,independentReviewSourceSnapshot());
+        long version=1;
+        for(String status:List.of("DONE","TODO")) {
+            var patch=Map.<String,Object>of("status",status,"expected_version",version);var update=independentReviewIntent(taskId,patch);
+            task=tasks.update(session,UUID.randomUUID(),taskId,independentReviewMutation(update,patch));assertEquals(status,task.get("status"));assertEquals(++version,task.get("version"));assertEquals(source,independentReviewSourceSnapshot());
+        }
+        assertEquals("ACCEPTED",feedbackRow(feedbackId).get("state"));assertTrue(quiescent(feedbackId));
+    }
+
 }
