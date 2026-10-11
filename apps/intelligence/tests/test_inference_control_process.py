@@ -86,12 +86,22 @@ class ControlProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_alive_child_retains_exact_lock_after_parent_descriptor_closes(self):
         turn,identity=self.admitted(text='hang')
         task=asyncio.create_task(self.runtime.generate(turn,time.time()+10)); await self.wait_active(turn.request_id)
-        os.close(self.runtime._owner_fd); self.runtime._owner_fd=None
+        lease=self.runtime._ownership_lease; child=self.runtime._process
+        lock_identity=lease.verify()
+        self.assertEqual(lease.fd,self.runtime._owner_fd); self.assertTrue(child.is_alive())
+        pending=self.ledger.control({**identity,'operation':'OBSERVE'})
+        lease.close(); self.runtime._owner_fd=None
+        self.assertIsNone(lease.fd)
         second=LocalRuntime(self.config,worker_target=fake_worker)
         second.attach_control_ledger(Ledger(self.root/'ledger.sqlite',b's'*32))
         try:
             with self.assertRaises(RuntimeFailure): await second.start()
             self.assertEqual(self.ledger.control({**identity,'operation':'OBSERVE'})['state'],'PENDING')
+            self.assertEqual(self.ledger.control({**identity,'operation':'OBSERVE'}),pending)
+            self.assertIs(self.runtime._process,child); self.assertTrue(child.is_alive())
+            info=os.stat(self.config.lock_path,follow_symlinks=False)
+            self.assertEqual((info.st_dev,info.st_ino),lock_identity)
+            self.assertIsNone(second._owner_fd)
             self.assertIsNone(second._process)
         finally:
             await second.close()

@@ -526,10 +526,43 @@ class FeedbackOwnershipStartupTests(unittest.TestCase):
         for target in ('ledger','lock'):
             with self.subTest(target=target),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);path,lease=seed_stage_a(root)
+                lock_path=root/'worker.lock'
+                lock_identity=lease.verify()
+                ledger_info=os.stat(path,follow_symlinks=False)
+                ledger_identity=(ledger_info.st_dev,ledger_info.st_ino)
+                before=snapshot(path)
+                # Raw Stage A fixture creation held the original lock but had
+                # no Ledger constructor to bind its newly created file. With
+                # no child running, reacquire those same existing objects via
+                # the actual startup API before any missing/replaced probe.
+                lease.close()
+                lease=OwnershipLease.acquire(lock_path,path)
                 current=path if target=='ledger' else root/'worker.lock'
-                current.rename(current.with_suffix('.saved'))
                 try:
-                    with self.assertRaises((ValueError,OSError)):OwnershipLease.acquire(root/'worker.lock',path)
-                    current.touch(mode=0o600)
+                    self.assertEqual(lease.verify(),lock_identity)
+                    self.assertEqual(lease.ledger_path,path)
+                    self.assertEqual(lease.ledger_identity,ledger_identity)
+                    self.assertEqual(snapshot(path),before)
+                    saved=current.with_suffix('.saved')
+                    current.rename(saved)
+                    saved_bytes=saved.read_bytes(); saved_mode=saved.stat().st_mode
+                    with self.assertRaises((ValueError,OSError)):OwnershipLease.acquire(lock_path,path)
+                    self.assertFalse(current.exists())
                     with self.assertRaises((ValueError,OSError)):lease.verify()
+                    self.assertEqual(saved.read_bytes(),saved_bytes)
+                    self.assertEqual(saved.stat().st_mode,saved_mode)
+                    current.touch(mode=0o600)
+                    replacement=current.read_bytes(); replacement_mode=current.stat().st_mode
+                    with self.assertRaises((ValueError,OSError)):lease.verify()
+                    self.assertEqual(current.read_bytes(),replacement)
+                    self.assertEqual(current.stat().st_mode,replacement_mode)
+                    self.assertEqual(saved.read_bytes(),saved_bytes)
+                    self.assertEqual(saved.stat().st_mode,saved_mode)
+                    original_ledger=saved if target=='ledger' else path
+                    original_lock=lock_path if target=='ledger' else saved
+                    info=os.stat(original_ledger,follow_symlinks=False)
+                    self.assertEqual((info.st_dev,info.st_ino),ledger_identity)
+                    info=os.stat(original_lock,follow_symlinks=False)
+                    self.assertEqual((info.st_dev,info.st_ino),lock_identity)
+                    self.assertEqual(snapshot(original_ledger),before)
                 finally:lease.close()

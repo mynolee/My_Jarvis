@@ -165,10 +165,14 @@ class ControlLedgerPureTests(unittest.TestCase):
 
     def test_ordinal_overflow_fails_before_update(self):
         ledger=object.__new__(Ledger); ledger.ledger_instance_id=fixture()['pending']['ledger_instance_id']
-        db=Mock(); db.execute.side_effect=[SimpleNamespace(fetchone=lambda:(1,ledger.ledger_instance_id)),
+        db=Mock(); db.execute.side_effect=[SimpleNamespace(fetchone=lambda:(2,ledger.ledger_instance_id)),
                                           SimpleNamespace(fetchone=lambda:(MAX_SAFE_INTEGER,))]
         with self.assertRaises(LedgerFull): ledger._next_control_ordinal(db)
         self.assertEqual(db.execute.call_count,2)
+        self.assertEqual([(call.args,call.kwargs) for call in db.execute.call_args_list], [
+            (('SELECT schema_revision,ledger_instance_id FROM control_meta WHERE singleton=1',),{}),
+            (('SELECT next_ordinal FROM control_meta WHERE singleton=1',),{}),
+        ])  # Exhaustion performs only these reads, never an UPDATE or wrapped ordinal.
 
     def test_response_has_only_permanent_fact_no_clock(self):
         ledger=object.__new__(Ledger); ledger.ledger_instance_id=fixture()['pending']['ledger_instance_id']

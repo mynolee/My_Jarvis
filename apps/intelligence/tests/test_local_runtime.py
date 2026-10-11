@@ -165,11 +165,20 @@ class SupervisorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code,'CANCELLED')
         self.assertFalse(self.runtime._serial.locked())
     async def test_worker_keeps_kernel_owner_lock_after_parent_fd_closes(self):
-        os.close(self.runtime._owner_fd); self.runtime._owner_fd=None
+        lease=self.runtime._ownership_lease; child=self.runtime._process
+        lock_identity=lease.verify()
+        self.assertEqual(lease.fd,self.runtime._owner_fd); self.assertTrue(child.is_alive())
+        lease.close(); self.runtime._owner_fd=None
+        self.assertIsNone(lease.fd)
         second=LocalRuntime(self.config,worker_target=fake_worker)
-        with self.assertRaises(RuntimeFailure): await second.start()
-        self.assertIsNone(second._owner_fd)
-        await second.close()
+        try:
+            with self.assertRaises(RuntimeFailure): await second.start()
+            self.assertIsNone(second._owner_fd); self.assertIsNone(second._process)
+            self.assertIs(self.runtime._process,child); self.assertTrue(child.is_alive())
+            info=os.stat(self.config.lock_path,follow_symlinks=False)
+            self.assertEqual((info.st_dev,info.st_ino),lock_identity)
+        finally:
+            await second.close()
     async def test_cancelling_waiter_does_not_stop_active_generation(self):
         process=self.runtime._process
         active=asyncio.create_task(self.runtime.generate(request(self.config,'active'),time.time()+5))
