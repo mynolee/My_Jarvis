@@ -42,6 +42,10 @@ describe('conversation source deletion owner form (synthetic DOM only)', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: '대화 유지' })); expect(p.onPendingChange).toHaveBeenLastCalledWith(false); expect(p.onContentHiddenChange).not.toHaveBeenCalled();
     const times = [...document.querySelectorAll('time')]; expect(times.every(time => time.textContent?.endsWith('KST'))).toBe(true); expect(times[1].dateTime).toBe(preparation.prepared_at); expect(times[1].textContent).toBe('2026-10-11 02:40:00 KST');
   });
+  it('reviews both retained study bindings and answer bodies while explaining the minimal history retained', async () => {
+    const api = new Api(), request = standard(api, path => path.endsWith('/delete-preparations') ? { ...preparation, source_counts: { ...preparation.source_counts, study_sessions: 2, study_answers: 3 } } : undefined);
+    render(<ConversationDeletionPanel {...props(api)}/>); await review(); expect(screen.getByText(/학습 원문 바인딩 2개 · 학습 답안 3개/)).toBeTruthy(); expect(screen.getByText(/학습 답안 본문과 학습 원문 바인딩을 영구 삭제/)).toBeTruthy(); expect(screen.getByText(/최소한의 학습 이력과 재요청 검증 식별자/)).toBeTruthy(); expect(confirmations(request)).toHaveLength(0);
+  });
   it('sends one separately keyed exact confirmation only after both explicit actions, clears preview and reports target', async () => {
     const api = new Api(), p = props(api), request = standard(api); render(<ConversationDeletionPanel {...p}/>); await review();
     click(confirmLabel); expect(confirmations(request)).toHaveLength(0); fireEvent.click(screen.getByLabelText(consentLabel)); const button = screen.getByRole('button', { name: confirmLabel }); act(() => { fireEvent.click(button); fireEvent.click(button); });

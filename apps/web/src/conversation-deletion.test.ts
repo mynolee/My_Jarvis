@@ -8,6 +8,10 @@ const state = () => read_deletion_state(fixture('state-eligible'), target) as El
 const pending = (): PendingConversationDeletion => ({ stage: 'CONFIRM', key: '84000000-0000-4000-8000-000000000001', conversation_id: target, preparation_id: fixture('preparation').id, expected_version: 7, prepared_at: fixture('preparation').prepared_at, expires_at: fixture('preparation').expires_at });
 
 describe('single-conversation deletion strict synthetic wire', () => {
+  it('rejects old five-count preparations and accepts the exact two-answers-per-session maximum', () => {
+    const p = fixture('preparation'); delete p.source_counts.study_sessions; delete p.source_counts.study_answers; expect(() => read_delete_preparation(p, state())).toThrow();
+    const maximum = fixture('preparation'); maximum.source_counts.study_sessions = 1000; maximum.source_counts.study_answers = 2000; expect(read_delete_preparation(maximum, state()).source_counts.study_answers).toBe(2000);
+  });
   it('accepts the shared closed state/preparation/outcome fixtures and exact request bodies', () => {
     expect(read_deletion_state(fixture('state-blocked'), target)).toEqual(fixture('state-blocked'));
     expect(read_deletion_state(fixture('state-deleted'), target)).toEqual(fixture('state-deleted'));
@@ -46,7 +50,7 @@ describe('single-conversation deletion strict synthetic wire', () => {
   it('accepts 200 supplementary Unicode scalar values without truncating the title', () => {
     const p = fixture('preparation'); p.conversation.title = '🐈'.repeat(200); expect(read_delete_preparation(p, state()).conversation.title).toBe(p.conversation.title);
   });
-  it.each([{ messages: -1 }, { messages: 2001 }, { runs: 1001 }, { run_results: 2 }, { inference_contexts: 2 }, { action_payloads: 1001 }, { messages: 1.1 }, { messages: '2' }, { hidden: 2 }])('rejects invalid/cap-exceeding source counts %#', patch => {
+  it.each([{ messages: -1 }, { messages: 2001 }, { runs: 1001 }, { run_results: 2 }, { inference_contexts: 2, study_sessions: 0, study_answers: 0 }, { action_payloads: 1001 }, { messages: 1.1 }, { messages: '2' }, { hidden: 2 }, { study_sessions: 1001 }, { study_answers: 2001 }, { study_sessions: 0, study_answers: 1 }, { study_sessions: 1, study_answers: 3 }, { study_sessions: 1.5 }, { study_answers: '1' }])('rejects invalid/cap-exceeding source counts %#', patch => {
     const p = fixture('preparation'); p.source_counts = { ...p.source_counts, ...patch }; expect(() => read_delete_preparation(p, state())).toThrow();
   });
   it.each([{ conversation_id: other }, { preparation_id: other }, { deleted_version: 8 }, { tombstone_version: 9 }, { scope_policy: 'UNKNOWN' }, { title: 'synthetic' }, { deleted_at: '2026-10-10T17:42:00.000001Z' }])('rejects mismatched or content-bearing receipts %#', patch => {

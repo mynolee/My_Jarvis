@@ -1,4 +1,5 @@
 import { parse_deletion_json } from './conversation-deletion-json';
+import { parse_closed_json } from './closed-json';
 /** No credentials or private data are persisted in browser storage. */
 export class ApiError extends Error {
   constructor(readonly code: string, readonly uncertain = false, readonly status = 0, readonly details: unknown = null) { super(code); }
@@ -18,35 +19,52 @@ export class Api {
     if (!/^\/[a-z0-9/_-]+(?:\?[a-z0-9=&_%:.,+~-]*)?$/i.test(path) || path.split('?')[0].includes('//') || path.split('?')[0].includes('..') || path.length > 4096) throw new ApiError('INVALID_PATH');
     if (body !== undefined && !this.csrf) throw new ApiError('CSRF_REQUIRED');
     const deletion_route = /^\/(?:conversations\/[0-9a-f-]{36}\/(?:deletion-state|delete-preparations)|conversation-delete-preparations\/[0-9a-f-]{36}\/confirm|conversation-deletions\/requests\/[0-9a-f-]{36})$(?![\s\S])/.test(path);
+    const study_route = /^\/(?:conversations\/[0-9a-f-]{36}\/(?:study-sessions|study-index(?:\?[^#]*)?)|study-sessions\/[0-9a-f-]{36}(?:\/(?:answers|close))?|study-mutations\/[0-9a-f-]{36}|runs\/[0-9a-f-]{36}\/study-lesson)$(?![\s\S])/.test(path);
+    const strict_route = deletion_route || study_route;
+    // Durable-study caps include the complete transport envelope.
+    const study_limit = /^\/study-sessions\/[0-9a-f-]{36}$/.test(path) && body === undefined ? 256 * 1024 : 64 * 1024;
+    const response_limit = study_route ? study_limit : LIMIT;
     const serialized = body === undefined ? undefined : JSON.stringify(body);
     if (serialized && new TextEncoder().encode(serialized).length > 65536) throw new ApiError('REQUEST_TOO_LARGE');
     const request_revision = this.credential_revision;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     let response_status = 0;
+    let study_reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    const bounded = <V>(operation: Promise<V>): Promise<V> => !study_route ? operation : new Promise((resolve, reject) => {
+      const aborted = () => reject(new ApiError(body === undefined ? 'CONNECTION_UNAVAILABLE' : 'UNKNOWN', body !== undefined, response_status));
+      controller.signal.addEventListener('abort', aborted, { once: true });
+      operation.then(value => { controller.signal.removeEventListener('abort', aborted); if (controller.signal.aborted) aborted(); else resolve(value); }, error => { controller.signal.removeEventListener('abort', aborted); reject(error); });
+      if (controller.signal.aborted) { controller.signal.removeEventListener('abort', aborted); aborted(); }
+    });
     try {
-      const response = await fetch(`/api/v1${path}`, { method: body === undefined ? 'GET' : method, credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal, headers: { Accept: 'application/json', ...(serialized !== undefined ? { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf } : {}), ...(idempotency_key ? { 'Idempotency-Key': idempotency_key } : {}) }, body: serialized });
+      const response = await bounded(fetch(`/api/v1${path}`, { method: body === undefined ? 'GET' : method, credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal, headers: { Accept: 'application/json', ...(serialized !== undefined ? { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf } : {}), ...(idempotency_key ? { 'Idempotency-Key': idempotency_key } : {}) }, body: serialized }).then(candidate => {
+        if (study_route && controller.signal.aborted) { void candidate.body?.cancel().catch(() => {}); throw new ApiError(body === undefined ? 'CONNECTION_UNAVAILABLE' : 'UNKNOWN', body !== undefined, candidate.status); }
+        return candidate;
+      }));
       response_status = response.status;
       if (response.status === 401) { if (request_revision === this.credential_revision) this.clear(); throw new ApiError('UNAUTHENTICATED', false, 401); }
-      if (deletion_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
-      if (deletion_route && (response.redirected || response.type === 'opaqueredirect' || !JSON_CONTENT_TYPE.test(response.headers.get('content-type') ?? ''))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
+      if (strict_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
+      if (strict_route && (response.redirected || response.type === 'opaqueredirect' || !JSON_CONTENT_TYPE.test(response.headers.get('content-type') ?? ''))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       if (!response.headers.get('content-type')?.includes('application/json')) throw new ApiError('INVALID_RESPONSE', body !== undefined, response.status);
       const reader = response.body?.getReader();
+      if (study_route) study_reader = reader;
       if (!reader) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       const chunks: Uint8Array[] = []; let length = 0;
-      for (;;) { const { value, done } = await reader.read(); if (done) break; length += value.length; if (length > LIMIT) { await reader.cancel(); throw new ApiError('RESPONSE_TOO_LARGE', body !== undefined, response_status); } chunks.push(value); }
+      for (;;) { const { value, done } = await bounded(reader.read()); if (study_route && request_revision !== this.credential_revision) { void reader.cancel().catch(() => {}); throw new ApiError('STALE_SESSION', body !== undefined, response_status); } if (done) break; length += value.length; if (length > response_limit) { void reader.cancel().catch(() => {}); throw new ApiError('RESPONSE_TOO_LARGE', body !== undefined, response_status); } chunks.push(value); }
       const bytes = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-      let envelope; try { const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes); envelope = deletion_route ? parse_deletion_json(decoded) : JSON.parse(decoded); } catch { throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status); }
-      if (deletion_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
+      let envelope; try { const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes); envelope = study_route ? parse_closed_json(decoded, response_limit) : deletion_route ? parse_deletion_json(decoded) : JSON.parse(decoded); } catch { throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status); }
+      if (strict_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
       if (!response.ok) throw new ApiError(typeof envelope?.error?.code === 'string' ? envelope.error.code : 'REQUEST_REJECTED', body !== undefined && response.status >= 500, response.status, envelope?.error?.details);
-      if (deletion_route && (response.status !== 200 || !envelope || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== 'data,request_id' || typeof envelope.request_id !== 'string' || !EXPORT_UUID.test(envelope.request_id))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
+      if (strict_route && (response.status !== 200 || !envelope || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== 'data,request_id' || typeof envelope.request_id !== 'string' || !EXPORT_UUID.test(envelope.request_id))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       if (!envelope || !Object.hasOwn(envelope, 'data')) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
+      if (study_route && new TextEncoder().encode(JSON.stringify(envelope.data)).length > study_limit) throw new ApiError('RESPONSE_TOO_LARGE', body !== undefined, response_status);
       return envelope.data as T;
     } catch (error) {
       if (error instanceof ApiError) throw error;
       // Never automatically retry a mutation: its outcome may already be committed.
       throw new ApiError(body === undefined ? 'CONNECTION_UNAVAILABLE' : 'UNKNOWN', body !== undefined, response_status);
-    } finally { clearTimeout(timeout); }
+    } finally { clearTimeout(timeout); if (study_reader) { void study_reader.cancel().catch(() => {}); study_reader.releaseLock(); } }
   }
   /** Bounded in-memory privacy read. The caller validates the document before offering a local save. */
   async download_export(jobId: string): Promise<Uint8Array> {

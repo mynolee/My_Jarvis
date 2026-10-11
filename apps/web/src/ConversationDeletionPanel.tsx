@@ -195,9 +195,9 @@ export function ConversationDeletionPanel({ api, sessionKey, selectedConversatio
       <p>대화 제목: {preparation.conversation.title}</p><p>대화 ID: {preparation.conversation.id}</p><p>프로젝트 ID: {preparation.conversation.project_id ?? '없음'}</p><p>대화 내용 버전: {preparation.expected_version}</p>
       <p>대화 생성: <time dateTime={preparation.conversation.created_at}>{deletion_time(preparation.conversation.created_at)}</time></p>
       <p>준비: <time dateTime={preparation.prepared_at}>{deletion_time(preparation.prepared_at)}</time></p><p>만료: <time dateTime={preparation.expires_at}>{deletion_time(preparation.expires_at)}</time></p>
-      <p>메시지 {preparation.source_counts.messages}개 · 실행 {preparation.source_counts.runs}개 · 응답 복사본 {preparation.source_counts.run_results}개 · 작업 내용 복사본 {preparation.source_counts.action_payloads}개 · 추론 문맥 {preparation.source_counts.inference_contexts}개</p>
-      <p>My_Jarvis에 저장된 이 대화의 제목, 메시지, 응답 복사본과 작업 내용 복사본을 영구 삭제합니다. 앱에서 되돌릴 수 없습니다.</p>
-      <p>별도로 저장한 기억, 작업, 초안, 알림, 프로필과 프로젝트는 남습니다. 실행 이력, 사용량 합계와 보호된 요청 검증 기록도 남으며 대화 본문은 포함하지 않습니다. 검증 기록에는 무결성을 위한 내용 유래 키 기반 바인딩이 남습니다.</p>
+      <p>메시지 {preparation.source_counts.messages}개 · 실행 {preparation.source_counts.runs}개 · 응답 복사본 {preparation.source_counts.run_results}개 · 작업 내용 복사본 {preparation.source_counts.action_payloads}개 · 추론 문맥 {preparation.source_counts.inference_contexts}개 · 학습 원문 바인딩 {preparation.source_counts.study_sessions}개 · 학습 답안 {preparation.source_counts.study_answers}개</p>
+      <p>My_Jarvis에 저장된 이 대화의 제목, 메시지, 응답 복사본, 작업 내용 복사본, 학습 답안 본문과 학습 원문 바인딩을 영구 삭제합니다. 앱에서 되돌릴 수 없습니다.</p>
+      <p>별도로 저장한 기억, 작업, 초안, 알림, 프로필과 프로젝트는 남습니다. 실행 이력, 최소한의 학습 이력과 재요청 검증 식별자, 사용량 합계와 보호된 요청 검증 기록도 남으며 대화 본문은 포함하지 않습니다. 검증 기록에는 무결성을 위한 내용 유래 키 기반 바인딩이 남습니다.</p>
       <p>저장한 파일, 복사한 텍스트, 다른 기기에 이미 표시된 화면, 이미 생성되었거나 전송 중인 응답을 회수할 수 없습니다. 기존 백업과 데이터베이스 저장 잔여물은 이 기능의 범위 밖이며 제거가 검증되지 않았습니다. 이 버전은 과거 백업의 검증된 삭제나 안전한 복원 절차를 제공하지 않습니다.</p>
       <label><input type="checkbox" checked={visible.consent} disabled={disabled} onChange={event => { const s = session.current; if (!s || blockedWrite(s) || !s.preparation) return; s.consent = event.target.checked; publish(s); }}/>이 제한을 이해했으며 정확히 이 대화의 영구 삭제를 확인합니다</label>
       <div className="actions"><button ref={keepButton} type="button" className="secondary" onClick={keep}>대화 유지</button><button type="button" className="danger" disabled={disabled || !visible.consent} onClick={() => void confirm()}>이 대화 영구 삭제</button></div>
