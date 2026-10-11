@@ -634,6 +634,20 @@ ALLOWED_TESTS = {
         "settlementCancelsSupersededSlotEvenBeforeNextPlanning",
         "boundedPlannerMakesProgressPastOneHundredStaleDueRows",
     ),
+    "StudySessionPolicyTest": (
+        'actualPolicyMatchesEverySharedSyntheticSnapshot',
+        'bothAnswersAndFeedbackAreRequiredForReview',
+        'noAnswerCannotReceiveFeedback',
+        'wrongSessionQuestionOrAttemptCannotAttach',
+        'staleVersionAndDuplicatesNeverOverwrite',
+        'closingDoesNotRequireLearningOrAnswersAndPreventsLateWrites',
+        'unavailableProjectionDropsContentAndNeverReopens',
+        'identityIsPreservedAndCollectionsAreDefensivelyCopied',
+        'versionsAreBoundedAndExhaustionCannotWrap',
+        'unicodeBoundsAndBlankOrMalformedTextAreRejected',
+        'invalidRecordGraphsCannotBeConstructed',
+        'clarificationIsFeedbackNotMasteryOrAnAutomaticRetry',
+    ),
 }
 
 
