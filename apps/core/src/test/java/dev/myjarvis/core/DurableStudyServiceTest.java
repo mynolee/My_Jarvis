@@ -115,6 +115,8 @@ class DurableStudyServiceTest extends DurableStudyFixtures {
     @Test void deletionHeadroomAndUnknownSchemaRefuseBeforeAnyInputAllocation() {
         UUID conversation = conversation("headroom"), id = start(conversation, lesson(conversation));
         flow.tx.executeWithoutResult(tx -> {
+            // Match the owner-before-conversation order used by concurrent reconciliation.
+            context.getBean(ConversationAccess.class).lockOwner(owner);
             // Synthetic version-boundary seed; restore the guard before committing the fixture.
             db.execute("ALTER TABLE conversations DISABLE TRIGGER conversation_tombstone_guard");
             db.update("UPDATE conversations SET content_version=? WHERE id=?", MemoryService.MAX - 1, conversation);
@@ -123,7 +125,7 @@ class DurableStudyServiceTest extends DurableStudyFixtures {
         });
         error(() -> study.answer(session, UUID.randomUUID(), id, answerBody(id, 0, "No room")), 409, "VERSION_EXHAUSTED");
         error(() -> study.close(session, UUID.randomUUID(), id, closeBody(id)), 409, "VERSION_EXHAUSTED"); assertEquals(0L, count("study_owner_answer_inputs"));
-        flow.tx.executeWithoutResult(tx -> { tx.setRollbackOnly(); db.update("UPDATE flyway_schema_history SET version='18' WHERE version='17'");
+        flow.tx.executeWithoutResult(tx -> { tx.setRollbackOnly(); db.update("UPDATE flyway_schema_history SET version='19' WHERE version='18'");
             error(() -> view(id), 409, "CONVERSATION_GRAPH_UNVERIFIED"); });
     }
     @Test void contentFreeIndexAndNotObservedReadDoNotClaimAWriteOutcome() {
