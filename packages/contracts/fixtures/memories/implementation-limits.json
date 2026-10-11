@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "request_canonical_utf8_bytes": 16384,
+  "transport_raw_body_bytes": 262144,
+  "max_safe_integer": 9007199254740991,
+  "value_codepoints": 2000,
+  "value_utf8_bytes": 8000,
+  "change_reason_codepoints": 300,
+  "change_reason_utf8_bytes": 1200,
+  "cursor_codepoints": 1024,
+  "page_limit": 50,
+  "page_default": 20,
+  "timestamp_fraction_digits": 6,
+  "schema_limitations": [
+    "JSON Schema integer permits numerically integral float tokens: strict JSON parser must reject floats before schema validation.",
+    "UTF-8 and total canonical body bounds are runtime checks, not standard JSON Schema keywords.",
+    "UUID shape does not establish project ownership.",
+    "Source/provenance and status fields are response-only server assertions, never mutation input.",
+    "Recent reauthentication, CSRF, Origin, session/epoch, expiry, exact canonical payload hash, one-use approval and atomic deletion cannot be established by shape validation.",
+    "Headers schema describes one application header; HTTP parser must reject duplicate Idempotency-Key headers.",
+    "Delete preparation snapshot consistency and stale/deleted replay suppression require runtime database checks."
+  ]
+}

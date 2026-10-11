@@ -1,0 +1,23 @@
+{
+  "synthetic_key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "owner_id": "10000000-0000-4000-8000-000000000001",
+  "method": "POST",
+  "target": "/api/v1/mail-drafts",
+  "body": {
+    "sender_candidate": null,
+    "to": [],
+    "cc": [],
+    "bcc": [],
+    "subject": "",
+    "body": "",
+    "project_id": null,
+    "attachments": []
+  },
+  "request_digest": "dfd2a28ddbe6914f35f71609712b29afc54e54c50df12a98051f711854f4c4e4",
+  "cursor": {
+    "project_id": null,
+    "created_at": "2030-01-01T00:00:00Z",
+    "id": "10000000-0000-4000-8000-000000000001",
+    "token": "eyJjcmVhdGVkX2F0IjoiMjAzMC0wMS0wMVQwMDowMDowMFoiLCJpZCI6IjEwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsIm93bmVyX2lkIjoiMTAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwicHJvamVjdF9pZCI6bnVsbH0.CRBvpRcUCBu4bUfrWgOsgo5MrCR5BTKe2KapJPx8pj0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "82000000-0000-4000-8000-000000000001",
+  "status": "PREPARED",
+  "scope_policy": "CONVERSATION_SOURCE_V1",
+  "conversation": {
+    "id": "81000000-0000-4000-8000-000000000001",
+    "title": "Synthetic conversation — 합성 예시",
+    "project_id": null,
+    "created_at": "2026-10-10T16:00:00Z"
+  },
+  "expected_version": 7,
+  "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_counts": {
+    "messages": 2,
+    "runs": 1,
+    "run_results": 1,
+    "action_payloads": 1,
+    "inference_contexts": 0
+  },
+  "payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "prepared_at": "2026-10-10T17:40:00Z",
+  "expires_at": "2026-10-10T17:45:00Z"
+}

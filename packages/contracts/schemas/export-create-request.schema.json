@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/export-create-request.schema.json",
+  "$comment": "Wire shape only. Runtime validates current owner/session/epoch, recent reauthentication, transaction ordering, exact scope, byte/deadline bounds and current-data release. No public bearer URL or stored export artifact.",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "const": "EXPLICIT_MEMORIES"
+    },
+    "scope": {
+      "enum": [
+        "GLOBAL",
+        "PROJECT"
+      ]
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "format": {
+      "const": "JSON_UTF8"
+    }
+  },
+  "required": [
+    "kind",
+    "scope",
+    "project_id",
+    "format"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "GLOBAL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "project_id": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+          }
+        }
+      }
+    }
+  ]
+}

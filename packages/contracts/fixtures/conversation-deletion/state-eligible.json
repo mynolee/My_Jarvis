@@ -1,0 +1,11 @@
+{
+  "status": "ACTIVE",
+  "conversation_id": "81000000-0000-4000-8000-000000000001",
+  "content_version": 7,
+  "content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "eligibility": {
+    "status": "ELIGIBLE",
+    "blockers": []
+  },
+  "checked_at": "2026-10-10T17:40:00Z"
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/user-intent-request.schema.json",
+  "type": "object",
+  "properties": {
+    "tool_id": {
+      "const": "calendar.event.create"
+    },
+    "tool_version": {
+      "const": "1"
+    },
+    "arguments": {
+      "type": "object",
+      "properties": {
+        "calendar_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "start_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "attendees": {
+          "type": "array",
+          "maxItems": 0
+        }
+      },
+      "required": [
+        "calendar_id",
+        "title",
+        "start_at",
+        "end_at",
+        "timezone",
+        "attendees"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "tool_id",
+    "tool_version",
+    "arguments"
+  ],
+  "additionalProperties": false
+}

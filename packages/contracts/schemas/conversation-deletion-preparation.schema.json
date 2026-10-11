@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/conversation-deletion-preparation.schema.json",
+  "$comment": "Closed wire shape only. Strict UTF-8/integer-only JSON parsing and real calendar format assertions are required. Runtime enforces cross-field relationships, current owner/session/epoch, exact reviewed snapshot, quiescence, provenance, transaction limits and tombstone barriers.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "status": {
+      "const": "PREPARED"
+    },
+    "scope_policy": {
+      "const": "CONVERSATION_SOURCE_V1"
+    },
+    "conversation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000]*$(?![\\s\\S])",
+          "minLength": 1
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "project_id",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "expected_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740990
+    },
+    "expected_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$(?![\\s\\S])"
+    },
+    "source_counts": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "run_results": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "action_payloads": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "inference_contexts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "messages",
+        "runs",
+        "run_results",
+        "action_payloads",
+        "inference_contexts"
+      ],
+      "additionalProperties": false
+    },
+    "payload_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$(?![\\s\\S])"
+    },
+    "prepared_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    }
+  },
+  "required": [
+    "id",
+    "status",
+    "scope_policy",
+    "conversation",
+    "expected_version",
+    "expected_digest",
+    "source_counts",
+    "payload_hash",
+    "prepared_at",
+    "expires_at"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,39 @@
+[
+  {
+    "name": "apia-distinct-within-grace-latest-only",
+    "definition": {
+      "title": "Blue notebook",
+      "text": "Review the blue notebook.",
+      "project_id": null,
+      "recurrence": "DAILY",
+      "start_date": "2011-12-29",
+      "local_time": "00:30",
+      "timezone": "Pacific/Apia",
+      "weekdays": [],
+      "authorization_expires_at": "2011-12-30T11:00:00Z",
+      "max_deliveries": 31
+    },
+    "issued_at": "2011-12-29T09:00:00Z",
+    "now": "2011-12-30T10:45:00Z",
+    "expected": [
+      {
+        "planned_fire_at_utc": "2011-12-29T10:30:00Z",
+        "status": "SKIPPED_MISSED",
+        "reason_code": null,
+        "lateness_seconds": 87300
+      },
+      {
+        "planned_fire_at_utc": "2011-12-30T10:00:00Z",
+        "status": "CANCELLED",
+        "reason_code": "SUPERSEDED_MISSED",
+        "lateness_seconds": 2700
+      },
+      {
+        "planned_fire_at_utc": "2011-12-30T10:30:00Z",
+        "status": "DELIVERED",
+        "reason_code": null,
+        "lateness_seconds": 900
+      }
+    ]
+  }
+]

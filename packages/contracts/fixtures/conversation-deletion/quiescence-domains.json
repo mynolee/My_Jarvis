@@ -1,0 +1,47 @@
+{
+  "runs": [
+    "SUCCEEDED",
+    "PARTIAL_SUCCESS",
+    "FAILED",
+    "CANCELLED",
+    "EXPIRED",
+    "BLOCKED",
+    "WAITING_INPUT"
+  ],
+  "jobs": [
+    "SUCCEEDED",
+    "FAILED",
+    "CANCELLED",
+    "EXPIRED",
+    "BLOCKED"
+  ],
+  "actions": [
+    "SUCCEEDED",
+    "FAILED",
+    "CANCELLED",
+    "EXPIRED",
+    "BLOCKED"
+  ],
+  "approvals": [
+    "CONSUMED",
+    "REJECTED",
+    "EXPIRED",
+    "REVOKED"
+  ],
+  "executions": [
+    "SUCCEEDED",
+    "FAILED",
+    "CANCELLED",
+    "EXPIRED",
+    "BLOCKED"
+  ],
+  "reservations": [
+    "SUCCEEDED",
+    "FAILED",
+    "CANCELLED"
+  ],
+  "contexts": [
+    "SETTLED",
+    "INVALIDATED"
+  ]
+}
