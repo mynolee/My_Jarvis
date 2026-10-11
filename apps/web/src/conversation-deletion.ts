@@ -13,7 +13,7 @@ export interface ConversationDeletePreparation {
   id: string; status: 'PREPARED'; scope_policy: typeof DELETION_SCOPE;
   conversation: { id: string; title: string; project_id: string | null; created_at: string };
   expected_version: number; expected_digest: string;
-  source_counts: { messages: number; runs: number; run_results: number; action_payloads: number; inference_contexts: number; study_sessions: number; study_answers: number };
+  source_counts: { messages: number; runs: number; run_results: number; action_payloads: number; inference_contexts: number; study_sessions: number; study_answers: number; feedback_requests: number; feedback_results: number };
   payload_hash: string; prepared_at: string; expires_at: string;
 }
 export interface PendingConversationDeletion {
@@ -62,14 +62,15 @@ export function read_deletion_state(value: unknown, conversationId: string): Con
 export function read_delete_preparation(value: unknown, expected: EligibleDeletionState): ConversationDeletePreparation {
   const p = object(value, ['id', 'status', 'scope_policy', 'conversation', 'expected_version', 'expected_digest', 'source_counts', 'payload_hash', 'prepared_at', 'expires_at']);
   const c = object(p.conversation, ['id', 'title', 'project_id', 'created_at']);
-  const n = object(p.source_counts, ['messages', 'runs', 'run_results', 'action_payloads', 'inference_contexts', 'study_sessions', 'study_answers']);
+  const n = object(p.source_counts, ['messages', 'runs', 'run_results', 'action_payloads', 'inference_contexts', 'study_sessions', 'study_answers', 'feedback_requests', 'feedback_results']);
   const prepared_at = instant(p.prepared_at), expires_at = instant(p.expires_at), created_at = instant(c.created_at);
   if (!valid_deletion_id(p.id) || p.status !== 'PREPARED' || p.scope_policy !== DELETION_SCOPE || c.id !== expected.conversation_id || !unicode(c.title) || [...c.title].length < 1 || [...c.title].length > 200 || c.project_id !== null && !valid_deletion_id(c.project_id)
     || !integer(p.expected_version, 1, Number.MAX_SAFE_INTEGER - 1) || p.expected_version !== expected.content_version || !digest(p.expected_digest) || p.expected_digest !== expected.content_digest || !digest(p.payload_hash)
     || !integer(n.messages, 0, 2000) || !integer(n.runs, 0, 1000) || !integer(n.run_results, 0, n.runs as number) || !integer(n.action_payloads, 0, 1000) || !integer(n.inference_contexts, 0, n.runs as number) || !integer(n.study_sessions, 0, 1000) || !integer(n.study_answers, 0, Math.min(2000, 2 * (n.study_sessions as number)))
+    || !integer(n.feedback_requests, 0, Math.min(2000, n.study_answers as number, n.runs as number, n.inference_contexts as number)) || !integer(n.feedback_results, 0, n.feedback_requests as number)
     || task_time_micros(created_at) > task_time_micros(prepared_at) || task_time_micros(expected.checked_at) > task_time_micros(prepared_at) || task_time_micros(expires_at) - task_time_micros(prepared_at) !== 300000000n) return fail();
   return { id: p.id, status: 'PREPARED', scope_policy: DELETION_SCOPE, conversation: { id: c.id, title: c.title, project_id: c.project_id, created_at }, expected_version: p.expected_version, expected_digest: p.expected_digest,
-    source_counts: { messages: n.messages, runs: n.runs, run_results: n.run_results, action_payloads: n.action_payloads, inference_contexts: n.inference_contexts, study_sessions: n.study_sessions, study_answers: n.study_answers }, payload_hash: p.payload_hash, prepared_at, expires_at };
+    source_counts: { messages: n.messages, runs: n.runs, run_results: n.run_results, action_payloads: n.action_payloads, inference_contexts: n.inference_contexts, study_sessions: n.study_sessions, study_answers: n.study_answers, feedback_requests: n.feedback_requests, feedback_results: n.feedback_results }, payload_hash: p.payload_hash, prepared_at, expires_at };
 }
 export function read_deletion_outcome(value: unknown, expected: PendingConversationDeletion): ConversationDeletionOutcome {
   if (expected.stage !== 'CONFIRM' || !valid_deletion_id(expected.key) || !valid_deletion_id(expected.conversation_id) || !valid_deletion_id(expected.preparation_id) || !integer(expected.expected_version, 1, Number.MAX_SAFE_INTEGER - 1)) return fail();

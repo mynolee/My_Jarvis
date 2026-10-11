@@ -19,13 +19,14 @@ export class Api {
     if (!/^\/[a-z0-9/_-]+(?:\?[a-z0-9=&_%:.,+~-]*)?$/i.test(path) || path.split('?')[0].includes('//') || path.split('?')[0].includes('..') || path.length > 4096) throw new ApiError('INVALID_PATH');
     if (body !== undefined && !this.csrf) throw new ApiError('CSRF_REQUIRED');
     const deletion_route = /^\/(?:conversations\/[0-9a-f-]{36}\/(?:deletion-state|delete-preparations)|conversation-delete-preparations\/[0-9a-f-]{36}\/confirm|conversation-deletions\/requests\/[0-9a-f-]{36})$(?![\s\S])/.test(path);
-    const study_route = /^\/(?:conversations\/[0-9a-f-]{36}\/(?:study-sessions|study-index(?:\?[^#]*)?)|study-sessions\/[0-9a-f-]{36}(?:\/(?:answers|close))?|study-mutations\/[0-9a-f-]{36}|runs\/[0-9a-f-]{36}\/study-lesson)$(?![\s\S])/.test(path);
+    const feedback_route = /^\/(?:study-sessions\/[0-9a-f-]{36}\/(?:feedback|feedback-requests)|study-feedback-requests\/[0-9a-f-]{36}\/revoke|study-feedback-mutations\/[0-9a-f-]{36})$(?![\s\S])/.test(path);
+    const study_route = feedback_route || /^\/(?:conversations\/[0-9a-f-]{36}\/(?:study-sessions|study-index(?:\?[^#]*)?)|study-sessions\/[0-9a-f-]{36}(?:\/(?:answers|close))?|study-mutations\/[0-9a-f-]{36}|runs\/[0-9a-f-]{36}\/study-lesson)$(?![\s\S])/.test(path);
     const strict_route = deletion_route || study_route;
     // Durable-study caps include the complete transport envelope.
-    const study_limit = /^\/study-sessions\/[0-9a-f-]{36}$/.test(path) && body === undefined ? 256 * 1024 : 64 * 1024;
+    const study_limit = feedback_route ? (/\/feedback$/.test(path) && body === undefined ? 262144 : 16384) : /^\/study-sessions\/[0-9a-f-]{36}$/.test(path) && body === undefined ? 256 * 1024 : 64 * 1024;
     const response_limit = study_route ? study_limit : LIMIT;
     const serialized = body === undefined ? undefined : JSON.stringify(body);
-    if (serialized && new TextEncoder().encode(serialized).length > 65536) throw new ApiError('REQUEST_TOO_LARGE');
+    if (serialized && new TextEncoder().encode(serialized).length > (feedback_route ? 8192 : 65536)) throw new ApiError('REQUEST_TOO_LARGE');
     const request_revision = this.credential_revision;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -56,7 +57,7 @@ export class Api {
       let envelope; try { const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes); envelope = study_route ? parse_closed_json(decoded, response_limit) : deletion_route ? parse_deletion_json(decoded) : JSON.parse(decoded); } catch { throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status); }
       if (strict_route && request_revision !== this.credential_revision) throw new ApiError('STALE_SESSION', body !== undefined, response_status);
       if (!response.ok) throw new ApiError(typeof envelope?.error?.code === 'string' ? envelope.error.code : 'REQUEST_REJECTED', body !== undefined && response.status >= 500, response.status, envelope?.error?.details);
-      if (strict_route && (response.status !== 200 || !envelope || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== 'data,request_id' || typeof envelope.request_id !== 'string' || !EXPORT_UUID.test(envelope.request_id))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
+      if (strict_route && (response.status !== (feedback_route && /\/feedback-requests$/.test(path) && body !== undefined ? 202 : 200) || !envelope || typeof envelope !== 'object' || Array.isArray(envelope) || Object.keys(envelope).sort().join(',') !== 'data,request_id' || typeof envelope.request_id !== 'string' || !EXPORT_UUID.test(envelope.request_id))) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       if (!envelope || !Object.hasOwn(envelope, 'data')) throw new ApiError('INVALID_RESPONSE', body !== undefined, response_status);
       if (study_route && new TextEncoder().encode(JSON.stringify(envelope.data)).length > study_limit) throw new ApiError('RESPONSE_TOO_LARGE', body !== undefined, response_status);
       return envelope.data as T;

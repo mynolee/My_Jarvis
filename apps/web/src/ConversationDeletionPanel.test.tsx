@@ -43,8 +43,8 @@ describe('conversation source deletion owner form (synthetic DOM only)', () => {
     const times = [...document.querySelectorAll('time')]; expect(times.every(time => time.textContent?.endsWith('KST'))).toBe(true); expect(times[1].dateTime).toBe(preparation.prepared_at); expect(times[1].textContent).toBe('2026-10-11 02:40:00 KST');
   });
   it('reviews both retained study bindings and answer bodies while explaining the minimal history retained', async () => {
-    const api = new Api(), request = standard(api, path => path.endsWith('/delete-preparations') ? { ...preparation, source_counts: { ...preparation.source_counts, study_sessions: 2, study_answers: 3 } } : undefined);
-    render(<ConversationDeletionPanel {...props(api)}/>); await review(); expect(screen.getByText(/학습 원문 바인딩 2개 · 학습 답안 3개/)).toBeTruthy(); expect(screen.getByText(/학습 답안 본문과 학습 원문 바인딩을 영구 삭제/)).toBeTruthy(); expect(screen.getByText(/최소한의 학습 이력과 재요청 검증 식별자/)).toBeTruthy(); expect(confirmations(request)).toHaveLength(0);
+    const api = new Api(), request = standard(api, path => path.endsWith('/delete-preparations') ? { ...preparation, source_counts: { ...preparation.source_counts, runs: 3, inference_contexts: 3, study_sessions: 2, study_answers: 3, feedback_requests: 2, feedback_results: 1 } } : undefined);
+    render(<ConversationDeletionPanel {...props(api)}/>); await review(); expect(screen.getByText(/학습 원문 바인딩 2개 · 학습 답안 3개 · 피드백 요청 2개 · 보관된 피드백 1개/)).toBeTruthy(); expect(screen.getByText(/학습 답안 본문과 학습 원문 바인딩, 피드백 원문 바인딩과 보관된 피드백 결과를 영구 삭제/)).toBeTruthy(); expect(screen.getByText(/최소한의 학습·피드백 이력과 재요청 검증 식별자/)).toBeTruthy(); expect(screen.getByText(/일반 대화·학습 생성의 UNKNOWN 작업/)).toBeTruthy(); expect(screen.getByText(/피드백의 UNKNOWN 예외는 결과 권한이 닫히고 정확한 실행 종료 증거까지 검증된 경우에만/)).toBeTruthy(); expect(confirmations(request)).toHaveLength(0);
   });
   it('sends one separately keyed exact confirmation only after both explicit actions, clears preview and reports target', async () => {
     const api = new Api(), p = props(api), request = standard(api); render(<ConversationDeletionPanel {...p}/>); await review();
