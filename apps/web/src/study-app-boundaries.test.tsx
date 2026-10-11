@@ -12,7 +12,7 @@ vi.mock('./ConversationDeletionPanel', () => ({ ConversationDeletionPanel: (p: D
 const deferred = <T,>() => { let resolve!: (v: T) => void, reject!: (e: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const button = (name: string) => screen.getByRole<HTMLButtonElement>('button', { name }), click = (name: string) => fireEvent.click(button(name));
 function fixture() {
-  const api = new Api(), state = { authenticated: true, runtime: { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', status: 'DISABLED', ready: false }, read: null as Promise<unknown> | null, mutation: null as Promise<unknown> | null, deleted: false, index: null as Promise<unknown> | null };
+  const api = new Api(), state = { authenticated: true, runtime: { mode: 'LOCAL_MLX', model_id: 'local-mlx-v1', status: 'DISABLED', ready: false }, history: null as Promise<unknown> | null, read: null as Promise<unknown> | null, mutation: null as Promise<unknown> | null, deleted: false, index: null as Promise<unknown> | null };
   vi.spyOn(api, 'bootstrap_csrf').mockResolvedValue();
   const request = vi.spyOn(api, 'request').mockImplementation(async (path, body) => {
     const route = path.split('?')[0];
@@ -23,7 +23,7 @@ function fixture() {
     if (route === '/execution/pause') return { execution_paused: true, version: 2, checked_at: at };
     if (route === '/local-model/status') return state.runtime;
     if (route === '/conversations') return body ? { id: other, title: 'New conversation', project_id: null, created_at: at } : { items: [{ id: cid, title: 'Study conversation', project_id: null, created_at: at }, { id: other, title: 'Other conversation', project_id: null, created_at: at }], next_cursor: null };
-    if (route.endsWith('/messages') && body === undefined) return { items: [], next_cursor: null, stream_cursor: null, current_run: null };
+    if (route.endsWith('/messages') && body === undefined) return state.history ?? { items: [], next_cursor: null, stream_cursor: null, current_run: null };
     if (route.endsWith('/study-index')) return state.index ?? (route.includes(cid) ? index(true) : { ...index(), conversation_id: other, items: [] });
     if (route === `/study-sessions/${sid}` && body === undefined) { if (state.deleted) throw new ApiError('CONVERSATION_DELETED', false, 410); return state.read ?? study(); }
     if (route === `/study-sessions/${sid}/answers`) return state.mutation;
@@ -33,7 +33,13 @@ function fixture() {
   return { api, state, request };
 }
 async function open(f = fixture()) { const rendered = render(<App api={f.api}/>); await screen.findByText('Account state: AVAILABLE FOR NEW WORK'); await screen.findByText('No saved messages.'); await waitFor(() => expect(button('Find saved study lessons').disabled).toBe(false)); return { ...f, ...rendered }; }
-async function resume() { click('Find saved study lessons'); await screen.findByRole('button', { name: `Resume lesson ${run}` }); click(`Resume lesson ${run}`); await screen.findByLabelText('Answer 1'); await waitFor(() => expect(screen.getByLabelText<HTMLTextAreaElement>('Answer 1').disabled).toBe(false)); }
+async function resume() {
+  await waitFor(() => {
+    expect(button('Study conversation').getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('region', { name: 'Saved transcript' }).getAttribute('aria-busy')).toBe('false');
+    expect(button('Find saved study lessons').disabled).toBe(false);
+  });
+  click('Find saved study lessons'); await screen.findByRole('button', { name: `Resume lesson ${run}` }); click(`Resume lesson ${run}`); await screen.findByLabelText('Answer 1'); await waitFor(() => expect(screen.getByLabelText<HTMLTextAreaElement>('Answer 1').disabled).toBe(false)); }
 function enter() { fireEvent.change(screen.getByLabelText('Answer 1'), { target: { value: 'Private app answer' } }); }
 const writes = (request: ReturnType<typeof fixture>['request']) => request.mock.calls.filter(([, body]) => body !== undefined);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -64,4 +70,18 @@ it.each(['navigation', 'new conversation', 'logout', 'deletion', 'execution boun
   else if (boundary === 'deletion') { click('대화 원문 삭제 열기'); click('Begin reviewed deletion'); }
   else { fireEvent.click(screen.getByRole('checkbox', { name: 'I reviewed the account-wide impact for this checked version' })); click('Pause account execution'); }
   await act(async () => hold.resolve(study())); expect(screen.queryByText('Synthetic first question?')).toBeNull(); expect(screen.queryByLabelText('Answer 1')).toBeNull();
+});
+
+it('waits for the selected transcript before fresh study discovery after navigation', async () => {
+  const f = await open(); await resume(); enter();
+  const history = deferred<unknown>(); f.state.history = history.promise;
+  click('Other conversation'); expect(screen.queryByDisplayValue('Private app answer')).toBeNull();
+  click('Study conversation'); expect(screen.getByRole('region', { name: 'Saved transcript' }).getAttribute('aria-busy')).toBe('true');
+  const discoveries = () => f.request.mock.calls.filter(([path]) => path.startsWith(`/conversations/${cid}/study-index`));
+  const before = discoveries().length, resuming = resume().then(() => null, error => error);
+  try { expect(discoveries()).toHaveLength(before); }
+  finally { await act(async () => history.resolve({ items: [], next_cursor: null, stream_cursor: null, current_run: null })); }
+  expect(await resuming).toBeNull();
+  expect(discoveries()).toHaveLength(before + 1); expect(screen.getByLabelText('Answer 1')).toHaveProperty('value', '');
+  expect(writes(f.request)).toHaveLength(0);
 });
