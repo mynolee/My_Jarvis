@@ -6,7 +6,7 @@ from datetime import timedelta
 from conversation_deletion_reference import (
     ACTIVE, DOMAINS, FIXTURES, LIMITS, MAX_INTEGER, READ_BARRIERS, ROOT, WRITE_BARRIERS,
     SyntheticDeletionClient, SyntheticDeletions, canonical_bytes, check_limits,
-    dispatch_transition, eligibility, fixture, instant, keyed, kst, loads,
+    dispatch_transition, eligibility, feedback_quiescent, fixture, instant, keyed, kst, loads,
     parse_mutation, parse_read, source_counts, stamp, valid, validate_outcome,
     validate_pending, validate_preparation, validate_state, validator,
 )
@@ -913,7 +913,281 @@ class ConversationDeletionContractsTest(unittest.TestCase):
         self.assertEqual(kst(NOW), '2026-10-11 02:40:00 KST')
         self.assertEqual(fixture('preparation')['prepared_at'], NOW)
         self.assertEqual((LIMITS['display_timezone'], LIMITS['wire_timezone']), ('Asia/Seoul', 'UTC'))
-        self.assertEqual(LIMITS['policy_version'], 'conversation-source-v1-r6')
+        self.assertEqual(LIMITS['policy_version'], 'conversation-source-v1-r7')
+
+
+class FeedbackDeletionMetadataOracleTest(unittest.TestCase):
+    def complete_local_cancel(self):
+        value = target()
+        fid, run, reservation, request, context_id, study, answer, attempt, question = [key(i) for i in range(700, 709)]
+        f = dict(id=fid, owner_id=OWNER, conversation_id=TARGET, study_session_id=study,
+                 lesson_run_id=RUN, lesson_run_version=1, question_id=question, input_id=answer, attempt_id=attempt,
+                 run_id=run, reservation_id=reservation, request_id=request, context_id=context_id,
+                 project_id=None, project_version=None, initiating_session_hash='original', security_epoch=1,
+                 admitted_study_version=3, admission_conversation_version=10, context_epoch=1, history_epoch=1,
+                 profile_version=1, timezone='UTC', admission_xid='100', phase_xid='101', version=2, state='REVOKED',
+                 output_authority='REVOKED', created_at=NOW, updated_at=LATER, closed_at=LATER,
+                 source_binding_ref='x' * 142, result_ref=None, source_deleted_at=None)
+        value['graph']['runs'].append(node(run, 'CANCELLED', run_id=run, version=2, history_epoch=1,
+            context_history_eligible=False, result_ref=None, created_at=NOW, cancel_requested_at=LATER, control_admission_xid='100'))
+        value['graph']['reservations'] = [node(reservation, 'CANCELLED', run_id=run, request_id=request,
+            purpose='STUDY_FEEDBACK', accounting_version=1, control_revision=1, security_epoch=1,
+            model_id='local-mlx-v1', model_manifest_hash='b' * 64, budget_revision=1, max_compute_ms=60000,
+            reserved_output_tokens=512, body_hash='a' * 64, created_at=NOW, started_at=None,
+            completed_at=LATER, cancel_requested_at=LATER, dispatch_context_id=None, dispatch_cache_policy=None)]
+        value['graph']['contexts'] = [node(context_id, 'INVALIDATED', run_id=run, session_hash='original',
+            security_epoch=1, context_epoch=1, history_epoch=1, project_id=None, project_version=None,
+            profile_version=None, control_admission_xid='100', created_at=NOW, invalidated_at=LATER, history=[], memories=[])]
+        value['graph']['study_sessions'] = [node(study, 'OPEN', run_id=RUN, lifecycle='OPEN', version=3,
+            lesson_run_version=1, project_id=None, lesson_binding_ref='synthetic-lesson-binding')]
+        value['graph']['study_answers'] = [node(answer, 'RECORDED', run_id=RUN, study_session_id=study,
+            project_id=None, question_id=question, attempt_id=attempt, text_ref='synthetic-answer', source_binding_ref='synthetic-binding'),
+            node(key(709), 'RECORDED', run_id=RUN, study_session_id=study, project_id=None,
+            question_id=key(710), attempt_id=key(711), text_ref='synthetic-other-answer', source_binding_ref='synthetic-other-binding')]
+        value['graph']['runs'][0].update(version=1, result_ref='synthetic-sealed-lesson', created_at=NOW, cancel_requested_at=None)
+        lesson_q = node(key(780), 'SUCCEEDED', run_id=RUN, request_id=key(781), purpose='STUDY_LESSON',
+            accounting_version=1, control_revision=0, security_epoch=1, model_id='local-mlx-v1',
+            model_manifest_hash='9' * 64, budget_revision=1, max_compute_ms=60000, reserved_output_tokens=512,
+            body_hash='8' * 64, created_at=NOW, started_at=NOW, completed_at=NOW, cancel_requested_at=None,
+            dispatch_context_id=key(782), dispatch_cache_policy=LIMITS['dispatch_cache_policy'])
+        value['graph']['reservations'].append(lesson_q)
+        value['graph']['contexts'].append(node(key(782), 'SETTLED', run_id=RUN, project_id=None,
+            security_epoch=1, created_at=NOW, invalidated_at=None, request_digest='8' * 64))
+        lesson_usage = {k: lesson_q[k] for k in ('owner_id', 'run_id', 'request_id', 'model_id', 'model_manifest_hash', 'budget_revision', 'max_compute_ms', 'reserved_output_tokens')}
+        lesson_usage.update(reservation_id=lesson_q['id'], request_digest=lesson_q['body_hash'], reserved_at=NOW,
+            recorded_at=NOW, receipt_kind='MEASURED', response_kind='LESSON', error_code=None,
+            input_tokens=2, output_tokens=3, compute_ms=4, peak_memory_bytes=5)
+        value['graph']['study_sessions'][0]['lesson_receipt'] = lesson_usage
+        value['graph']['study_sessions'][0].update(question_1_id=question, question_2_id=key(710), created_at=NOW, updated_at=NOW, source_deleted_at=None)
+        value['graph']['study_mutations'] = []
+        for version in (1, 2, 3):
+            event = node(key(760 + version), 'COMMITTED', run_id=RUN, study_session_id=study,
+                lesson_run_id=RUN, project_id=None, resulting_version=version, prior_version=None if version == 1 else version - 1,
+                operation='START' if version == 1 else 'ANSWER', request_digest='f' * 64, committed_at=NOW,
+                prior_conversation_version=6 + version, resulting_conversation_version=7 + version)
+            if version > 1:
+                original = value['graph']['study_answers'][version - 2]
+                original.update(expected_study_version=version - 1, resulting_study_version=version,
+                    observed_conversation_version=6 + version, session_hash='original', security_epoch=1, created_at=NOW, content_deleted_at=None)
+                event.update(input_id=original['id'], question_id=original['question_id'], attempt_id=original['attempt_id'],
+                    session_hash='original', security_epoch=1)
+            value['graph']['study_mutations'].append(event)
+        value['graph']['feedback_requests'] = [f]
+        value['graph']['feedback_control_slots'] = [node(reservation, 'TERMINAL', run_id=run, reservation_id=reservation,
+            request_id=request, context_id=context_id, feedback_id=fid, revision=1, purpose='STUDY_FEEDBACK',
+            security_epoch=1, origin_binding='c' * 64, created_at=NOW, dispatch_commitment=None, bound_at=None,
+            decision='OWNER_CANCEL', decision_at=LATER, terminal_kind='UNSTARTED_CORE', generation_id=None,
+            ledger_instance_id=None, terminal_ordinal=None, recorded_at=LATER)]
+        events = []
+        for version, operation, state, authority, before, after, stamp_at in [
+                (1, 'REQUEST', 'QUEUED', 'ACTIVE', 10, 14, NOW),
+                (2, 'REVOKE', 'REVOKED', 'REVOKED', 14, 18, LATER)]:
+            e = {k: f[k] for k in ('owner_id', 'conversation_id', 'study_session_id', 'lesson_run_id', 'question_id', 'input_id', 'attempt_id', 'project_id')}
+            e.update(id=key(720 + version), feedback_id=fid, run_id=run, version=version,
+                     operation=operation, prior_version=None if version == 1 else 1, resulting_state=state,
+                     output_authority=authority, idempotency_key=key(730 + version), operation_session_hash='original',
+                     operation_security_epoch=1, request_digest='d' * 64, reason_code=None if version == 1 else 'OWNER_REVOKE',
+                     prior_conversation_version=before, resulting_conversation_version=after, committed_at=stamp_at,
+                     phase_xid=str(99 + version), invalidated_contexts=0 if version == 1 else 1)
+            events.append(e)
+        value['graph']['feedback_events'] = events
+        return value
+
+    def complete_producer(self, state='ACCEPTED', kind='COMPLETED'):
+        value = self.complete_local_cancel(); f = value['graph']['feedback_requests'][0]
+        middle = '2026-10-10T17:40:30Z'
+        f.update(version=3, state=state, output_authority='REVOKED' if state == 'REVOKED' else 'CLOSED',
+                 phase_xid='102', result_ref='synthetic-sealed-feedback' if state == 'ACCEPTED' else None)
+        run = value['graph']['runs'][-1]; q = value['graph']['reservations'][0]; x = value['graph']['contexts'][0]
+        terminal = {'ACCEPTED': 'SUCCEEDED', 'FAILED': 'FAILED', 'REVOKED': 'UNKNOWN'}[state]
+        run.update(version=3, status=terminal, cancel_requested_at=LATER if state == 'REVOKED' else None)
+        q.update(status=terminal, started_at=middle, dispatch_context_id=x['id'],
+                 dispatch_cache_policy=LIMITS['dispatch_cache_policy'], cancel_requested_at=run['cancel_requested_at'])
+        x.update(profile_version=1, status='INVALIDATED' if state == 'REVOKED' else 'SETTLED', invalidated_at=LATER if state == 'REVOKED' else None)
+        slot = value['graph']['feedback_control_slots'][0]
+        slot.update(dispatch_commitment='e' * 64, bound_at=middle, terminal_kind=kind,
+                    ledger_instance_id=key(740), generation_id=None if kind == 'UNSTARTED_FENCED' else key(741), terminal_ordinal=1,
+                    decision='OWNER_CANCEL' if state == 'REVOKED' else None, decision_at=LATER if state == 'REVOKED' else None)
+        first = value['graph']['feedback_events'][0]; last = copy.deepcopy(value['graph']['feedback_events'][1])
+        dispatched = copy.deepcopy(first); dispatched.update(id=key(750), version=2, operation='DISPATCH', prior_version=1,
+            resulting_state='RUNNING', output_authority='ACTIVE', idempotency_key=None, operation_session_hash=None,
+            operation_security_epoch=None, request_digest=None, prior_conversation_version=14,
+            resulting_conversation_version=19, committed_at=middle, phase_xid='101', invalidated_contexts=0)
+        last.update(id=key(751), version=3, operation={'ACCEPTED': 'ACCEPT', 'FAILED': 'FAIL', 'REVOKED': 'REVOKE'}[state],
+            prior_version=2, resulting_state=state, output_authority=f['output_authority'],
+            prior_conversation_version=19, resulting_conversation_version=23, phase_xid='102',
+            reason_code={'ACCEPTED': None, 'FAILED': 'MODEL_ERROR', 'REVOKED': 'OWNER_REVOKE'}[state],
+            invalidated_contexts=1 if state == 'REVOKED' else 0)
+        if state != 'REVOKED':
+            last.update(idempotency_key=None, operation_session_hash=None, operation_security_epoch=None, request_digest=None)
+            usage = {k: q[k] for k in ('owner_id', 'run_id', 'request_id', 'model_id', 'model_manifest_hash', 'budget_revision', 'max_compute_ms', 'reserved_output_tokens')}
+            usage.update(reservation_id=q['id'], request_digest=q['body_hash'], reserved_at=q['created_at'], recorded_at=LATER,
+                receipt_kind='MEASURED' if state == 'ACCEPTED' else 'ERROR', response_kind='FEEDBACK' if state == 'ACCEPTED' else 'ERROR',
+                error_code=None if state == 'ACCEPTED' else 'MODEL_UNAVAILABLE', input_tokens=2, output_tokens=3, compute_ms=4, peak_memory_bytes=5)
+            f['usage_receipt'] = usage
+        value['graph']['feedback_events'] = [first, dispatched, last]
+        return value
+
+    def test_all_dispatched_terminal_branches_require_version_three_exact_producer_and_usage(self):
+        for state in ('ACCEPTED', 'FAILED', 'REVOKED'):
+            for kind in ('COMPLETED', 'WORKER_STOPPED', 'UNSTARTED_FENCED'):
+                value = self.complete_producer(state, kind); f = value['graph']['feedback_requests'][0]
+                self.assertEqual(feedback_quiescent(value, f), not (state == 'ACCEPTED' and kind == 'UNSTARTED_FENCED'), (state, kind))
+                for field, wrong in (('ledger_instance_id', 'not-a-uuid'), ('terminal_ordinal', True), ('recorded_at', 'infinity')):
+                    changed = copy.deepcopy(value); changed['graph']['feedback_control_slots'][0][field] = wrong
+                    self.assertFalse(feedback_quiescent(changed, changed['graph']['feedback_requests'][0]), field)
+        for field in ('reservation_id', 'run_id', 'request_id', 'request_digest', 'model_manifest_hash', 'reserved_at'):
+            value = self.complete_producer(); value['graph']['feedback_requests'][0]['usage_receipt'][field] = None
+            self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]), field)
+
+    def test_accepted_and_failed_deleted_overlays_preserve_metadata_proof(self):
+        for state in ('ACCEPTED', 'FAILED'):
+            value = self.complete_producer(state); f = value['graph']['feedback_requests'][0]
+            f.update(source_deleted_at=LATER, source_binding_ref=None, result_ref=None)
+            value.update(deleted_at=LATER, deletion_ledger_at=LATER)
+            for run in value['graph']['runs']:
+                run.update(result_ref=None, context_history_eligible=False, content_deleted_at=LATER)
+            for source_context in value['graph']['contexts']:
+                source_context.update(status='INVALIDATED', invalidated_at=LATER)
+            value['graph']['study_sessions'][0].update(lesson_binding_ref=None, source_deleted_at=LATER)
+            for original in value['graph']['study_answers']:
+                original.update(text_ref=None, source_binding_ref=None, content_deleted_at=LATER)
+            self.assertTrue(feedback_quiescent(value, f), state)
+            f['source_deleted_at'] = NOW
+            self.assertFalse(feedback_quiescent(value, f))
+
+    def test_feedback_run_source_overlay_must_match_live_or_exact_deletion(self):
+        value = self.complete_producer(); f = value['graph']['feedback_requests'][0]
+        run = next(row for row in value['graph']['runs'] if row['id'] == f['run_id'])
+        run['content_deleted_at'] = LATER
+        self.assertFalse(feedback_quiescent(value, f))
+        f.update(source_binding_ref=None, result_ref=None, source_deleted_at=LATER)
+        value.update(deleted_at=LATER, deletion_ledger_at=LATER)
+        for source_run in value['graph']['runs']:
+            source_run.update(result_ref=None, context_history_eligible=False, content_deleted_at=LATER)
+        for source_context in value['graph']['contexts']:
+            source_context.update(status='INVALIDATED', invalidated_at=LATER)
+        value['graph']['study_sessions'][0].update(lesson_binding_ref=None, source_deleted_at=LATER)
+        for original in value['graph']['study_answers']:
+            original.update(text_ref=None, source_binding_ref=None, content_deleted_at=LATER)
+        self.assertTrue(feedback_quiescent(value, f))
+        run['content_deleted_at'] = NOW
+        self.assertFalse(feedback_quiescent(value, f))
+
+    def test_missing_or_substituted_original_lesson_and_answer_receipts_fail(self):
+        value = self.complete_local_cancel(); value['graph']['reservations'][1]['purpose'] = 'CONVERSATION'
+        self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]))
+        value = self.complete_local_cancel(); value['graph']['study_sessions'][0]['lesson_receipt']['response_kind'] = 'ANSWER'
+        self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]))
+        value = self.complete_local_cancel(); value['graph']['study_mutations'].pop()
+        self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]))
+        value = self.complete_local_cancel(); value['graph']['study_mutations'][1]['input_id'] = key(799)
+        self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]))
+
+    def test_boolean_integer_aliases_and_final_phase_substitution_are_rejected(self):
+        for kind, field in (('runs', 'version'), ('reservations', 'accounting_version'), ('reservations', 'control_revision'),
+                            ('reservations', 'budget_revision'), ('contexts', 'security_epoch'), ('feedback_control_slots', 'revision')):
+            value = self.complete_local_cancel(); f = value['graph']['feedback_requests'][0]
+            identity = {'runs': 'run_id', 'reservations': 'reservation_id', 'contexts': 'context_id', 'feedback_control_slots': 'reservation_id'}[kind]
+            row = next(row for row in value['graph'][kind] if row['id'] == f[identity]); row[field] = True
+            self.assertFalse(feedback_quiescent(value, f), (kind, field))
+        value = self.complete_local_cancel(); value['graph']['feedback_requests'][0]['phase_xid'] = '100'
+        self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]))
+
+    def test_exact_local_cancel_proof_is_required_for_feedback_only(self):
+        value = self.complete_local_cancel(); f = value['graph']['feedback_requests'][0]
+        self.assertTrue(feedback_quiescent(value, f))
+        self.assertEqual(eligibility(value)['status'], 'ELIGIBLE')
+        self.assertEqual(source_counts(value)['feedback_requests'], 1)
+        self.assertEqual(source_counts(value)['feedback_results'], 0)
+        for field in ('decision', 'decision_at', 'recorded_at', 'terminal_kind', 'origin_binding'):
+            changed = copy.deepcopy(value); changed['graph']['feedback_control_slots'][0][field] = None
+            self.assertFalse(feedback_quiescent(changed, changed['graph']['feedback_requests'][0]), field)
+        value['graph']['runs'][0]['status'] = 'UNKNOWN'
+        self.assertIn('UNKNOWN_WORK', eligibility(value)['blockers'])
+
+    def test_v2_cannot_acquire_a_dispatched_producer_proof(self):
+        for kind in ('COMPLETED', 'WORKER_STOPPED', 'UNSTARTED_FENCED'):
+            value = self.complete_local_cancel(); f = value['graph']['feedback_requests'][0]
+            q = value['graph']['reservations'][0]; slot = value['graph']['feedback_control_slots'][0]
+            q.update(started_at=NOW, dispatch_context_id=f['context_id'], dispatch_cache_policy=LIMITS['dispatch_cache_policy'])
+            slot.update(terminal_kind=kind, dispatch_commitment='e' * 64, bound_at=NOW,
+                        ledger_instance_id=key(740), terminal_ordinal=1, generation_id=None if kind == 'UNSTARTED_FENCED' else key(741))
+            self.assertFalse(feedback_quiescent(value, f), kind)
+
+    def test_every_event_identity_state_counter_and_time_mutation_fails(self):
+        mutations = {'resulting_state': 'ACCEPTED', 'output_authority': 'CLOSED', 'phase_xid': 'untrusted',
+                     'committed_at': 'infinity', 'input_id': key(799), 'version': True,
+                     'resulting_conversation_version': MAX_INTEGER + 1, 'invalidated_contexts': -1,
+                     'request_digest': None, 'operation_session_hash': None}
+        for field, replacement in mutations.items():
+            changed = self.complete_local_cancel(); changed['graph']['feedback_events'][0][field] = replacement
+            self.assertFalse(feedback_quiescent(changed, changed['graph']['feedback_requests'][0]), field)
+        for field in ('owner_id', 'run_id', 'request_id', 'purpose', 'security_epoch', 'revision', 'context_id'):
+            changed = self.complete_local_cancel(); changed['graph']['feedback_control_slots'][0][field] = None
+            self.assertFalse(feedback_quiescent(changed, changed['graph']['feedback_requests'][0]), field)
+
+    def test_missing_and_duplicate_lineages_fail_closed(self):
+        for kind in ('runs', 'reservations', 'contexts', 'study_sessions', 'study_answers', 'feedback_events', 'feedback_control_slots'):
+            changed = self.complete_local_cancel(); changed['graph'][kind].pop()
+            self.assertFalse(feedback_quiescent(changed, changed['graph']['feedback_requests'][0]), kind)
+        value = self.complete_local_cancel(); value['graph']['feedback_control_slots'].append(copy.deepcopy(value['graph']['feedback_control_slots'][0]))
+        self.assertFalse(feedback_quiescent(value, value['graph']['feedback_requests'][0]))
+
+    def test_each_inventory_count_equality_and_one_beyond_remains_conjunctive_with_physical_limit(self):
+        # Count-only projections intentionally lack lineage. They must never be treated as
+        # eligible feedback graphs; actual SQL tests cover the attainable joint equality.
+        domains = [('runs', 1000), ('messages', 2000), ('actions', 1000), ('contexts', 1000),
+                   ('study_sessions', 1000), ('study_answers', 2000), ('feedback_control_slots', 1000),
+                   ('feedback_requests', 2000), ('feedback_events', 6000), ('feedback_results', 2000)]
+        def projection(kind, count):
+            value = target()
+            value['graph'] = {name: [] for name in DOMAINS}
+            value['content'] = {name: [] for name in value['content']}
+            value['authorizations'] = []; value['source_bindings'] = []
+            if kind == 'messages':
+                value['content']['messages'] = ['synthetic'] * count
+            elif kind == 'feedback_results':
+                value['graph']['feedback_requests'] = [node(key(10000+i), 'ACCEPTED', state='ACCEPTED', result_ref='synthetic') for i in range(count)]
+            else:
+                value['graph'][kind] = [node(key(10000+i), 'SUCCEEDED') for i in range(count)]
+            return value
+        for kind, cap in domains:
+            with self.subTest(kind=kind):
+                equality = projection(kind, cap); check_limits(equality)
+                if kind.startswith('feedback'):
+                    self.assertEqual(eligibility(equality)['status'], 'BLOCKED')
+                with self.assertRaisesRegex(ValueError, 'CONVERSATION_DELETION_SCOPE_LIMIT'):
+                    check_limits(projection(kind, cap+1))
+                rows = sum(len(part) for part in equality['graph'].values()) + len(equality['content']['messages'])
+                # Physical identities remain synthetic and unique; source-free bindings count as rows.
+                equality['source_bindings'] = [key(100000+i) for i in range(40000-rows)]
+                check_limits(equality)
+                equality['source_bindings'].append(key(200000))
+                with self.assertRaisesRegex(ValueError, 'CONVERSATION_DELETION_SCOPE_LIMIT'):
+                    check_limits(equality)
+
+    def test_feedback_count_ceiling_never_overrides_distinct_lesson_and_output_run_requirements(self):
+        preparation = fixture('preparation')
+        counts = preparation['source_counts']
+        counts.update(runs=1000, run_results=1000, inference_contexts=1000, study_sessions=334,
+                      study_answers=668, feedback_requests=666, feedback_results=666)
+        self.assertTrue(validate_preparation(preparation))
+        counts.update(feedback_requests=667, feedback_results=667)
+        self.assertFalse(validate_preparation(preparation))  #334 distinct lessons+667 distinct outputs>1000.
+        counts.update(feedback_requests=666, feedback_results=667)
+        self.assertFalse(validate_preparation(preparation))
+        counts.update(runs=1000, study_sessions=1000, study_answers=2000, feedback_requests=2000, feedback_results=2000)
+        self.assertFalse(validate_preparation(preparation))
+
+    def test_capacity_metadata_refusal_precedes_source_byte_access(self):
+        class UnreadableSource(str):
+            def encode(self, *args, **kwargs):
+                raise AssertionError('source byte access reached before cap refusal')
+        value = target(); value['graph']['runs'] = [node(key(10000+i), 'SUCCEEDED') for i in range(1001)]
+        value['content']['run_results'] = [UnreadableSource('synthetic-unreadable')]
+        with self.assertRaisesRegex(ValueError, 'CONVERSATION_DELETION_SCOPE_LIMIT'):
+            check_limits(value)
 
 
 if __name__ == '__main__':

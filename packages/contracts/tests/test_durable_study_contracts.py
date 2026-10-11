@@ -92,9 +92,11 @@ class DurableStudyContractsTest(unittest.TestCase):
         self.assertFalse(envelope_ok('view', {'text': 'x' * 262144}))
         deletion = json.loads((ROOT / 'schemas/conversation-deletion-preparation.schema.json').read_text())
         counts = deletion['properties']['source_counts']
-        self.assertEqual(set(counts['required']), {'messages', 'runs', 'run_results', 'action_payloads', 'inference_contexts', 'study_sessions', 'study_answers'})
+        self.assertEqual(set(counts['required']), {'messages', 'runs', 'run_results', 'action_payloads', 'inference_contexts', 'study_sessions', 'study_answers', 'feedback_requests', 'feedback_results'})
         self.assertEqual(counts['properties']['study_sessions']['maximum'], 1000)
         self.assertEqual(counts['properties']['study_answers']['maximum'], 2000)
+        self.assertEqual(counts['properties']['feedback_requests']['maximum'], 2000)
+        self.assertEqual(counts['properties']['feedback_results']['maximum'], 2000)
 
 
 class DurableStudyDeletionReferenceTest(unittest.TestCase):

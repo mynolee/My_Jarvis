@@ -75,10 +75,24 @@ class InferenceControlContractsTest(unittest.TestCase):
         for bad in (0, -1, 9007199254740992, 1.0, True):
             value = copy.deepcopy(self.f['completed']); value['terminal']['ordinal'] = bad
             self.assertFalse(valid('response', value))
-        for bad in ('STUDY_FEEDBACK', 'MOCK', 'OTHER'):
+        for bad in ('STUDY_REVIEW', 'MOCK', 'OTHER'):
             self.assertFalse(valid('request', self.f['request'] | {'purpose': bad}))
         self.assertFalse(valid('request', self.f['request'] | {'request_id': 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'}))
         self.assertFalse(valid('request', self.f['request'] | {'origin_binding': 'A' * 64}))
+
+    def test_three_purposes_retain_revision_one_and_cannot_retarget_response_or_capability(self):
+        now=datetime(2026,1,1,tzinfo=timezone.utc)
+        for purpose in ('CONVERSATION','STUDY_LESSON','STUDY_FEEDBACK'):
+            request=self.f['request'] | {'purpose':purpose}
+            response=self.f['completed'] | {'purpose':purpose}
+            claims=self.claims() | {'purpose':purpose,'body_hash':hashlib.sha256(canonical_bytes(request)).hexdigest()}
+            self.assertEqual(request['revision'],1)
+            self.assertTrue(valid('request',request));self.assertTrue(bound_response(response,request))
+            self.assertTrue(capability_binding(claims,request,now))
+            for other in ('CONVERSATION','STUDY_LESSON','STUDY_FEEDBACK'):
+                if other==purpose:continue
+                self.assertFalse(bound_response(response | {'purpose':other},request))
+                self.assertFalse(capability_binding(claims | {'purpose':other},request,now))
 
     def test_wire_duplicates_exponents_limits_and_no_dispatch_hash_fabrication(self):
         complete = json.dumps(self.f['request'])

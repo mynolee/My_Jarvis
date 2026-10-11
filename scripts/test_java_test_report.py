@@ -28,6 +28,7 @@ DURABLE_CLASS_COUNTS = {
     'StudyStorageSqlTest': 12,
 }
 CONTROL_CLASS_COUNTS = {'InferenceControlResultTest': 7, 'InferenceControlServiceTest': 18, 'InferenceControlConcurrencyTest': 14, 'InferenceControlHttpTest': 7, 'InferenceControlSqlTest': 18, 'InferenceControlMigrationTest': 4, 'InferenceControlFixtures': 0}
+FEEDBACK_CLASS_COUNTS = {'StudyFeedbackCapacityTest': 14, 'StudyFeedbackConcurrencyTest': 3, 'StudyFeedbackDeletionTest': 11, 'StudyFeedbackFixtures': 0, 'StudyFeedbackHttpTest': 10, 'StudyFeedbackLifecycleTest': 13, 'StudyFeedbackMigrationTest': 2, 'StudyFeedbackResultTest': 8, 'StudyFeedbackServiceTest': 15, 'StudyFeedbackSourceTest': 15, 'StudyFeedbackSqlTest': 14, 'StudyFeedbackTransportTest': 15}
 DIRECT_INPUT_METHOD = 'directInputRequiresIndependentlyObservedTargetAndClosedSourceKind'
 
 
@@ -161,6 +162,23 @@ class ReportFixtureTest(unittest.TestCase):
         self.assertNotIn(str(self.root), json.dumps(result))
         self.assertNotIn(MARKER, json.dumps(result))
         self.assertEqual(stat_mode(self.state), 0o600)
+
+    def test_one_report_file_per_reviewed_class_fits_finite_bound_and_preserves_all_methods(self):
+        self.prepare()
+        count=0
+        for cls,names in report.ALLOWED_TESTS.items():
+            if not names:continue
+            self.xml(suite([testcase(name=name+'()',classname=report.PACKAGE+'.'+cls) for name in names]),'TEST-'+cls+'.xml')
+            count+=1
+        self.assertGreater(count,64)
+        self.assertLessEqual(count,report.MAX_FILES)
+        self.assertEqual(report.MAX_FILES,96)
+        result=self.emit()
+        self.assertEqual(result['status'],'PASS')
+        self.assertEqual(result['counts']['observed_methods'],sum(map(len,report.ALLOWED_TESTS.values())))
+        self.assertEqual(result['counts']['unobserved_methods'],0)
+        self.assertEqual(result['counts']['unmapped_testcases'],0)
+        self.assertNotIn(MARKER,json.dumps(result))
 
     def test_missing_preparation_and_never_run_java_are_unavailable(self):
         self.assertEqual(self.emit('skipped')['reason_codes'], ['PREPARATION_UNAVAILABLE'])
@@ -592,26 +610,36 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 686)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 806)
 
     def test_all_569_historical_identities_remain_exactly_preserved(self):
         historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items() for method in names
-                            if cls not in DURABLE_CLASS_COUNTS and cls not in CONTROL_CLASS_COUNTS
+                            if cls not in DURABLE_CLASS_COUNTS and cls not in CONTROL_CLASS_COUNTS and cls not in FEEDBACK_CLASS_COUNTS
                             and (cls, method) != ('StudyAnswerSourcePolicyTest', DIRECT_INPUT_METHOD))
         self.assertEqual(len(historical), 569)
         self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
                          'eaf1fb4616a8dbcd87fc28744000afa9778575c98003332e734c11fbe43b25fa')
         self.assertEqual({name: len(report.ALLOWED_TESTS[name]) for name in DURABLE_CLASS_COUNTS}, DURABLE_CLASS_COUNTS)
-        self.assertEqual(len(set(report.ALLOWED_TESTS) - set(CONTROL_CLASS_COUNTS)), 56)
+        self.assertEqual(len(set(report.ALLOWED_TESTS) - set(CONTROL_CLASS_COUNTS) - set(FEEDBACK_CLASS_COUNTS)), 56)
 
     def test_all_618_previous_identities_remain_exactly_preserved(self):
         historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items()
-                            if cls not in CONTROL_CLASS_COUNTS for method in names)
+                            if cls not in CONTROL_CLASS_COUNTS and cls not in FEEDBACK_CLASS_COUNTS for method in names)
         self.assertEqual(len(historical), 618)
         self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
                          'bf3c9ac564e491e5425a92ad0260232a6adaecb7fec1edac94dbd89d51ef3c73')
         self.assertEqual({name: len(report.ALLOWED_TESTS[name]) for name in CONTROL_CLASS_COUNTS}, CONTROL_CLASS_COUNTS)
-        self.assertEqual(len(report.ALLOWED_TESTS), 63)
+        self.assertEqual(len(set(report.ALLOWED_TESTS) - set(FEEDBACK_CLASS_COUNTS)), 63)
+
+    def test_all_686_stage_a_identities_remain_exactly_preserved(self):
+        historical=sorted(cls+'.'+method for cls,names in report.ALLOWED_TESTS.items()
+                          if cls not in FEEDBACK_CLASS_COUNTS for method in names)
+        self.assertEqual(len(historical),686)
+        self.assertEqual(hashlib.sha256(('\n'.join(historical)+'\n').encode()).hexdigest(),
+                         '2c3ddbe76e953f3499193316def7d130dccd9196f60f157ca4f3bb1ce3d70ff3')
+        self.assertEqual({name:len(report.ALLOWED_TESTS[name]) for name in FEEDBACK_CLASS_COUNTS},FEEDBACK_CLASS_COUNTS)
+        self.assertEqual(len(report.ALLOWED_TESTS),75)
+        self.assertLessEqual(sum(bool(names) for names in report.ALLOWED_TESTS.values()),report.MAX_FILES)
 
     def test_control_migration_adds_v17_without_changing_any_previous_migration(self):
         path = report.ROOT / report.TEST_ROOT / 'dev/myjarvis/core/InferenceControlMigrationTest.java'
@@ -626,7 +654,7 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         for name, digest in expected.items():
             migration = report.ROOT / 'apps/core/src/main/resources/db/migration' / name
             self.assertEqual(hashlib.sha256(migration.read_bytes()).hexdigest(), digest)
-        self.assertEqual(len(list((report.ROOT / 'apps/core/src/main/resources/db/migration').glob('V*.sql'))), 17)
+        self.assertEqual(len(list((report.ROOT / 'apps/core/src/main/resources/db/migration').glob('V*.sql'))), 18)
 
     def test_historical_and_durable_migration_tests_keep_distinct_version_boundaries(self):
         self.assertEqual(report.ALLOWED_TESTS['StudyLessonMigrationTest'],

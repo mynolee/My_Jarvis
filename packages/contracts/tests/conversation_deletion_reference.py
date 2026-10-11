@@ -109,7 +109,11 @@ def validate_preparation(value, state=None):
     except OverflowError:
         return False
     if (counts['run_results'] > counts['runs'] or counts['inference_contexts'] > counts['runs']
-            or counts['study_answers'] > 2 * counts['study_sessions']):
+            or counts['study_answers'] > 2 * counts['study_sessions']
+            or counts['study_sessions'] + counts['feedback_requests'] > counts['runs']
+            or counts['feedback_requests'] > counts['runs']
+            or counts['feedback_requests'] > counts['study_answers']
+            or counts['feedback_results'] > counts['feedback_requests']):
         return False
     return state is None or (validate_state(state) and state['status'] == 'ACTIVE'
                             and state['eligibility']['status'] == 'ELIGIBLE'
@@ -170,29 +174,291 @@ def source_counts(target):
             'action_payloads': len(target['content']['action_payloads']),
             'inference_contexts': len(target['graph']['contexts']),
             'study_sessions': len(target['graph'].get('study_sessions', [])),
-            'study_answers': len(target['graph'].get('study_answers', []))}
+            'study_answers': len(target['graph'].get('study_answers', [])),
+            'feedback_requests': len(target['graph'].get('feedback_requests', [])),
+            'feedback_results': sum(f.get('state') == 'ACCEPTED' and f.get('result_ref') is not None
+                                    for f in target['graph'].get('feedback_requests', []))}
 
 
 def check_limits(target, elapsed_ms=0):
     counts = source_counts(target)
+    if (counts['messages'] > LIMITS['messages'] or counts['runs'] > LIMITS['runs']
+            or counts['inference_contexts'] > LIMITS['runs']
+            or len(target['graph']['actions']) > LIMITS['actions']
+            or counts['study_sessions'] > LIMITS['study_sessions']
+            or counts['study_answers'] > LIMITS['study_answers']
+            or counts['feedback_requests'] > LIMITS['feedback_requests']
+            or counts['feedback_results'] > counts['feedback_requests']
+            or len(target['graph'].get('feedback_events', [])) > LIMITS['feedback_events']
+            or len(target['graph'].get('feedback_control_slots', [])) > LIMITS['inference_control_slots']
+            or (sum(len(rows) for rows in target['graph'].values())
+                + len(target['content']['messages']) + len(target['authorizations'])
+                + len(target['source_bindings'])) > LIMITS['dependent_rows']):
+        raise ValueError('CONVERSATION_DELETION_SCOPE_LIMIT')
     source_bytes = len(target['title'].encode('utf-8')) + sum(
         len(x.encode('utf-8')) for copies in target['content'].values() for x in copies)
     for kind, fields in (('study_sessions', ('lesson_binding_ref',)),
                          ('study_answers', ('text_ref', 'source_binding_ref')),
-                         ('study_mutations', ('request_digest',))):
+                         ('study_mutations', ('request_digest',)),
+                         ('feedback_requests', ('source_binding_ref', 'result_ref')),
+                         ('feedback_events', ('request_digest',))):
         source_bytes += sum(len(row.get(field, '').encode('utf-8')) for row in target['graph'].get(kind, [])
                             for field in fields if row.get(field) is not None)
-    if (counts['messages'] > LIMITS['messages'] or counts['runs'] > LIMITS['runs']
-            or len(target['graph']['actions']) > LIMITS['actions']
-            or counts['study_sessions'] > LIMITS['study_sessions']
-            or counts['study_answers'] > LIMITS['study_answers']
-            or (sum(len(rows) for rows in target['graph'].values())
-                + len(target['content']['messages']) + len(target['authorizations'])
-                + len(target['source_bindings'])) > LIMITS['dependent_rows']
-            or source_bytes > LIMITS['ciphertext_and_title_utf8_bytes']):
+    source_bytes += 128 * len(target['graph'].get('feedback_control_slots', []))
+    if source_bytes > LIMITS['ciphertext_and_title_utf8_bytes']:
         raise ValueError('CONVERSATION_DELETION_SCOPE_LIMIT')
     if elapsed_ms >= LIMITS['transaction_budget_ms']:
         raise ValueError('CONVERSATION_DELETION_TIME_LIMIT')
+
+
+def feedback_quiescent(target, feedback):
+    """Strict synthetic metadata oracle. Actual PostgreSQL is the enforcement boundary."""
+    graph = target['graph']
+    owner, conversation = target['owner_id'], target['id']
+    try:
+        f = feedback
+        def uuid(value):
+            return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', value) is not None
+        def integer(value, low=1, high=MAX_INTEGER):
+            return type(value) is int and low <= value <= high
+        def digest(value):
+            return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) is not None
+        required_ids = ('id', 'owner_id', 'conversation_id', 'study_session_id', 'lesson_run_id', 'question_id', 'input_id', 'attempt_id', 'run_id', 'reservation_id', 'request_id', 'context_id')
+        if (not all(uuid(f[k]) for k in required_ids) or not integer(f['version'], 2, 3)
+                or f['state'] not in {'REVOKED', 'ACCEPTED', 'FAILED'} or f['version'] == 2 and f['state'] != 'REVOKED'
+                or f['output_authority'] != ('REVOKED' if f['state'] == 'REVOKED' else 'CLOSED')
+                or not integer(f['security_epoch']) or not integer(f['lesson_run_version'])
+                or not integer(f['context_epoch']) or not integer(f['history_epoch']) or not integer(f['profile_version'])
+                or f.get('admitted_study_version') != 3 or f.get('timezone') != 'UTC'
+                or not isinstance(f['initiating_session_hash'], str) or not f['initiating_session_hash']
+                or not integer(f['admission_conversation_version'], high=MAX_INTEGER-1)):
+            return False
+        created, closed = instant(f['created_at']), instant(f['closed_at'])
+        if created > closed or instant(f['updated_at']) != closed:
+            return False
+        if f.get('source_deleted_at') is None:
+            if len(f['source_binding_ref'].encode('utf-8')) != 142 or (f['state'] == 'ACCEPTED') != (f.get('result_ref') is not None):
+                return False
+            if f.get('result_ref') is not None and len(f['result_ref'].encode('utf-8')) > 87438:
+                return False
+        elif (f['source_deleted_at'] != target.get('deleted_at') or f.get('source_binding_ref') is not None or f.get('result_ref') is not None
+                or target.get('deletion_ledger_at') != f['source_deleted_at']):
+            return False
+        if f['owner_id'] != owner or f['conversation_id'] != conversation or f['output_authority'] not in {'CLOSED', 'REVOKED'}:
+            return False
+        def one(kind, field, value):
+            found = [r for r in graph.get(kind, []) if r.get(field) == value]
+            if len(found) != 1 or found[0].get('owner_id') != owner or found[0].get('conversation_id') != conversation:
+                raise ValueError('UNVERIFIED_FEEDBACK')
+            return found[0]
+        run = one('runs', 'id', f['run_id'])
+        if (f.get('source_deleted_at') is None and run.get('content_deleted_at') is not None
+                or f.get('source_deleted_at') is not None and run.get('content_deleted_at') != f['source_deleted_at']):
+            return False
+        q = one('reservations', 'id', f['reservation_id'])
+        x = one('contexts', 'id', f['context_id'])
+        slot = one('feedback_control_slots', 'reservation_id', f['reservation_id'])
+        study = one('study_sessions', 'id', f['study_session_id'])
+        answer = one('study_answers', 'id', f['input_id'])
+        for row, fields in ((run, ('version', 'history_epoch')), (q, ('accounting_version', 'control_revision', 'security_epoch', 'budget_revision', 'max_compute_ms', 'reserved_output_tokens')),
+                            (x, ('security_epoch', 'context_epoch', 'history_epoch')), (slot, ('revision', 'security_epoch')),
+                            (study, ('version', 'lesson_run_version'))):
+            if any(not integer(row.get(field)) for field in fields):
+                return False
+        if f['version'] == 3 and not integer(x.get('profile_version')):
+            return False
+        if (q.get('purpose') != 'STUDY_FEEDBACK' or q.get('accounting_version') != 1 or q.get('control_revision') != 1
+                or run.get('version') != f['version'] or run.get('history_epoch') != f['history_epoch']
+                or run.get('context_history_eligible') is not False or run.get('result_ref') is not None
+                or any(r.get('run_id') != f['run_id'] for r in (q, x, slot))
+                or q.get('request_id') != f['request_id'] or slot.get('request_id') != f['request_id']
+                or slot.get('context_id') != f['context_id'] or slot.get('purpose') != q['purpose'] or slot.get('revision') != 1
+                or q.get('model_id') != 'local-mlx-v1' or q.get('budget_revision') != 1 or q.get('max_compute_ms') != 60000 or q.get('reserved_output_tokens') != 512
+                or not digest(q.get('body_hash')) or not digest(q.get('model_manifest_hash')) or not digest(slot.get('origin_binding'))
+                or any(x.get(k) != f.get(k) for k in ('project_id', 'project_version', 'context_epoch', 'history_epoch'))
+                or (f['version'] == 3 and x.get('profile_version') != f['profile_version'])
+                or slot.get('feedback_id') != f['id'] or x.get('session_hash') != f['initiating_session_hash']
+                or any(r.get('security_epoch') != f['security_epoch'] for r in (q, x, slot))
+                or run.get('control_admission_xid') != f['admission_xid'] or x.get('control_admission_xid') != f['admission_xid']
+                or not re.fullmatch(r'[0-9]{1,20}', f['admission_xid'])
+                or study.get('run_id') != f['lesson_run_id'] or study.get('lesson_run_version') != f['lesson_run_version']
+                or answer.get('study_session_id') != f['study_session_id'] or answer.get('question_id') != f['question_id'] or answer.get('attempt_id') != f['attempt_id']
+                or len([a for a in graph.get('study_answers', []) if a.get('study_session_id') == f['study_session_id']]) != 2
+                or any(r.get('run_id') == f['run_id'] for kind in ('jobs', 'actions') for r in graph.get(kind, []))
+                or x.get('history', []) or x.get('memories', [])):
+            return False
+        lesson = one('runs', 'id', f['lesson_run_id'])
+        lesson_q = one('reservations', 'run_id', lesson['id'])
+        lesson_x = one('contexts', 'id', lesson_q['dispatch_context_id'])
+        lesson_usage = study['lesson_receipt']
+        if (not integer(lesson.get('version')) or not integer(lesson_x.get('security_epoch'))
+                or not all(uuid(lesson_q.get(k)) for k in ('id', 'request_id', 'dispatch_context_id'))
+                or lesson_q.get('model_id') != 'local-mlx-v1' or lesson_q.get('budget_revision') != 1 or lesson_q.get('max_compute_ms') != 60000 or lesson_q.get('reserved_output_tokens') != 512
+                or not digest(lesson_q.get('body_hash')) or not digest(lesson_q.get('model_manifest_hash'))
+                or lesson.get('status') != 'SUCCEEDED' or lesson.get('version') != f['lesson_run_version'] or lesson.get('cancel_requested_at') is not None
+                or lesson_q.get('purpose') != 'STUDY_LESSON' or lesson_q.get('status') != 'SUCCEEDED' or lesson_q.get('accounting_version') != 1
+                or lesson_q.get('cancel_requested_at') is not None or lesson_q.get('dispatch_cache_policy') != LIMITS['dispatch_cache_policy']
+                or lesson_x.get('run_id') != lesson['id'] or lesson_x.get('project_id') != f.get('project_id') or lesson_x.get('security_epoch') != lesson_q.get('security_epoch')
+                or lesson_x.get('status') not in {'SETTLED', 'INVALIDATED'} or lesson_x.get('status') == 'INVALIDATED' and lesson_x.get('invalidated_at') is None
+                or lesson_usage.get('receipt_kind') != 'MEASURED' or lesson_usage.get('response_kind') != 'LESSON' or lesson_usage.get('error_code') is not None
+                or lesson_usage.get('reservation_id') != lesson_q['id'] or lesson_usage.get('request_digest') != lesson_q.get('body_hash')
+                or lesson_usage.get('reserved_at') != lesson_q['created_at']
+                or any(lesson_usage.get(k) != lesson_q.get(k) for k in ('owner_id', 'run_id', 'request_id', 'model_id', 'model_manifest_hash', 'budget_revision', 'max_compute_ms', 'reserved_output_tokens'))
+                or not all(integer(lesson_q.get(k)) for k in ('accounting_version', 'security_epoch', 'budget_revision', 'max_compute_ms', 'reserved_output_tokens'))
+                or any(type(lesson_usage.get(k)) is not int for k in ('budget_revision', 'max_compute_ms', 'reserved_output_tokens'))
+                or not integer(lesson_usage.get('input_tokens'), 0, 3584) or not integer(lesson_usage.get('output_tokens'), 0, 512)
+                or not integer(lesson_usage.get('compute_ms'), 0, 60000) or not integer(lesson_usage.get('peak_memory_bytes'), 0)
+                or instant(lesson_q['started_at']) < instant(lesson_q['created_at']) or instant(lesson_q['completed_at']) < instant(lesson_q['started_at'])):
+            return False
+        if f.get('source_deleted_at') is None and (lesson.get('result_ref') is None or lesson.get('context_history_eligible') is not True):
+            return False
+        inputs = [row for row in graph.get('study_answers', []) if row.get('study_session_id') == f['study_session_id']]
+        if (any(not all(uuid(row.get(k)) for k in ('id', 'question_id', 'attempt_id')) for row in inputs)
+                or {row.get('question_id') for row in inputs} != {study['question_1_id'], study['question_2_id']}
+                or study['question_1_id'] == study['question_2_id']
+                or any(row.get('owner_id') != owner or row.get('conversation_id') != conversation or row.get('project_id') != f.get('project_id') for row in inputs)):
+            return False
+        history = sorted([row for row in graph.get('study_mutations', []) if row.get('study_session_id') == study['id']], key=lambda row: row['resulting_version'])
+        if len(history) != study['version']:
+            return False
+        prior_c, prior_at = 0, instant(study['created_at'])
+        for version, event in enumerate(history, 1):
+            if (not integer(event['resulting_version'], 1, 4) or event['resulting_version'] != version
+                    or any(event.get(k) != f.get(k) for k in ('owner_id', 'conversation_id', 'project_id', 'study_session_id', 'lesson_run_id'))
+                    or not integer(event['prior_conversation_version'], high=MAX_INTEGER-1)
+                    or event.get('prior_version') is not None and not integer(event['prior_version'], 1, 3)
+                    or event['prior_conversation_version'] < prior_c or event['resulting_conversation_version'] != event['prior_conversation_version'] + 1
+                    or not integer(event['resulting_conversation_version'], high=MAX_INTEGER-1) or not digest(event['request_digest'])
+                    or instant(event['committed_at']) < prior_at):
+                return False
+            if version == 1:
+                if event['operation'] != 'START' or event.get('prior_version') is not None or event['committed_at'] != study['created_at']:
+                    return False
+            elif version <= 3:
+                matches = [row for row in inputs if row['id'] == event.get('input_id')]
+                if len(matches) != 1 or event['operation'] != 'ANSWER' or event['prior_version'] != version - 1:
+                    return False
+                original = matches[0]
+                if (any(original.get(a) != event.get(b) for a, b in (('question_id', 'question_id'), ('attempt_id', 'attempt_id'), ('session_hash', 'session_hash'), ('security_epoch', 'security_epoch'), ('expected_study_version', 'prior_version'), ('resulting_study_version', 'resulting_version'), ('observed_conversation_version', 'prior_conversation_version')))
+                        or not all(integer(original[k]) for k in ('security_epoch', 'expected_study_version', 'resulting_study_version', 'observed_conversation_version')) or instant(original['created_at']) > instant(event['committed_at'])):
+                    return False
+            elif event['operation'] != 'CLOSE' or event['prior_version'] != 3:
+                return False
+            prior_c, prior_at = event['resulting_conversation_version'], instant(event['committed_at'])
+        if instant(study['updated_at']) != prior_at:
+            return False
+        if f.get('source_deleted_at') is None:
+            if not study.get('lesson_binding_ref') or study.get('source_deleted_at') is not None or any(not row.get('text_ref') or not row.get('source_binding_ref') or row.get('content_deleted_at') is not None for row in inputs):
+                return False
+        elif (x['status'] != 'INVALIDATED' or study.get('source_deleted_at') != f['source_deleted_at'] or study.get('lesson_binding_ref') is not None
+                or any(row.get('content_deleted_at') != f['source_deleted_at'] or row.get('text_ref') is not None or row.get('source_binding_ref') is not None for row in inputs)):
+            return False
+        if f.get('project_id') is None:
+            if f.get('project_version') is not None:
+                return False
+        elif not uuid(f['project_id']) or not integer(f['project_version']):
+            return False
+        if study.get('project_id') != f.get('project_id') or answer.get('project_id') != f.get('project_id'):
+            return False
+        if study.get('version') not in (3, 4) or study.get('lifecycle') != ('OPEN' if study['version'] == 3 else 'CLOSED_BY_OWNER'):
+            return False
+        for row, field in ((run, 'created_at'), (q, 'created_at'), (x, 'created_at'), (slot, 'created_at'), (slot, 'recorded_at')):
+            instant(row[field])
+        if (instant(run['created_at']) > instant(x['created_at']) or instant(q['created_at']) > instant(x['created_at'])
+                or instant(slot['created_at']) < instant(x['created_at']) or instant(slot['recorded_at']) < instant(slot['created_at'])):
+            return False
+        for row, field in ((run, 'cancel_requested_at'), (q, 'started_at'), (q, 'completed_at'), (q, 'cancel_requested_at'), (x, 'invalidated_at'), (slot, 'bound_at'), (slot, 'decision_at')):
+            if row.get(field) is not None and instant(row[field]) < instant(row['created_at']):
+                return False
+        if (slot.get('decision') is None) != (slot.get('decision_at') is None):
+            return False
+        if slot.get('decision_at') is not None and instant(slot['recorded_at']) < instant(slot['decision_at']):
+            return False
+        events = sorted([e for e in graph.get('feedback_events', []) if e.get('feedback_id') == f['id']], key=lambda e: e['version'])
+        if len(events) != f['version'] or len(events) not in (2, 3):
+            return False
+        operations = ['REQUEST', 'REVOKE'] if f['version'] == 2 else ['REQUEST', 'DISPATCH', {'ACCEPTED': 'ACCEPT', 'FAILED': 'FAIL', 'REVOKED': 'REVOKE'}[f['state']]]
+        previous = None
+        for version, (e, operation) in enumerate(zip(events, operations), 1):
+            state, authority = {'REQUEST': ('QUEUED', 'ACTIVE'), 'DISPATCH': ('RUNNING', 'ACTIVE'), 'ACCEPT': ('ACCEPTED', 'CLOSED'), 'FAIL': ('FAILED', 'CLOSED'), 'REVOKE': ('REVOKED', 'REVOKED')}[operation]
+            if (not integer(e['version'], 1, 3) or e.get('prior_version') is not None and not integer(e['prior_version'], 1, 2)
+                    or e['resulting_state'] != state or e['output_authority'] != authority
+                    or not integer(e['prior_conversation_version'], high=MAX_INTEGER-1) or not integer(e['resulting_conversation_version'], high=MAX_INTEGER-1)
+                    or not integer(e['invalidated_contexts'], 0, 1000) or not re.fullmatch(r'[0-9]{1,20}', e['phase_xid'])
+                    or instant(e['committed_at']) < created or previous and instant(e['committed_at']) < instant(previous['committed_at'])):
+                return False
+            quartet = [e.get(k) for k in ('idempotency_key', 'operation_session_hash', 'operation_security_epoch', 'request_digest')]
+            owner_operation = operation == 'REQUEST' or operation == 'REVOKE' and e.get('reason_code') == 'OWNER_REVOKE'
+            if owner_operation:
+                if not uuid(quartet[0]) or not isinstance(quartet[1], str) or not quartet[1] or not integer(quartet[2]) or not digest(quartet[3]):
+                    return False
+            elif any(value is not None for value in quartet):
+                return False
+            if operation in {'REQUEST', 'DISPATCH', 'ACCEPT'} and e.get('reason_code') is not None or operation == 'FAIL' and e.get('reason_code') != 'MODEL_ERROR':
+                return False
+            if operation == 'REVOKE' and e.get('reason_code') == 'PREDISPATCH_FAILURE' and f['version'] != 2:
+                return False
+            if operation == 'REVOKE' and e.get('reason_code') not in {'OWNER_REVOKE', 'SESSION_REVOKED', 'OWNER_PAUSED', 'SOURCE_INVALIDATED', 'CONTEXT_INVALIDATED', 'TRANSPORT_UNKNOWN', 'RECOVERY_UNKNOWN', 'PREDISPATCH_FAILURE', 'RUN_CANCELLED'}:
+                return False
+            if (e['version'] != version or e['operation'] != operation
+                    or any(e.get(k) != f.get(k) for k in ('owner_id', 'conversation_id', 'study_session_id', 'lesson_run_id', 'question_id', 'input_id', 'attempt_id', 'project_id'))
+                    or e.get('prior_version') != (None if version == 1 else version - 1)
+                    or previous and (e['prior_conversation_version'] != previous['resulting_conversation_version'] or e['phase_xid'] == previous['phase_xid'])
+                    or e['resulting_conversation_version'] - e['prior_conversation_version'] != ({'REQUEST': 4, 'DISPATCH': 5}.get(operation, 3 + e['invalidated_contexts'] if operation == 'REVOKE' else 4))
+                    or operation == 'REVOKE' and e['invalidated_contexts'] < 1 or operation != 'REVOKE' and e['invalidated_contexts'] != 0):
+                return False
+            previous = e
+        if (events[0]['prior_conversation_version'] != f['admission_conversation_version'] or instant(events[0]['committed_at']) < instant(x['created_at'])
+                or events[0].get('phase_xid') != f['admission_xid'] or events[0].get('operation_session_hash') != f['initiating_session_hash']
+                or events[0].get('operation_security_epoch') != f['security_epoch'] or not re.fullmatch(r'[0-9a-f]{64}', events[0]['request_digest'])
+                or previous['resulting_state'] != f['state'] or previous['output_authority'] != f['output_authority'] or previous['committed_at'] != f['closed_at']
+                or f['updated_at'] != f['closed_at'] or f['phase_xid'] != previous['phase_xid'] or slot.get('recorded_at') is None):
+            return False
+        if f['state'] in {'ACCEPTED', 'FAILED'}:
+            expected = 'SUCCEEDED' if f['state'] == 'ACCEPTED' else 'FAILED'
+            usage = f.get('usage_receipt', {})
+            if (any(type(usage.get(k)) is not int for k in ('budget_revision', 'max_compute_ms', 'reserved_output_tokens'))
+                    or any(usage.get(k) != q.get(k) for k in ('owner_id', 'run_id', 'request_id', 'model_id', 'model_manifest_hash', 'budget_revision', 'max_compute_ms', 'reserved_output_tokens'))
+                    or usage.get('reserved_at') != q['created_at'] or not integer(usage.get('input_tokens'), 0, 3584)
+                    or not integer(usage.get('output_tokens'), 0, 512) or not integer(usage.get('compute_ms'), 0, 60000) or not integer(usage.get('peak_memory_bytes'), 0)
+                    or instant(usage['recorded_at']) < instant(q['created_at'])
+                    or f['state'] == 'ACCEPTED' and usage.get('error_code') is not None
+                    or f['state'] == 'FAILED' and usage.get('error_code') not in {'MODEL_UNAVAILABLE', 'CONTRACT_VIOLATION', 'RESOURCE_LIMIT', 'CONTEXT_LIMIT', 'MODEL_OUTPUT_INVALID', 'GENERATION_TIMEOUT', 'CANCELLED'}):
+                return False
+
+            if (run['status'] != expected or q['status'] != expected or q.get('completed_at') is None
+                    or run.get('cancel_requested_at') is not None or q.get('cancel_requested_at') is not None
+                    or x['status'] not in {'SETTLED', 'INVALIDATED'} or x['status'] == 'INVALIDATED' and not x.get('invalidated_at')
+                    or usage.get('receipt_kind') != ('MEASURED' if f['state'] == 'ACCEPTED' else 'ERROR')
+                    or usage.get('response_kind') != ('FEEDBACK' if f['state'] == 'ACCEPTED' else 'ERROR')
+                    or usage.get('reservation_id') != q['id'] or usage.get('request_digest') != q.get('body_hash')):
+                return False
+        elif (f['state'] != 'REVOKED' or run['status'] != ('CANCELLED' if f['version'] == 2 else 'UNKNOWN')
+                or q['status'] != run['status'] or not run.get('cancel_requested_at') or not q.get('cancel_requested_at') or not q.get('completed_at')
+                or x['status'] != 'INVALIDATED' or not x.get('invalidated_at')):
+            return False
+        if q.get('completed_at') is None or instant(q['completed_at']) > closed:
+            return False
+        if f['state'] == 'REVOKED':
+            if any(not instant(events[-2]['committed_at']) <= instant(row[field]) <= closed for row, field in ((run, 'cancel_requested_at'), (q, 'cancel_requested_at'), (x, 'invalidated_at'))):
+                return False
+        elif x['status'] == 'INVALIDATED' and instant(x['invalidated_at']) < closed or x['status'] == 'SETTLED' and x.get('invalidated_at') is not None:
+            return False
+        kind = slot.get('terminal_kind')
+        if kind == 'UNSTARTED_CORE':
+            return (f['state'] == 'REVOKED' and f['version'] == 2 and slot.get('decision') in {'OWNER_CANCEL', 'SECURITY_REVOKED', 'CONTEXT_INVALIDATED', 'RECOVERY_UNKNOWN'}
+                    and all(q.get(k) is None for k in ('started_at', 'dispatch_context_id', 'dispatch_cache_policy'))
+                    and all(slot.get(k) is None for k in ('dispatch_commitment', 'bound_at', 'generation_id', 'ledger_instance_id', 'terminal_ordinal')))
+        if (f['version'] != 3 or not q.get('started_at') or q.get('dispatch_context_id') != x['id'] or q.get('dispatch_cache_policy') != LIMITS['dispatch_cache_policy']
+                or not re.fullmatch(r'[0-9a-f]{64}', slot.get('dispatch_commitment', '')) or slot.get('bound_at') != q['started_at']
+                or not uuid(slot.get('ledger_instance_id')) or not integer(slot.get('terminal_ordinal'))
+                or not instant(events[0]['committed_at']) <= instant(q['started_at']) <= instant(events[1]['committed_at'])
+                or instant(q['completed_at']) < instant(q['started_at']) or instant(slot['recorded_at']) < instant(slot['bound_at'])):
+            return False
+        return (kind == 'UNSTARTED_FENCED' and slot.get('generation_id') is None and f['state'] in {'FAILED', 'REVOKED'}
+                or kind in {'COMPLETED', 'WORKER_STOPPED'} and uuid(slot.get('generation_id')))
+    except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
+        return False
 
 
 def eligibility(target):
@@ -201,11 +467,13 @@ def eligibility(target):
     title = target.get('title')
     if not isinstance(title, str) or not 1 <= len(title) <= 200 or '\0' in title:
         blockers.add('INTEGRITY_UNVERIFIED')
-    if (not set(DOMAINS) <= set(graph) or not set(graph) <= set(DOMAINS) | {'study_sessions', 'study_answers', 'study_mutations'}
+    if (not set(DOMAINS) <= set(graph) or not set(graph) <= set(DOMAINS) | {'study_sessions', 'study_answers', 'study_mutations', 'feedback_requests', 'feedback_events', 'feedback_control_slots'}
             or not target['integrity_verified']):
         blockers.add('INTEGRITY_UNVERIFIED')
     runs = {row['id']: row for row in graph.get('runs', [])}
     contexts = {row['id']: row for row in graph.get('contexts', [])}
+    feedback = {row['id']: row for row in graph.get('feedback_requests', [])}
+    proven_runs = {row.get('run_id') for row in feedback.values() if feedback_quiescent(target, row)}
     for kind, rows in graph.items():
         ids = [row['id'] for row in rows]
         if len(ids) != len(set(ids)):
@@ -215,6 +483,13 @@ def eligibility(target):
                 blockers.add('INTEGRITY_UNVERIFIED')
             if kind != 'runs' and row.get('run_id') not in runs:
                 blockers.add('INTEGRITY_UNVERIFIED')
+            if kind in {'feedback_requests', 'feedback_events', 'feedback_control_slots'}:
+                matched = row if kind == 'feedback_requests' else feedback.get(row.get('feedback_id'))
+                if not matched or not feedback_quiescent(target, matched):
+                    blockers.add('ACTIVE_WORK' if matched and matched.get('output_authority') == 'ACTIVE' else 'UNKNOWN_WORK')
+                continue
+            if row.get('run_id', row['id']) in proven_runs and kind in {'runs', 'contexts', 'reservations'}:
+                continue
             if kind in {'study_sessions', 'study_answers', 'study_mutations'}:
                 studies = {s['id']: s for s in graph.get('study_sessions', [])}
                 if kind == 'study_sessions':
@@ -324,6 +599,13 @@ class SyntheticDeletions:
 
     def digest(self, target):
         manifest = copy.deepcopy(target)
+        for slot in manifest['graph'].get('feedback_control_slots', []):
+            for field in ('decision', 'decision_at', 'terminal_kind', 'generation_id', 'ledger_instance_id', 'terminal_ordinal', 'recorded_at'):
+                slot.pop(field, None)
+        for study in manifest['graph'].get('study_sessions', []):
+            study.pop('lesson_receipt', None)
+        for feedback in manifest['graph'].get('feedback_requests', []):
+            feedback.pop('usage_receipt', None)
         for rows in manifest['graph'].values():
             rows.sort(key=lambda row: row['id'])
         manifest['authorizations'].sort(key=lambda row: row['id'])
@@ -460,13 +742,22 @@ class SyntheticDeletions:
         staged['title'], staged['content'], staged['content_version'] = None, {}, receipt['tombstone_version']
         for run in staged['graph']['runs']:
             run['context_history_eligible'] = False
+            if 'result_ref' in run:
+                run['result_ref'], run['content_deleted_at'] = None, now
         for context in staged['graph']['contexts']:
             context['status'] = 'INVALIDATED'
         staged['source_bindings'] = []
+        if staged['graph'].get('feedback_requests'):
+            staged['deleted_at'], staged['deletion_ledger_at'] = now, now
+            for context in staged['graph']['contexts']:
+                if context.get('invalidated_at') is None:
+                    context['invalidated_at'] = now
         for shell in staged['graph'].get('study_sessions', []):
             shell['lesson_binding_ref'], shell['source_deleted_at'] = None, now
         for shell in staged['graph'].get('study_answers', []):
             shell['text_ref'], shell['source_binding_ref'], shell['content_deleted_at'] = None, None, now
+        for shell in staged['graph'].get('feedback_requests', []):
+            shell['source_binding_ref'], shell['result_ref'], shell['source_deleted_at'] = None, None, now
         for shell in staged['authorizations']:
             shell['payload_hash'], shell['source_deleted_at'], shell['revoked'] = None, now, True
         if fail_after_stage:

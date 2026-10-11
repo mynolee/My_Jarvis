@@ -66,7 +66,12 @@ class StudyLessonAdmissionContractsTest(unittest.TestCase):
         self.assertFalse(self.result.is_valid(value))
 
     def test_request_purpose_extension_is_optional_and_study_requires_context(self):
-        request = schema('turn-request')
+        union = schema('turn-request')
+        request = union['oneOf'][0]
+        feedback = union['oneOf'][1]
+        self.assertEqual(feedback['properties']['purpose'], {'const':'STUDY_FEEDBACK'})
+        self.assertIn('feedback_source',feedback['required'])
+        self.assertNotIn('user_input',feedback['properties'])
         self.assertNotIn('purpose', request['required'])
         self.assertEqual(request['properties']['purpose']['enum'], ['CONVERSATION', 'STUDY_LESSON'])
         condition = next(item for item in request['allOf'] if item.get('if', {}).get('properties', {}).get('purpose'))
@@ -104,7 +109,7 @@ class StudyLessonAdmissionContractsTest(unittest.TestCase):
         self.assertIn('ORDER BY installed_rank DESC LIMIT 1', study_gate)
         self.assertIn('CONVERSATION_GRAPH_UNVERIFIED', study_gate)
         self.assertIn('if(!exactSchema())', core)
-        self.assertIn('conversation-source-v1-r6', core)
+        self.assertIn('conversation-source-v1-r7', core)
         self.assertIn('SELECT x.* FROM ', core)
         self.assertIn('SET result_ref=NULL', core)
         self.assertIn('SET content_ref=NULL,body_hash=NULL', core)
