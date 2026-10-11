@@ -238,7 +238,7 @@ BEGIN
  END LOOP;
  SELECT count(*) INTO n FROM (SELECT 1 FROM study_owner_answer_inputs WHERE study_session_id=p_study LIMIT 3) bounded;
  IF answers>2 OR n<>answers OR s.updated_at<>previous_at OR c.content_version<previous_c
-  OR s.lifecycle<>CASE WHEN closed THEN 'CLOSED_BY_OWNER' ELSE 'OPEN' END
+  OR s.lifecycle<>(CASE WHEN closed THEN 'CLOSED_BY_OWNER' ELSE 'OPEN' END)
   OR EXISTS(SELECT 1 FROM study_owner_answer_inputs a WHERE a.study_session_id=p_study AND NOT EXISTS(
    SELECT 1 FROM study_mutations m WHERE m.owner_id=a.owner_id AND m.study_session_id=a.study_session_id AND m.operation='ANSWER' AND m.input_id=a.id))
   THEN RAISE EXCEPTION 'Incomplete study input closure'; END IF;
