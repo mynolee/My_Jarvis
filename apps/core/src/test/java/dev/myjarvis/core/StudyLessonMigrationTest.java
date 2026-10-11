@@ -42,7 +42,7 @@ class StudyLessonMigrationTest {
                 var consumedBefore = db.queryForMap("SELECT * FROM conversation_delete_preparations WHERE id=?", consumed);
                 assertEquals(digest, vault.open(owner, prepared, "conversation-delete-snapshot", snapshot));
                 var oldBody = Json.MAPPER.valueToTree(Map.of("expected_version", 1, "expected_digest", digest, "payload_hash", payload, "confirm", true));
-                Flyway.configure().dataSource(url, "postgres", "").locations("classpath:db/migration").load().migrate();
+                Flyway.configure().dataSource(url, "postgres", "").locations("classpath:db/migration").target("15").load().migrate();
                 assertEquals("15", db.queryForObject("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class));
                 var migratedReservation = db.queryForMap("SELECT * FROM inference_reservations WHERE id=?", oldReservation);
                 assertEquals("CONVERSATION", migratedReservation.remove("purpose")); assertEquals(oldReservationBefore, migratedReservation);

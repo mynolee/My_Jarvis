@@ -11,15 +11,26 @@ final class StudyAnswerSourcePolicy {
     record Target(UUID sessionId, long expectedVersion, UUID questionId, UUID attemptId) {}
 
     /** A server-observed explicit selection, not a capability or an owner assertion. */
-    record Selection(UUID messageId, long conversationContentVersion, Target target) {}
+    enum SourceKind { CONVERSATION_MESSAGE, OWNER_STUDY_ANSWER_INPUT }
+    record SourceRef(SourceKind kind, UUID id) {}
+    record Selection(SourceRef source, long conversationContentVersion, Target target) {
+        Selection(UUID messageId, long conversationContentVersion, Target target) {
+            this(new SourceRef(SourceKind.CONVERSATION_MESSAGE, messageId), conversationContentVersion, target);
+        }
+    }
 
     /**
-     * Resolved from the current owned conversation and source message together.
+     * Resolved from the current owned conversation and tagged source together.
      * Missing, deleted or inaccessible sources must be represented by null instead.
      * No constructor or instance of this data record establishes trusted provenance.
      */
-    record Source(UUID messageId, UUID ownerId, UUID conversationId, UUID projectId,
-                  long conversationContentVersion, String role, String trust, String text) {
+    record Source(SourceRef source, UUID ownerId, UUID conversationId, UUID projectId,
+                  long conversationContentVersion, String role, String trust, String text, Target storedTarget) {
+        Source(UUID messageId, UUID ownerId, UUID conversationId, UUID projectId,
+                long conversationContentVersion, String role, String trust, String text) {
+            this(new SourceRef(SourceKind.CONVERSATION_MESSAGE, messageId), ownerId, conversationId,
+                    projectId, conversationContentVersion, role, trust, text, null);
+        }
         @Override public String toString() { return "StudyAnswerSourcePolicy.Source[redacted]"; }
     }
 
@@ -35,7 +46,11 @@ final class StudyAnswerSourcePolicy {
         require(commandTarget != null && commandTarget.sessionId() != null
                 && commandTarget.questionId() != null && commandTarget.attemptId() != null
                 && version(commandTarget.expectedVersion()) && commandTarget.equals(selection.target()));
-        require(selection.messageId() != null && selection.messageId().equals(current.messageId()));
+        require(selection.source() != null && selection.source().kind() != null
+                && selection.source().id() != null && selection.source().equals(current.source()));
+        if (selection.source().kind() == SourceKind.OWNER_STUDY_ANSWER_INPUT)
+            require(commandTarget.equals(current.storedTarget()));
+        else require(current.storedTarget() == null);
         require(version(selection.conversationContentVersion()) && version(current.conversationContentVersion())
                 && selection.conversationContentVersion() == current.conversationContentVersion());
         require(actorOwnerId.equals(current.ownerId())

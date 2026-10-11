@@ -1,6 +1,5 @@
 package dev.myjarvis.core;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -18,9 +17,9 @@ import tools.jackson.databind.JsonNode;
 /** Atomic, exact-snapshot redaction of one closed source graph. Never calls a model or provider. */
 @Service
 final class ConversationDeletionService {
-    static final String SCOPE="CONVERSATION_SOURCE_V1", POLICY="conversation-source-v1-r4";
+    static final String SCOPE="CONVERSATION_SOURCE_V1", POLICY="conversation-source-v1-r5";
     static final int RUN_LIMIT=1000, MESSAGE_LIMIT=2000, ACTION_LIMIT=1000, ROW_LIMIT=40000, PREPARATION_LIMIT=100;
-    static final long BYTE_LIMIT=16L*1024*1024, BUDGET_NANOS=5_000_000_000L;
+    static final long BUDGET_NANOS=5_000_000_000L;
     private static final Set<String> RUN_CLOSED=Set.of("SUCCEEDED","PARTIAL_SUCCESS","FAILED","CANCELLED","EXPIRED","BLOCKED","WAITING_INPUT");
     private static final Set<String> CLOSED=Set.of("SUCCEEDED","FAILED","CANCELLED","EXPIRED","BLOCKED");
     private static final Set<String> ACTIVE=Set.of("ACCEPTED","PLANNING","WAITING_APPROVAL","QUEUED","RUNNING","CANCEL_REQUESTED","EXECUTING","STARTED","CAPTURED","PREPARED","DISPATCHED");
@@ -33,7 +32,7 @@ final class ConversationDeletionService {
     private <T> T transaction(Supplier<T> work){
         try{return tx.execute(status->{db.execute("SET LOCAL statement_timeout='5s'");db.execute("SET LOCAL lock_timeout='5s'");db.execute("SET LOCAL idle_in_transaction_session_timeout='5s'");long start=System.nanoTime();T value=work.get();budget(start);return value;});}
         catch(TransactionTimedOutException e){throw new ApiException(503,"CONVERSATION_DELETION_TIME_LIMIT");}
-        catch(DataAccessException e){for(Throwable t=e;t!=null;t=t.getCause())if(t instanceof java.sql.SQLException sql && Set.of("57014","55P03","25P03").contains(sql.getSQLState()))throw new ApiException(503,"CONVERSATION_DELETION_TIME_LIMIT");throw e;}
+        catch(DataAccessException e){for(Throwable t=e;t!=null;t=t.getCause())if(t instanceof java.sql.SQLException sql){if("54000".equals(sql.getSQLState()))throw new ApiException(413,"CONVERSATION_DELETION_SCOPE_LIMIT");if(Set.of("57014","55P03","25P03").contains(sql.getSQLState()))throw new ApiException(503,"CONVERSATION_DELETION_TIME_LIMIT");}throw e;}
     }
     private Instant now(){return memories.databaseNow();}
     private static void authorityTime(Instant prepared,Instant expires,Instant observed){
@@ -78,7 +77,7 @@ final class ConversationDeletionService {
             db.update("DELETE FROM conversation_delete_preparations p WHERE p.owner_id=? AND p.consumed_at IS NULL AND p.prepared_at<clock_timestamp()-interval '24 hours' AND NOT EXISTS(SELECT 1 FROM conversation_delete_approvals a WHERE a.preparation_id=p.id) AND NOT EXISTS(SELECT 1 FROM conversation_deletion_mutations m WHERE m.preparation_id=p.id)",s.owner());
             if(db.queryForList("SELECT id FROM conversation_delete_preparations WHERE owner_id=? AND consumed_at IS NULL ORDER BY id LIMIT 100",s.owner()).size()>=PREPARATION_LIMIT)throw new ApiException(429,"CONVERSATION_DELETION_PREPARATION_LIMIT");
             MemoryService.unpaused(session(s,true));Instant prepared=now(),expires=prepared.plusSeconds(300);UUID preparation=UUID.randomUUID();String hash=payloadHash(s,preparation,id,version,submitted,prepared,expires);
-            db.update("INSERT INTO conversation_delete_preparations(id,owner_id,conversation_id,session_hash,security_epoch,issuance_key,issuance_digest,expected_version,expected_digest_ref,payload_hash_ref,messages_count,runs_count,run_results_count,action_payloads_count,inference_contexts_count,prepared_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",preparation,s.owner(),id,s.hash(),s.epoch(),key,request,version,seal(s.owner(),preparation,"snapshot",submitted),seal(s.owner(),preparation,"payload",hash),graph.counts.get("messages"),graph.counts.get("runs"),graph.counts.get("run_results"),graph.counts.get("action_payloads"),graph.counts.get("inference_contexts"),Timestamp.from(prepared),Timestamp.from(expires));
+            db.update("INSERT INTO conversation_delete_preparations(id,owner_id,conversation_id,session_hash,security_epoch,issuance_key,issuance_digest,expected_version,expected_digest_ref,payload_hash_ref,messages_count,runs_count,run_results_count,action_payloads_count,inference_contexts_count,study_sessions_count,study_answers_count,prepared_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",preparation,s.owner(),id,s.hash(),s.epoch(),key,request,version,seal(s.owner(),preparation,"snapshot",submitted),seal(s.owner(),preparation,"payload",hash),graph.counts.get("messages"),graph.counts.get("runs"),graph.counts.get("run_results"),graph.counts.get("action_payloads"),graph.counts.get("inference_contexts"),graph.counts.get("study_sessions"),graph.counts.get("study_answers"),Timestamp.from(prepared),Timestamp.from(expires));
             audit(s.owner(),"CONVERSATION_DELETE_PREPARED",preparation);
             var response=preparation(s,db.queryForMap("SELECT * FROM conversation_delete_preparations WHERE id=?",preparation),c,graph);MemoryService.unpaused(session(s,true));authorityTime(prepared,expires,now());return response;
         });
@@ -114,13 +113,15 @@ final class ConversationDeletionService {
             db.update("UPDATE conversation_delete_preparations SET expected_digest_ref=NULL,payload_hash_ref=NULL,revoked_at=?,consumed_at=CASE WHEN id=? THEN ? ELSE consumed_at END WHERE owner_id=? AND conversation_id=? AND consumed_at IS NULL",at,preparation,at,s.owner(),id);
             db.update("INSERT INTO conversation_deletion_mutations(owner_id,idempotency_key,session_hash,security_epoch,request_digest,deletion_id,preparation_id) VALUES (?,?,?,?,?,?,?)",s.owner(),key,s.hash(),s.epoch(),request,deletion,preparation);
             audit(s.owner(),"CONVERSATION_SOURCE_DELETED",id);db.update("INSERT INTO outbox_events(id,owner_id,aggregate_id,event_type) VALUES (?,?,?,'CONVERSATION_SOURCE_DELETED')",UUID.randomUUID(),s.owner(),id);
-            db.execute("SET CONSTRAINTS conversation_deletion_complete IMMEDIATE");var committed=prior(s,key,request);
+            db.execute("SET CONSTRAINTS conversation_deletion_complete,conversation_study_deletion_complete,study_history_complete IMMEDIATE");var committed=prior(s,key,request);
             // Recheck after constraints and receipt reads, including a possible wall-clock rollback.
             MemoryService.unpaused(session(s,true));Instant observed=now();authorityTime(prepared,expires,observed);observationTime(deleted,observed);
             committed.put("checked_at",observed.toString());return committed;
         });
     }
     private void redact(UUID owner,UUID id,Timestamp at){
+        db.update("UPDATE study_sessions SET lesson_binding_ref=NULL,source_deleted_at=? WHERE owner_id=? AND conversation_id=?",at,owner,id);
+        db.update("UPDATE study_owner_answer_inputs SET text_ref=NULL,source_binding_ref=NULL,content_deleted_at=? WHERE owner_id=? AND conversation_id=?",at,owner,id);
         db.update("UPDATE messages SET content_ref=NULL,body_hash=NULL,content_deleted_at=? WHERE owner_id=? AND conversation_id=?",at,owner,id);
         db.update("UPDATE runs SET result_ref=NULL,context_history_eligible=false,content_deleted_at=? WHERE owner_id=? AND conversation_id=?",at,owner,id);
         for(String table:List.of("approvals","mock_effects"))db.update("UPDATE "+table+" SET payload_hash=NULL,content_deleted_at=? WHERE owner_id=? AND action_id IN (SELECT a.id FROM action_proposals a JOIN runs r ON r.id=a.run_id WHERE r.owner_id=? AND r.conversation_id=?)",at,owner,owner,id);
@@ -136,38 +137,49 @@ final class ConversationDeletionService {
     private Map<String,Object> prior(AuthService.Session s,UUID key,String request){var rows=db.queryForList("SELECT * FROM conversation_deletion_mutations WHERE owner_id=? AND idempotency_key=?",s.owner(),key);if(rows.isEmpty())return null;var m=rows.getFirst();MemoryService.binding(s,m);if(request!=null&&!Json.equal(request,(String)m.get("request_digest")))throw new ApiException(409,"IDEMPOTENCY_CONFLICT");return outcome(db.queryForMap("SELECT * FROM conversation_deletion_ledger WHERE owner_id=? AND id=?",s.owner(),m.get("deletion_id")));}
     Map<String,Object> reconcile(AuthService.Session s,UUID key){return transaction(()->{session(s,false);var result=prior(s,key,null);session(s,false);return result==null?outcome(null):result;});}
 
-    private record Scope(String table,String condition,String order,int limit,String bytes){}
+    private record Scope(String table,String condition,String order,int limit){}
     private static final String RUNS="SELECT id FROM runs WHERE conversation_id=?", ACTIONS="SELECT a.id FROM action_proposals a JOIN runs r ON r.id=a.run_id WHERE r.conversation_id=?", CONTEXTS="SELECT id FROM inference_contexts WHERE conversation_id=? OR run_id IN ("+RUNS+")";
+    private static final String STUDIES="SELECT id FROM study_sessions WHERE conversation_id=? OR lesson_run_id IN ("+RUNS+")", INPUTS="SELECT id FROM study_owner_answer_inputs WHERE conversation_id=? OR study_session_id IN ("+STUDIES+")";
     private static final List<Scope> SCOPES=List.of(
-        new Scope("runs","x.conversation_id=?","x.id",RUN_LIMIT,"octet_length(x.result_ref)"),
-        new Scope("messages","x.conversation_id=? OR x.run_id IN ("+RUNS+")","x.id",MESSAGE_LIMIT,"COALESCE(octet_length(x.content_ref),0)+COALESCE(octet_length(x.body_hash),0)"),
-        new Scope("action_proposals","x.run_id IN ("+RUNS+")","x.id",ACTION_LIMIT,"COALESCE(octet_length(x.payload_ref),0)+COALESCE(octet_length(x.payload_hash),0)"),
-        new Scope("approvals","x.action_id IN ("+ACTIONS+")","x.id",ROW_LIMIT,"octet_length(x.payload_hash)"),
-        new Scope("authorizations","x.action_id IN ("+ACTIONS+")","x.id",ROW_LIMIT,"octet_length(x.payload_hash)"),
-        new Scope("jobs","x.run_id IN ("+RUNS+") OR x.action_id IN ("+ACTIONS+")","x.id",ROW_LIMIT,null),
-        new Scope("action_executions","x.action_id IN ("+ACTIONS+")","x.action_id",ROW_LIMIT,null),
-        new Scope("mock_effects","x.action_id IN ("+ACTIONS+")","x.action_id",ROW_LIMIT,"octet_length(x.payload_hash)"),
-        new Scope("inference_reservations","x.run_id IN ("+RUNS+")","x.id",ROW_LIMIT,null),
-        new Scope("inference_contexts","x.conversation_id=? OR x.run_id IN ("+RUNS+")","x.id",RUN_LIMIT,null),
-        new Scope("inference_context_history","x.context_id IN ("+CONTEXTS+") OR x.message_id IN (SELECT id FROM messages WHERE conversation_id=?) OR x.run_id IN ("+RUNS+")","x.context_id,x.ordinal",ROW_LIMIT,null),
-        new Scope("inference_context_memories","x.context_id IN ("+CONTEXTS+")","x.context_id,x.memory_id",ROW_LIMIT,null)
+        new Scope("runs","x.conversation_id=?","x.id",RUN_LIMIT),
+        new Scope("messages","x.conversation_id=? OR x.run_id IN ("+RUNS+")","x.id",MESSAGE_LIMIT),
+        new Scope("action_proposals","x.run_id IN ("+RUNS+")","x.id",ACTION_LIMIT),
+        new Scope("approvals","x.action_id IN ("+ACTIONS+")","x.id",ROW_LIMIT),
+        new Scope("authorizations","x.action_id IN ("+ACTIONS+")","x.id",ROW_LIMIT),
+        new Scope("jobs","x.run_id IN ("+RUNS+") OR x.action_id IN ("+ACTIONS+")","x.id",ROW_LIMIT),
+        new Scope("action_executions","x.action_id IN ("+ACTIONS+")","x.action_id",ROW_LIMIT),
+        new Scope("mock_effects","x.action_id IN ("+ACTIONS+")","x.action_id",ROW_LIMIT),
+        new Scope("inference_reservations","x.run_id IN ("+RUNS+")","x.id",ROW_LIMIT),
+        new Scope("inference_contexts","x.conversation_id=? OR x.run_id IN ("+RUNS+")","x.id",RUN_LIMIT),
+        new Scope("inference_context_history","x.context_id IN ("+CONTEXTS+") OR x.message_id IN (SELECT id FROM messages WHERE conversation_id=?) OR x.run_id IN ("+RUNS+")","x.context_id,x.ordinal",ROW_LIMIT),
+        new Scope("inference_context_memories","x.context_id IN ("+CONTEXTS+")","x.context_id,x.memory_id",ROW_LIMIT),
+        new Scope("study_sessions","x.conversation_id=? OR x.lesson_run_id IN ("+RUNS+")","x.id",1000),
+        new Scope("study_owner_answer_inputs","x.conversation_id=? OR x.study_session_id IN ("+STUDIES+")","x.id",2000),
+        new Scope("study_mutations","x.conversation_id=? OR x.study_session_id IN ("+STUDIES+") OR x.lesson_run_id IN ("+RUNS+") OR x.input_id IN ("+INPUTS+") OR x.attempt_id IN (SELECT attempt_id FROM study_owner_answer_inputs WHERE id IN ("+INPUTS+"))","x.idempotency_key",ROW_LIMIT)
     );
     private static Object[] parameters(String sql,UUID target){return Collections.nCopies((int)sql.chars().filter(c->c=='?').count(),target).toArray();}
     private static Object normalized(Object value){if(value instanceof Timestamp t)return t.toInstant().toString();if(value instanceof OffsetDateTime t)return t.toInstant().toString();if(value instanceof UUID u)return u.toString();return value;}
     private static Map<String,Object> canonicalRow(Map<String,Object> row){Map<String,Object> result=new TreeMap<>();row.forEach((k,v)->result.put(k,normalized(v)));return result;}
     private final class Graph {
-        final Map<String,List<Map<String,Object>>> rows=new LinkedHashMap<>();final SortedSet<String> blockers=new TreeSet<>();final Map<String,Object> counts=new LinkedHashMap<>();String digest;
+        boolean studyAdmission; final Map<String,List<Map<String,Object>>> rows=new LinkedHashMap<>();final SortedSet<String> blockers=new TreeSet<>();final Map<String,Object> counts=new LinkedHashMap<>();String digest;
     }
-    private Graph graph(UUID owner,Map<String,Object> conversation){
-        long start=System.nanoTime();UUID target=(UUID)conversation.get("id");Graph graph=new Graph();long total=0,bytes=Objects.toString(conversation.get("title"),"").getBytes(StandardCharsets.UTF_8).length;
-        // Metadata-only cap+1 probes happen before source/ciphertext materialization.
-        for(Scope scope:SCOPES){budget(start);String from=" FROM "+scope.table+" x WHERE "+scope.condition;int limit=(int)Math.min(scope.limit,ROW_LIMIT-total);int count=db.queryForList("SELECT 1"+from+" LIMIT "+(limit+1),parameters(from,target)).size();if(count>limit)throw new ApiException(413,"CONVERSATION_DELETION_SCOPE_LIMIT");total+=count;if(scope.bytes!=null){Long size=db.queryForObject("SELECT COALESCE(sum("+scope.bytes+"),0)"+from,Long.class,parameters(from,target));bytes+=size==null?0:size;if(bytes>BYTE_LIMIT)throw new ApiException(413,"CONVERSATION_DELETION_SCOPE_LIMIT");}}
+    private boolean exactSchema(){return "16".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1",String.class));}
+    /** Shared structural admission boundary. Active/unknown work is not deletion permission. */
+    void validateStudyGraph(UUID owner,UUID target){
+        var c=conversation(owner,target);live(c);Graph g;try{g=graph(owner,c,true);}catch(ApiException e){if("CONVERSATION_DELETION_TIME_LIMIT".equals(e.code))throw new ApiException(503,"STUDY_TIME_LIMIT");throw e;}
+        if(!g.blockers.isEmpty())throw new ApiException(409,"STUDY_SOURCE_UNAVAILABLE");
+    }
+    private Graph graph(UUID owner,Map<String,Object> conversation){return graph(owner,conversation,false);}
+    private Graph graph(UUID owner,Map<String,Object> conversation,boolean studyAdmission){
+        long start=System.nanoTime();UUID target=(UUID)conversation.get("id");Graph graph=new Graph();graph.studyAdmission=studyAdmission;
+        if(!exactSchema()){graph.blockers.add("INTEGRITY_UNVERIFIED");return graph;}
+        // SQL performs every cap+1 metadata probe before byte accounting or source materialization.
+        db.queryForMap("SELECT * FROM conversation_source_inventory_v16(?,?)",owner,target);
         for(Scope scope:SCOPES){budget(start);String sql="SELECT x.* FROM "+scope.table+" x WHERE "+scope.condition+" ORDER BY "+scope.order+" LIMIT "+(scope.limit+1)+" FOR UPDATE OF x";graph.rows.put(scope.table,db.queryForList(sql,parameters(sql,target)));}
-        validateGraph(owner,target,graph);
-        if(!"15".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1",String.class)))graph.blockers.add("INTEGRITY_UNVERIFIED");
+        validateGraph(owner,target,graph);validateStudySources(owner,conversation,graph);
         Object title=conversation.get("title");if(!(title instanceof String t)||t.isEmpty()||t.codePointCount(0,t.length())>200||t.indexOf('\0')>=0)graph.blockers.add("INTEGRITY_UNVERIFIED");
-        graph.counts.put("messages",graph.rows.get("messages").size());graph.counts.put("runs",graph.rows.get("runs").size());graph.counts.put("run_results",graph.rows.get("runs").stream().filter(r->r.get("result_ref")!=null).count());graph.counts.put("action_payloads",graph.rows.get("action_proposals").stream().filter(r->r.get("payload_ref")!=null).count());graph.counts.put("inference_contexts",graph.rows.get("inference_contexts").size());
-        if(graph.blockers.isEmpty()){
+        graph.counts.put("messages",graph.rows.get("messages").size());graph.counts.put("runs",graph.rows.get("runs").size());graph.counts.put("run_results",graph.rows.get("runs").stream().filter(r->r.get("result_ref")!=null).count());graph.counts.put("action_payloads",graph.rows.get("action_proposals").stream().filter(r->r.get("payload_ref")!=null).count());graph.counts.put("inference_contexts",graph.rows.get("inference_contexts").size());graph.counts.put("study_sessions",graph.rows.get("study_sessions").stream().filter(r->r.get("lesson_binding_ref")!=null).count());graph.counts.put("study_answers",graph.rows.get("study_owner_answer_inputs").stream().filter(r->r.get("text_ref")!=null).count());
+        if(graph.blockers.isEmpty()&&!studyAdmission){
             // Each row has its own keyed commitment; no transcript manifest is persisted or returned.
             StringBuilder manifest=new StringBuilder(Json.canonical(Map.of("revision",1,"scope_policy",SCOPE,"policy_version",POLICY,"conversation",canonicalRow(conversation),"counts",graph.counts)));
             for(var table:graph.rows.entrySet()){manifest.append('|').append(table.getKey()).append(':');for(var row:table.getValue()){budget(start);manifest.append(keyed(owner,"manifest-row:"+table.getKey(),canonicalRow(row))).append(';');}}
@@ -176,27 +188,41 @@ final class ConversationDeletionService {
     }
     private static Map<UUID,Map<String,Object>> index(List<Map<String,Object>> rows,String field){Map<UUID,Map<String,Object>> indexed=new HashMap<>();for(var row:rows)indexed.put((UUID)row.get(field),row);return indexed;}
     private static void check(Graph g,boolean condition){if(!condition)g.blockers.add("INTEGRITY_UNVERIFIED");}
-    private static void lifecycle(Graph g,Object value,Set<String> allowed){String state=Objects.toString(value,"");if(allowed.contains(state))return;if(state.equals("UNKNOWN"))g.blockers.add("UNKNOWN_WORK");else if(state.equals("PENDING"))g.blockers.add("PENDING_APPROVAL");else if(ACTIVE.contains(state))g.blockers.add("ACTIVE_WORK");else g.blockers.add("INTEGRITY_UNVERIFIED");}
+    private static void lifecycle(Graph g,Object value,Set<String> allowed,Set<String> inProgress){String state=Objects.toString(value,"");if(allowed.contains(state)||(g.studyAdmission&&inProgress.contains(state)))return;if(state.equals("UNKNOWN"))g.blockers.add("UNKNOWN_WORK");else if(state.equals("PENDING"))g.blockers.add("PENDING_APPROVAL");else if(ACTIVE.contains(state))g.blockers.add("ACTIVE_WORK");else g.blockers.add("INTEGRITY_UNVERIFIED");}
     private void validateGraph(UUID owner,UUID target,Graph g){
         var runs=index(g.rows.get("runs"),"id");var messages=index(g.rows.get("messages"),"id");var actions=index(g.rows.get("action_proposals"),"id");var approvals=index(g.rows.get("approvals"),"id");var contexts=index(g.rows.get("inference_contexts"),"id");var executions=index(g.rows.get("action_executions"),"action_id");
         for(var table:g.rows.entrySet())for(var row:table.getValue()){if(row.containsKey("owner_id"))check(g,owner.equals(row.get("owner_id")));if(row.containsKey("content_deleted_at"))check(g,row.get("content_deleted_at")==null);if(row.containsKey("source_deleted_at"))check(g,row.get("source_deleted_at")==null);
             for(String field:List.of("version","lease_generation","action_version","context_epoch","history_epoch","security_epoch"))if(row.get(field) instanceof Number n)check(g,n.longValue()>=(field.equals("lease_generation")?0:1)&&n.longValue()<=MemoryService.MAX);}
-        for(var r:runs.values()){check(g,target.equals(r.get("conversation_id")));lifecycle(g,r.get("status"),RUN_CLOSED);}
+        for(var r:runs.values()){check(g,target.equals(r.get("conversation_id")));lifecycle(g,r.get("status"),RUN_CLOSED,Set.of("ACCEPTED","PLANNING","WAITING_APPROVAL","QUEUED","RUNNING","CANCEL_REQUESTED","UNKNOWN"));}
         for(var m:messages.values())check(g,target.equals(m.get("conversation_id"))&&runs.containsKey(m.get("run_id"))&&m.get("content_ref")!=null&&m.get("body_hash")!=null);
-        for(var a:actions.values()){check(g,runs.containsKey(a.get("run_id"))&&a.get("payload_ref")!=null&&a.get("payload_hash")!=null&&"calendar.event.create".equals(a.get("tool_id"))&&"1".equals(a.get("tool_version")));lifecycle(g,a.get("status"),CLOSED);}
-        for(var a:approvals.values()){var action=actions.get(a.get("action_id"));check(g,action!=null&&Objects.equals(a.get("payload_hash"),action.get("payload_hash")));lifecycle(g,a.get("status"),Set.of("CONSUMED","REJECTED","EXPIRED","REVOKED"));if("CONSUMED".equals(a.get("status")))check(g,a.get("consumed_at")!=null&&a.get("approved_session_hash")!=null);if(action!=null)check(g,number(a,"action_version")<=number(action,"version"));}
+        for(var a:actions.values()){check(g,runs.containsKey(a.get("run_id"))&&a.get("payload_ref")!=null&&a.get("payload_hash")!=null&&"calendar.event.create".equals(a.get("tool_id"))&&"1".equals(a.get("tool_version")));lifecycle(g,a.get("status"),CLOSED,Set.of("PROPOSED","PREPARED","WAITING_APPROVAL","AUTHORIZED","QUEUED","EXECUTING","VERIFYING","UNKNOWN"));}
+        for(var a:approvals.values()){var action=actions.get(a.get("action_id"));check(g,action!=null&&Objects.equals(a.get("payload_hash"),action.get("payload_hash")));lifecycle(g,a.get("status"),Set.of("CONSUMED","REJECTED","EXPIRED","REVOKED"),Set.of("PENDING"));if("CONSUMED".equals(a.get("status")))check(g,a.get("consumed_at")!=null&&a.get("approved_session_hash")!=null);if(action!=null)check(g,number(a,"action_version")<=number(action,"version"));}
         for(var z:g.rows.get("authorizations")){var action=actions.get(z.get("action_id"));var approval=approvals.get(z.get("approval_id"));check(g,action!=null&&approval!=null&&Objects.equals(approval.get("action_id"),z.get("action_id"))&&Objects.equals(z.get("payload_hash"),action.get("payload_hash"))&&"CONSUMED".equals(approval.get("status"))&&Objects.equals(z.get("security_epoch"),action.get("security_epoch"))&&number(z,"max_executions")==1&&z.get("grant_id")==null&&z.get("user_intent_id")==null);}
-        for(var e:executions.values()){check(g,actions.containsKey(e.get("action_id")));lifecycle(g,e.get("status"),CLOSED);check(g,e.get("finished_at")!=null&&e.get("started_at")!=null&&(e.get("finished_at")==null||!AuthService.instant(e.get("finished_at")).isBefore(AuthService.instant(e.get("started_at")))));}
+        for(var e:executions.values()){check(g,actions.containsKey(e.get("action_id")));lifecycle(g,e.get("status"),CLOSED,Set.of("STARTED","UNKNOWN"));check(g,(g.studyAdmission&&!CLOSED.contains(e.get("status"))||e.get("finished_at")!=null)&&e.get("started_at")!=null&&(e.get("finished_at")==null||!AuthService.instant(e.get("finished_at")).isBefore(AuthService.instant(e.get("started_at")))));}
         for(var e:g.rows.get("mock_effects")){var a=actions.get(e.get("action_id"));check(g,a!=null&&Objects.equals(e.get("payload_hash"),a.get("payload_hash"))&&Objects.equals(e.get("tool_id"),a.get("tool_id"))&&executions.containsKey(e.get("action_id")));}
-        for(var j:g.rows.get("jobs")){check(g,runs.containsKey(j.get("run_id")));lifecycle(g,j.get("status"),CLOSED);if("PLAN".equals(j.get("kind")))check(g,j.get("action_id")==null&&("PLAN:"+j.get("run_id")).equals(j.get("logical_key"))&&!Boolean.TRUE.equals(j.get("started_effect")));else if("EXECUTE".equals(j.get("kind"))){var a=actions.get(j.get("action_id"));check(g,a!=null&&Objects.equals(a.get("run_id"),j.get("run_id"))&&("EXECUTE:"+j.get("action_id")).equals(j.get("logical_key")));if(Boolean.TRUE.equals(j.get("started_effect"))){var e=executions.get(j.get("action_id"));check(g,e!=null&&number(e,"lease_generation")<=number(j,"lease_generation"));}}else check(g,false);}
+        for(var j:g.rows.get("jobs")){check(g,runs.containsKey(j.get("run_id")));lifecycle(g,j.get("status"),CLOSED,Set.of("QUEUED","RUNNING","UNKNOWN"));if("PLAN".equals(j.get("kind")))check(g,j.get("action_id")==null&&("PLAN:"+j.get("run_id")).equals(j.get("logical_key"))&&!Boolean.TRUE.equals(j.get("started_effect")));else if("EXECUTE".equals(j.get("kind"))){var a=actions.get(j.get("action_id"));check(g,a!=null&&Objects.equals(a.get("run_id"),j.get("run_id"))&&("EXECUTE:"+j.get("action_id")).equals(j.get("logical_key")));if(Boolean.TRUE.equals(j.get("started_effect"))){var e=executions.get(j.get("action_id"));check(g,e!=null&&number(e,"lease_generation")<=number(j,"lease_generation"));}}else check(g,false);}
         var reservationsByRun=index(g.rows.get("inference_reservations"),"run_id");
-        Map<UUID,List<Map<String,Object>>> byRun=new HashMap<>();for(var c:contexts.values()){check(g,runs.containsKey(c.get("run_id"))&&target.equals(c.get("conversation_id"))&&reservationsByRun.containsKey(c.get("run_id")));lifecycle(g,c.get("state"),Set.of("SETTLED","INVALIDATED"));if("INVALIDATED".equals(c.get("state")))check(g,c.get("invalidated_at")!=null);byRun.computeIfAbsent((UUID)c.get("run_id"),id->new ArrayList<>()).add(c);}
-        for(var q:g.rows.get("inference_reservations")){check(g,Set.of("CONVERSATION",StudyLessonResult.PURPOSE).contains(q.get("purpose")));var r=runs.get(q.get("run_id"));lifecycle(g,q.get("status"),Set.of("SUCCEEDED","FAILED","CANCELLED"));var cs=byRun.getOrDefault(q.get("run_id"),List.of());if(number(q,"accounting_version")!=1||q.get("dispatch_context_id")==null||!"CONTEXT_V1_NO_RESPONSE_CACHE".equals(q.get("dispatch_cache_policy"))||q.get("started_at")==null)g.blockers.add("UNSUPPORTED_LEGACY_INFERENCE");check(g,r!=null&&Boolean.TRUE.equals(r.get("context_history_eligible"))&&cs.size()==1);if(cs.size()==1){var c=cs.getFirst();if(q.get("dispatch_context_id")!=null)check(g,q.get("dispatch_context_id").equals(c.get("id"))&&Objects.equals(q.get("security_epoch"),c.get("security_epoch")));}check(g,"local-mlx-v1".equals(q.get("model_id"))&&number(q,"budget_revision")==1&&Objects.toString(q.get("body_hash"),"").matches("[0-9a-f]{64}")&&Objects.toString(q.get("model_manifest_hash"),"").matches("[0-9a-f]{64}"));}
+        Map<UUID,List<Map<String,Object>>> byRun=new HashMap<>();for(var c:contexts.values()){check(g,runs.containsKey(c.get("run_id"))&&target.equals(c.get("conversation_id"))&&reservationsByRun.containsKey(c.get("run_id")));lifecycle(g,c.get("state"),Set.of("SETTLED","INVALIDATED"),Set.of("CAPTURED","PREPARED","DISPATCHED"));if("INVALIDATED".equals(c.get("state")))check(g,c.get("invalidated_at")!=null);byRun.computeIfAbsent((UUID)c.get("run_id"),id->new ArrayList<>()).add(c);}
+        for(var q:g.rows.get("inference_reservations")){check(g,Set.of("CONVERSATION",StudyLessonResult.PURPOSE).contains(q.get("purpose")));var r=runs.get(q.get("run_id"));lifecycle(g,q.get("status"),Set.of("SUCCEEDED","FAILED","CANCELLED"),Set.of("QUEUED","STARTED","UNKNOWN"));var cs=byRun.getOrDefault(q.get("run_id"),List.of());boolean queued=g.studyAdmission&&"QUEUED".equals(q.get("status"))&&q.get("started_at")==null; if(queued){check(g,q.get("dispatch_context_id")==null&&q.get("dispatch_cache_policy")==null&&number(q,"accounting_version")==1&&r!=null&&"QUEUED".equals(r.get("status"))&&Boolean.TRUE.equals(r.get("context_history_eligible"))&&cs.size()==1);for(var c:cs)check(g,Set.of("CAPTURED","PREPARED").contains(c.get("state")));}else{if(number(q,"accounting_version")!=1||q.get("dispatch_context_id")==null||!"CONTEXT_V1_NO_RESPONSE_CACHE".equals(q.get("dispatch_cache_policy"))||q.get("started_at")==null)g.blockers.add("UNSUPPORTED_LEGACY_INFERENCE");check(g,r!=null&&Boolean.TRUE.equals(r.get("context_history_eligible"))&&cs.size()==1);if(cs.size()==1){var c=cs.getFirst();if(q.get("dispatch_context_id")!=null)check(g,q.get("dispatch_context_id").equals(c.get("id"))&&Objects.equals(q.get("security_epoch"),c.get("security_epoch")));}}check(g,"local-mlx-v1".equals(q.get("model_id"))&&number(q,"budget_revision")==1&&Objects.toString(q.get("body_hash"),"").matches("[0-9a-f]{64}")&&Objects.toString(q.get("model_manifest_hash"),"").matches("[0-9a-f]{64}"));}
         for(var h:g.rows.get("inference_context_history")){var c=contexts.get(h.get("context_id"));var m=messages.get(h.get("message_id"));check(g,c!=null&&m!=null&&Objects.equals(m.get("run_id"),h.get("run_id"))&&Objects.equals(m.get("role"),h.get("role"))&&runs.containsKey(h.get("run_id")));}
         for(var b:g.rows.get("inference_context_memories"))check(g,contexts.containsKey(b.get("context_id")));
         check(g,db.queryForList("SELECT 1 FROM inference_contexts c LEFT JOIN sessions s ON s.token_hash=c.session_hash WHERE c.conversation_id=? AND (s.token_hash IS NULL OR s.owner_id IS DISTINCT FROM c.owner_id) LIMIT 1",target).isEmpty());
         check(g,db.queryForList("SELECT 1 FROM approvals p JOIN action_proposals a ON a.id=p.action_id JOIN runs r ON r.id=a.run_id LEFT JOIN sessions s ON s.token_hash=p.approved_session_hash WHERE r.conversation_id=? AND p.status='CONSUMED' AND (s.token_hash IS NULL OR s.owner_id IS DISTINCT FROM p.owner_id) LIMIT 1",target).isEmpty());
         check(g,db.queryForList("SELECT 1 FROM inference_context_memories b JOIN inference_contexts c ON c.id=b.context_id LEFT JOIN memories m ON m.id=b.memory_id AND m.owner_id=c.owner_id LEFT JOIN memory_slots s ON s.id=b.slot_id AND s.owner_id=c.owner_id WHERE c.conversation_id=? AND (m.id IS NULL OR s.id IS NULL OR m.slot_id<>s.id) LIMIT 1",target).isEmpty());
+    }
+    private void validateStudySources(UUID owner,Map<String,Object> conversation,Graph g){
+        UUID target=(UUID)conversation.get("id");var studies=index(g.rows.get("study_sessions"),"id");var inputs=index(g.rows.get("study_owner_answer_inputs"),"id");
+        var runs=index(g.rows.get("runs"),"id");var reservations=index(g.rows.get("inference_reservations"),"run_id");
+        for(var s:studies.values()){
+            var run=runs.get(s.get("lesson_run_id"));var reservation=reservations.get(s.get("lesson_run_id"));
+            check(g,target.equals(s.get("conversation_id"))&&Objects.equals(conversation.get("project_id"),s.get("project_id"))&&s.get("lesson_binding_ref")!=null&&s.get("source_deleted_at")==null&&run!=null&&reservation!=null);
+            if(run!=null&&reservation!=null)check(g,"SUCCEEDED".equals(run.get("status"))&&run.get("result_ref")!=null&&Objects.equals(run.get("version"),s.get("lesson_run_version"))&&StudyLessonResult.PURPOSE.equals(reservation.get("purpose"))&&"SUCCEEDED".equals(reservation.get("status"))&&run.get("cancel_requested_at")==null&&reservation.get("cancel_requested_at")==null&&reservation.get("completed_at")!=null&&Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM inference_usage_receipts WHERE owner_id=? AND run_id=? AND reservation_id=? AND request_id=? AND receipt_kind='MEASURED' AND response_kind='LESSON')",Boolean.class,owner,run.get("id"),reservation.get("id"),reservation.get("request_id"))));
+            check(g,Set.of("OPEN","CLOSED_BY_OWNER").contains(s.get("lifecycle"))&&number(s,"version")>=1&&number(s,"version")<=4&&!Objects.equals(s.get("question_1_id"),s.get("question_2_id")));
+            if(g.blockers.isEmpty())db.queryForList("SELECT verify_study_history_v16(?,?)",owner,s.get("id"));
+        }
+        for(var a:inputs.values()){var s=studies.get(a.get("study_session_id"));check(g,s!=null&&target.equals(a.get("conversation_id"))&&Objects.equals(conversation.get("project_id"),a.get("project_id"))&&a.get("text_ref")!=null&&a.get("source_binding_ref")!=null&&a.get("content_deleted_at")==null);if(s!=null)check(g,Objects.equals(a.get("question_id"),s.get("question_1_id"))||Objects.equals(a.get("question_id"),s.get("question_2_id")));}
+        for(var m:g.rows.get("study_mutations")){var s=studies.get(m.get("study_session_id"));check(g,s!=null&&target.equals(m.get("conversation_id"))&&Objects.equals(conversation.get("project_id"),m.get("project_id")));if(s!=null)check(g,Objects.equals(s.get("lesson_run_id"),m.get("lesson_run_id")));if("ANSWER".equals(m.get("operation")))check(g,inputs.containsKey(m.get("input_id")));}
+        for(String table:List.of("study_owner_answer_inputs","study_mutations"))check(g,db.queryForList("SELECT 1 FROM "+table+" a LEFT JOIN sessions s ON s.token_hash=a.session_hash WHERE a.conversation_id=? AND (s.token_hash IS NULL OR s.owner_id IS DISTINCT FROM a.owner_id) LIMIT 1",target).isEmpty());
     }
     private static void eligible(Graph graph){if(graph.blockers.isEmpty())return;if(graph.blockers.contains("INTEGRITY_UNVERIFIED"))throw new ApiException(409,"CONVERSATION_GRAPH_UNVERIFIED");if(graph.blockers.contains("ACTIVE_WORK")||graph.blockers.contains("UNKNOWN_WORK")||graph.blockers.contains("PENDING_APPROVAL"))throw new ApiException(409,"CONVERSATION_NOT_QUIESCENT");throw new ApiException(409,"CONVERSATION_DELETION_UNSUPPORTED");}
 }

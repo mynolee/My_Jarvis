@@ -182,6 +182,22 @@ class StudyAnswerSourcePolicyTest {
             rejected(UNAVAILABLE, () -> apply(initial(), value, "Answer"));
     }
 
+    @Test void directInputRequiresIndependentlyObservedTargetAndClosedSourceKind() {
+        var ref = new StudyAnswerSourcePolicy.SourceRef(StudyAnswerSourcePolicy.SourceKind.OWNER_STUDY_ANSWER_INPUT, id(31));
+        var selected = new StudyAnswerSourcePolicy.Selection(ref, 7, target());
+        var actual = new StudyAnswerSourcePolicy.Source(ref, id(2), id(3), null, 7, "USER", "USER_DIRECT", "Answer", target());
+        assertEquals(2, StudyAnswerSourcePolicy.answer(initial(), id(2), selected, actual, target(), "Answer").version());
+        for (var stored : List.of(target(id(99), 1, id(11), id(21)), target(id(1), 2, id(11), id(21)),
+                target(id(1), 1, id(12), id(21)), target(id(1), 1, id(11), id(22)))) {
+            var changed = new StudyAnswerSourcePolicy.Source(ref, id(2), id(3), null, 7, "USER", "USER_DIRECT", "Answer", stored);
+            rejected(UNAVAILABLE, () -> StudyAnswerSourcePolicy.answer(initial(), id(2), selected, changed, target(), "Answer"));
+        }
+        var absent = new StudyAnswerSourcePolicy.Source(ref, id(2), id(3), null, 7, "USER", "USER_DIRECT", "Answer", null);
+        rejected(UNAVAILABLE, () -> StudyAnswerSourcePolicy.answer(initial(), id(2), selected, absent, target(), "Answer"));
+        rejected(UNAVAILABLE, () -> StudyAnswerSourcePolicy.answer(initial(), id(2), selected, source("Answer"), target(), "Answer"));
+        rejected(UNAVAILABLE, () -> StudyAnswerSourcePolicy.answer(initial(), id(2), selection(target()), actual, target(), "Answer"));
+    }
+
     private static UUID uuid(JsonNode node, String field) { return UUID.fromString(node.get(field).asText()); }
     private static UUID project(JsonNode node) { return node.get("project_id").isNull() ? null : uuid(node, "project_id"); }
     private static StudyAnswerSourcePolicy.Target readTarget(JsonNode node) {
