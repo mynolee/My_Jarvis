@@ -286,7 +286,7 @@ class Ledger:
         identities = ','.join(f"{name} TEXT {'PRIMARY KEY NOT NULL' if name == 'request_id' else 'NOT NULL'} CHECK({uuid(name)})" for name in
                               ('request_id','reservation_id','owner_id','run_id','context_id'))
         db.execute(f"""CREATE TABLE IF NOT EXISTS control_identity (
-            {identities}, UNIQUE(reservation_id),
+            {identities},
             purpose TEXT NOT NULL CHECK(purpose IN ('CONVERSATION','STUDY_LESSON')),
             security_epoch INTEGER NOT NULL CHECK(typeof(security_epoch)='integer' AND security_epoch BETWEEN 0 AND {MAX_SAFE_INTEGER}),
             origin_binding TEXT NOT NULL CHECK(length(origin_binding)=64 AND origin_binding NOT GLOB '*[^0-9a-f]*'),
@@ -296,6 +296,7 @@ class Ledger:
             generation_id TEXT REFERENCES control_generation(id),
             terminal_kind TEXT CHECK(terminal_kind IN ('UNSTARTED_FENCED','COMPLETED','WORKER_STOPPED')),
             terminal_ordinal INTEGER UNIQUE CHECK(terminal_ordinal IS NULL OR (typeof(terminal_ordinal)='integer' AND terminal_ordinal BETWEEN 1 AND {MAX_SAFE_INTEGER})),
+            UNIQUE(reservation_id),
             CHECK((terminal_kind IS NULL AND terminal_ordinal IS NULL) OR
                   (terminal_kind IS NOT NULL AND terminal_ordinal IS NOT NULL AND
                    ((terminal_kind='UNSTARTED_FENCED' AND generation_id IS NULL AND fence=1) OR
