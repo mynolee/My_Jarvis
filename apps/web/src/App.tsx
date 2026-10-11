@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { Api, ApiError } from './api';
 import { TasksPanel } from './TasksPanel';
 import { MemoriesPanel } from './MemoriesPanel';
+import { LearningProfilePanel } from './LearningProfilePanel';
 import { ProfilePanel } from './ProfilePanel';
 import { SchedulesPanel } from './SchedulesPanel';
 import { NotificationsPanel } from './NotificationsPanel';
@@ -37,6 +38,14 @@ export function App({ api = new Api() }: { api?: Api }) {
   const [tasks_open, set_tasks_open] = useState(false);
   const [projects_open, set_projects_open] = useState(false);
   const [memories_open, set_memories_open] = useState(false);
+  const [learning_open, set_learning_open] = useState(false);
+  const memory_editor = useRef<'generic' | 'learning' | null>(null), memory_editor_epoch = useRef(0);
+  // Editor ownership, effective project and authentication are independent boundaries.
+  // Snapshot refreshes do not rotate these tokens or discard receipt recovery.
+  const memory_context_project = useRef<string | null>(null), memory_context_epoch = useRef(0), next_project_id = useRef<string | null>(null);
+  const change_memory_context = useCallback((project: string | null) => {
+    if (memory_context_project.current !== project) { memory_context_project.current = project; memory_context_epoch.current++; }
+  }, []);
   const [memory_pending, set_memory_pending] = useState(false);
   const [profile_open, set_profile_open] = useState(false);
   const [profile_pending, set_profile_pending] = useState(false);
@@ -111,16 +120,16 @@ export function App({ api = new Api() }: { api?: Api }) {
   const [approval, set_approval] = useState<Approval | null>(null);
   const [text, set_text] = useState('');
   const [now, set_now] = useState(Date.now());
-  const clear_private = useCallback(() => { if (locked.current || main_unknown.current || execution_locked.current || control_unknown_ref.current || unresolved_work.current || Object.values(pending_domains.current).some(Boolean)) recovery_boundary_lost.current = true; execution_session.current++; control_unknown_ref.current = false; set_control_outcome_unknown(false); identity_rotating.current = false; identity_unknown_ref.current = false; set_identity_pending(false); set_identity_unknown(false); execution_locked.current = false; account_blocked.current = true; unresolved_work.current = false; main_ticket.current++; locked.current = false; set_busy(false); set_execution_state(null); set_execution_pending(false); set_workspace_suspended(false); set_interrupted_work(false); pending_domains.current = { task: false, project: false, memory: false, profile: false, schedule: false, notification: false, mail_draft: false, memory_export: false, conversation_deletion: false, study: false }; domain_locked.current = false; navigation_paused.current = false; auth_generation.current++; generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_projects_open(false); set_memories_open(false); set_profile_open(false); set_schedules_open(false); set_notifications_open(false); set_mail_drafts_open(false); set_audit_history_open(false); set_usage_open(false); set_deletion_open(false); set_export_open(false); deletion_hidden.current = false; set_deletion_source_hidden(false); set_deletion_pending(false); set_study_pending(false); set_feedback_barriers({}); set_export_pending(false); set_mail_draft_pending(false); set_schedule_pending(false); set_notification_pending(false); set_profile_pending(false); set_memory_pending(false); set_task_pending(false); set_project_pending(false); set_new_project(null); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); selected_id.current = null; snapshot_revision.current++; set_run(null); set_approval(null); set_text(''); set_uncertain(false); set_reauth_required(false); }, [client]);
+  const clear_private = useCallback(() => { if (locked.current || main_unknown.current || execution_locked.current || control_unknown_ref.current || unresolved_work.current || Object.values(pending_domains.current).some(Boolean)) recovery_boundary_lost.current = true; execution_session.current++; control_unknown_ref.current = false; set_control_outcome_unknown(false); identity_rotating.current = false; identity_unknown_ref.current = false; set_identity_pending(false); set_identity_unknown(false); execution_locked.current = false; account_blocked.current = true; unresolved_work.current = false; main_ticket.current++; locked.current = false; set_busy(false); set_execution_state(null); set_execution_pending(false); set_workspace_suspended(false); set_interrupted_work(false); pending_domains.current = { task: false, project: false, memory: false, profile: false, schedule: false, notification: false, mail_draft: false, memory_export: false, conversation_deletion: false, study: false }; domain_locked.current = false; navigation_paused.current = false; memory_editor_epoch.current++; memory_editor.current = null; memory_context_epoch.current++; memory_context_project.current = null; next_project_id.current = null; auth_generation.current++; generation.current++; client.clear(); set_authenticated(false); set_tasks_open(false); set_projects_open(false); set_memories_open(false); set_learning_open(false); set_profile_open(false); set_schedules_open(false); set_notifications_open(false); set_mail_drafts_open(false); set_audit_history_open(false); set_usage_open(false); set_deletion_open(false); set_export_open(false); deletion_hidden.current = false; set_deletion_source_hidden(false); set_deletion_pending(false); set_study_pending(false); set_feedback_barriers({}); set_export_pending(false); set_mail_draft_pending(false); set_schedule_pending(false); set_notification_pending(false); set_profile_pending(false); set_memory_pending(false); set_task_pending(false); set_project_pending(false); set_new_project(null); set_runtime(null); set_runtime_checked_at(0); set_notice(''); set_conversation(null); selected_id.current = null; snapshot_revision.current++; set_run(null); set_approval(null); set_text(''); set_uncertain(false); set_reauth_required(false); }, [client]);
   const conversation_deleted = useCallback((id: string) => {
     if (id !== selected_id.current) return;
     const previous_outcome_unknown = main_unknown.current;
-    generation.current++; snapshot_revision.current++; main_ticket.current++; selected_id.current = null;
+    generation.current++; snapshot_revision.current++; main_ticket.current++; selected_id.current = null; change_memory_context(next_project_id.current);
     locked.current = false; set_busy(false);
     set_conversation(null); set_run(null); set_approval(null); set_text(''); set_uncertain(previous => previous || previous_outcome_unknown);
     set_reauth_required(false); set_notice('대화 원문 삭제가 확인되었습니다. 별도로 저장한 기억과 이미 전달된 사본은 삭제 대상이 아닙니다.');
     set_history_refresh(value => value + 1);
-  }, []);
+  }, [change_memory_context]);
   const execution_state_changed = useCallback((state: ExecutionState | null) => { account_blocked.current = identity_unknown_ref.current || state?.execution_paused !== false; set_execution_state(identity_unknown_ref.current ? null : state); }, []);
   const execution_outcome_unknown = useCallback(() => { control_unknown_ref.current = true; set_control_outcome_unknown(true); }, []);
   const execution_identity_unknown = useCallback(() => { identity_unknown_ref.current = true; set_identity_unknown(true); account_blocked.current = true; set_execution_state(null); }, []);
@@ -130,7 +139,7 @@ export function App({ api = new Api() }: { api?: Api }) {
     if (locked.current || main_unknown.current || Object.values(pending_domains.current).some(Boolean)) { unresolved_work.current = true; set_interrupted_work(true); recovery_boundary_lost.current = true; }
     client.fence_requests();
     execution_locked.current = true; set_execution_pending(true); set_workspace_suspended(true);
-    auth_generation.current++; generation.current++; snapshot_revision.current++; main_ticket.current++;
+    memory_editor_epoch.current++; auth_generation.current++; generation.current++; snapshot_revision.current++; main_ticket.current++;
     locked.current = false; set_busy(false); set_approval(null); set_reauth_required(false);
     pending_domains.current = { task: false, project: false, memory: false, profile: false, schedule: false, notification: false, mail_draft: false, memory_export: false, conversation_deletion: false, study: false };
     domain_locked.current = false; deletion_hidden.current = false; set_deletion_source_hidden(false); set_deletion_pending(false); set_study_pending(false); set_feedback_barriers({}); set_export_pending(false); set_task_pending(false); set_project_pending(false); set_memory_pending(false); set_profile_pending(false); set_schedule_pending(false); set_notification_pending(false); set_mail_draft_pending(false);
@@ -147,9 +156,10 @@ export function App({ api = new Api() }: { api?: Api }) {
   const refresh = useCallback(async () => { set_history_refresh(value => value + 1); await refresh_runtime(); }, [refresh_runtime]);
   const select_conversation = useCallback((selected: Conversation) => {
     if (locked.current || execution_locked.current || navigation_paused.current || !UUID.test(selected.id) || selected.id === selected_id.current) return;
+    change_memory_context(selected.project_id);
     generation.current++; snapshot_revision.current++; selected_id.current = selected.id;
     set_conversation(selected); set_run(null); set_approval(null); set_text(''); set_notice('');
-  }, []);
+  }, [change_memory_context]);
   const accept_snapshot = useCallback((id: string, page: HistoryPage) => {
     if (id !== selected_id.current || deletion_hidden.current) return;
     const current = generation.current, session_epoch = auth_generation.current, revision = ++snapshot_revision.current;
@@ -164,7 +174,7 @@ export function App({ api = new Api() }: { api?: Api }) {
       set_approval(snapshot);
     }).catch(error => { if (session_epoch === auth_generation.current && error instanceof ApiError && error.status === 401) { clear_private(); return; } if (current === generation.current && revision === snapshot_revision.current && id === selected_id.current) fail(error); });
   }, [client, fail, clear_private]);
-  useEffect(() => { let live = true; const current = generation.current; void (async () => { try { await client.bootstrap_csrf(); if (!live || current !== generation.current) return; await client.request('/me'); if (live && current === generation.current) set_authenticated(true); } catch (error) { if (live && current === generation.current && !(error instanceof ApiError && error.status === 401)) fail(error); } finally { if (live) set_ready(true); } })(); return () => { live = false; main_ticket.current++; execution_session.current++; auth_generation.current++; generation.current++; client.clear(); }; }, [client, fail]);
+  useEffect(() => { let live = true; const current = generation.current; void (async () => { try { await client.bootstrap_csrf(); if (!live || current !== generation.current) return; await client.request('/me'); if (live && current === generation.current) set_authenticated(true); } catch (error) { if (live && current === generation.current && !(error instanceof ApiError && error.status === 401)) fail(error); } finally { if (live) set_ready(true); } })(); return () => { live = false; memory_editor_epoch.current++; memory_editor.current = null; memory_context_epoch.current++; main_ticket.current++; execution_session.current++; auth_generation.current++; generation.current++; client.clear(); }; }, [client, fail]);
   useEffect(() => { if (authenticated) void refresh(); }, [authenticated, refresh]);
   useEffect(() => { if (!authenticated) return; const timer = setInterval(() => { set_now(Date.now()); void refresh_runtime(); }, 3000); return () => clearInterval(timer); }, [authenticated, refresh_runtime]);
   // Clear private state on page disposal and never persist it in CacheStorage/IDB/Web Storage.
@@ -193,7 +203,7 @@ export function App({ api = new Api() }: { api?: Api }) {
         selected = await client.request<Conversation>('/conversations', { title: 'Operator session', project_id: new_project?.id ?? null }, crypto.randomUUID());
         if (current !== generation.current) return;
         if (!UUID.test(selected.id)) throw new Error('INVALID_CONVERSATION');
-        selected_id.current = selected.id; set_conversation(selected);
+        change_memory_context(selected.project_id); selected_id.current = selected.id; set_conversation(selected);
       }
       if (!UUID.test(selected.id)) throw new Error('INVALID_CONVERSATION');
       const client_message_id = crypto.randomUUID();
@@ -223,7 +233,7 @@ export function App({ api = new Api() }: { api?: Api }) {
     if (locked.current || execution_locked.current || identity_rotating.current || identity_unknown_ref.current || writes_paused || domain_locked.current) { set_notice('Resolve pending requests before confirming identity. Reauthentication would rotate the session.'); return; }
     const form = event.currentTarget, password = String(new FormData(form).get('password') ?? ''); form.reset();
     client.fence_requests(); identity_rotating.current = true; set_identity_pending(true); set_workspace_suspended(true);
-    execution_session.current++; auth_generation.current++; generation.current++; snapshot_revision.current++;
+    memory_editor_epoch.current++; execution_session.current++; auth_generation.current++; generation.current++; snapshot_revision.current++;
     account_blocked.current = true; set_execution_state(null); set_approval(null);
     const current = generation.current, ticket = ++main_ticket.current;
     locked.current = true; set_busy(true); set_notice('');
@@ -247,6 +257,7 @@ export function App({ api = new Api() }: { api?: Api }) {
   function reconcile_mock() { if (execution_locked.current || account_blocked.current || !run || run.execution_mode !== 'MOCK' || run.status !== 'UNKNOWN') return; const selected = run; void mutate(async current => { await client.request(`/runs/${selected.id}/reconcile`, {}); if (current === generation.current) await refresh(); }); }
   function start_new_conversation() {
     if (locked.current || execution_locked.current || navigation_paused.current) return;
+    change_memory_context(next_project_id.current);
     generation.current++; snapshot_revision.current++; selected_id.current = null;
     set_conversation(null); set_run(null); set_approval(null); set_text(''); set_notice('');
   }
@@ -257,6 +268,26 @@ export function App({ api = new Api() }: { api?: Api }) {
     locked.current = true; set_busy(true); set_notice('Local private view cleared. Waiting for the server sign-out result.');
     void request.then(result => { if (!result || typeof result !== 'object' || Array.isArray(result) || Object.keys(result).length !== 1 || !Object.hasOwn(result, 'logged_out') || (result as { logged_out?: unknown }).logged_out !== true) throw new Error('SIGN_OUT_NOT_VERIFIED'); if (session === auth_generation.current) set_notice('The server accepted the sign-out request.'); }).catch(() => { if (session === auth_generation.current) set_notice('Local private view cleared. Server session termination is unconfirmed; no sign-out request was repeated.'); }).finally(() => { if (ticket === main_ticket.current) { locked.current = false; set_busy(false); } });
   }
+  function select_new_project(project: Project | null) {
+    if (locked.current || execution_locked.current || navigation_paused.current) return;
+    next_project_id.current = project?.id ?? null;
+    // A next-project choice must not retarget an existing conversation.
+    if (selected_id.current === null) change_memory_context(next_project_id.current);
+    set_new_project(project);
+  }
+  function open_memory_editor(editor: 'generic' | 'learning') {
+    if (locked.current || execution_locked.current || navigation_paused.current || memory_editor.current === editor) return;
+    // Retire outgoing callbacks synchronously, before either editor's effects run.
+    memory_editor_epoch.current++; memory_editor.current = editor;
+    set_memories_open(editor === 'generic'); set_learning_open(editor === 'learning');
+  }
+  const editor_epoch = memory_editor_epoch.current, editor_session = auth_generation.current, editor_context = memory_context_epoch.current;
+  const owns_memory_editor = (editor: 'generic' | 'learning') => editor_epoch === memory_editor_epoch.current && editor_session === auth_generation.current && editor_context === memory_context_epoch.current && memory_editor.current === editor;
+  const acquire_memory_editor = (editor: 'generic' | 'learning') => owns_memory_editor(editor) && acquire_memory();
+  const memory_editor_pending = (editor: 'generic' | 'learning', pending: boolean) => { if (owns_memory_editor(editor)) memory_pending_changed(pending); };
+  // Mounted panels deliver same-session 401s even for superseded reads; unmounted
+  // panels discard their errors. An old authentication session has no authority.
+  const memory_unauthorized = () => { if (editor_session === auth_generation.current) clear_private(); };
   function request_memory_reauthentication() { if (locked.current || writes_paused || domain_locked.current) return; set_reauth_required(true); set_notice('Confirm your identity, then select the memory and prepare a fresh deletion preview.'); }
   function request_schedule_reauthentication() { if (locked.current || writes_paused || domain_locked.current) return; set_reauth_required(true); set_notice('Confirm your identity, then prepare and review a fresh reminder preview. No reminder confirmation is repeated automatically.'); }
   return <main>
@@ -280,11 +311,13 @@ export function App({ api = new Api() }: { api?: Api }) {
       <button className="secondary" disabled={tasks_open} onClick={() => set_tasks_open(true)}>Open internal tasks</button>
       {tasks_open && <TasksPanel key={`tasks:${auth_generation.current}`} api={client} onUnauthorized={clear_private} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || memory_pending || project_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} onPendingChange={task_pending_changed} onAcquirePending={acquire_task}/>}
       <button className="secondary" disabled={projects_open} onClick={() => set_projects_open(true)}>Choose project for a new conversation</button>
-      {projects_open && <ProjectsPanel api={client} sessionKey={auth_generation.current} selectedProjectId={new_project?.id ?? null} onSelect={set_new_project} onUnauthorized={clear_private} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || memory_pending || task_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} selectionDisabled={navigation_disabled} onPendingChange={project_pending_changed} onAcquirePending={acquire_project}/>}
+      {projects_open && <ProjectsPanel api={client} sessionKey={auth_generation.current} selectedProjectId={new_project?.id ?? null} onSelect={select_new_project} onUnauthorized={clear_private} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || memory_pending || task_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} selectionDisabled={navigation_disabled} onPendingChange={project_pending_changed} onAcquirePending={acquire_project}/>}
       <button className="secondary" disabled={profile_open} onClick={() => set_profile_open(true)}>Open owner settings</button>
       {profile_open && <ProfilePanel api={client} sessionKey={auth_generation.current} onUnauthorized={clear_private} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || task_pending || project_pending || memory_pending || schedule_pending || notification_pending || mail_draft_pending} onPendingChange={profile_pending_changed} onAcquirePending={acquire_profile}/>}
-      <button className="secondary" disabled={memories_open} onClick={() => set_memories_open(true)}>Open explicit memories</button>
-      {memories_open && <MemoriesPanel api={client} sessionKey={auth_generation.current} selectedProjectId={conversation ? conversation.project_id : new_project?.id ?? null} onUnauthorized={clear_private} onReauthenticate={request_memory_reauthentication} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || task_pending || project_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} selectionDisabled={navigation_disabled} onPendingChange={memory_pending_changed} onAcquirePending={acquire_memory}/>}
+      <button className="secondary" disabled={learning_open || navigation_disabled} onClick={() => open_memory_editor('learning')}>Open learning profile</button>
+      <button className="secondary" disabled={memories_open || navigation_disabled} onClick={() => open_memory_editor('generic')}>Open explicit memories</button>
+      {memories_open && <MemoriesPanel key={`generic:${auth_generation.current}:${editor_epoch}`} api={client} sessionKey={auth_generation.current} selectedProjectId={conversation ? conversation.project_id : new_project?.id ?? null} onUnauthorized={memory_unauthorized} onReauthenticate={() => { if (owns_memory_editor('generic')) request_memory_reauthentication(); }} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || task_pending || project_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} selectionDisabled={navigation_disabled} onPendingChange={pending => memory_editor_pending('generic', pending)} onAcquirePending={() => acquire_memory_editor('generic')}/>}
+      {learning_open && <LearningProfilePanel key={`learning:${auth_generation.current}:${editor_epoch}`} api={client} sessionKey={auth_generation.current} selectedProjectId={conversation ? conversation.project_id : new_project?.id ?? null} onUnauthorized={memory_unauthorized} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || task_pending || project_pending || profile_pending || schedule_pending || notification_pending || mail_draft_pending} selectionDisabled={navigation_disabled} onPendingChange={pending => memory_editor_pending('learning', pending)} onAcquirePending={() => acquire_memory_editor('learning')}/>}
       <button className="secondary" disabled={schedules_open} onClick={() => set_schedules_open(true)}>Open internal reminders</button>
       {schedules_open && <SchedulesPanel api={client} sessionKey={auth_generation.current} selectedProjectId={new_project?.id ?? null} onUnauthorized={clear_private} onReauthenticate={request_schedule_reauthentication} writesPaused={study_pending || deletion_pending || export_pending || writes_paused || busy || task_pending || project_pending || memory_pending || profile_pending || notification_pending || mail_draft_pending} selectionDisabled={navigation_disabled} onPendingChange={schedule_pending_changed} onAcquirePending={acquire_schedule}/>}
       <button className="secondary" disabled={notifications_open} onClick={() => set_notifications_open(true)}>Open internal inbox</button>
