@@ -44,6 +44,70 @@ CONTEXT_ENV = {"checkout_sha": "REPORT_CHECKOUT_SHA", "pr_head_sha": "REPORT_PR_
                "run_id": "GITHUB_RUN_ID", "run_attempt": "GITHUB_RUN_ATTEMPT"}
 # Reviewed source names only. Do not learn output identities from XML attributes.
 ALLOWED_TESTS = {
+    "DurableStudyConcurrencyTest": (
+        "simultaneousSameKeyCreatesOneSourceReceiptAuditAndVersionIncrement",
+        "twoQuestionsAtOneSnapshotHaveOneWinnerAndNeverSilentlyRebase",
+        "answerAndCloseSerializeAndBothExplicitOrderingsRemainLegal",
+        "ownerAndDescendantLockWaitsRecheckIdleAndAbsoluteSessionExpiry",
+        "blockedReceiptConstraintRechecksExpiryAfterAllBusinessWrites",
+        "blockedNonceReservationCannotCommitAnExpiredOwnerAnswer",
+        "backwardFinalClockAfterReceiptForcesCompleteRollback",
+        "failuresAfterInputTransitionReceiptAndAuditRollBackEveryBusinessRow",
+        "answerBeforeDeleteInvalidatesReviewAndDeleteBeforeAnswerNeverRehydrates",
+    ),
+    "DurableStudyFixtures": (
+    ),
+    "DurableStudyHttpTest": (
+        "realStartAnswerReadCloseAndReceiptRoutesUseNoInferenceOrMessageFallback",
+        "authenticationOriginCsrfContentTypeAndIdempotencyHeadersAreMandatory",
+        "duplicateJsonFloatsExponentsUnsafeNumbersSurrogatesAndClientAuthorityFailClosed",
+        "allReadRoutesRejectBodiesQueriesAndNoncanonicalIdentifiers",
+        "answerTextIsUnicodeScalarBoundedAndErrorsNeverEchoContent",
+        "deletedSourceRoutesReturnGoneButOriginalLiveReceiptLookupStaysMetadataOnly",
+    ),
+    "DurableStudyMigrationTest": (
+        "everyHistoricalMigrationRetainsItsPublishedBytes",
+        "cleanV1ThroughV16CreatesExactlyThreeStudyRelations",
+        "v15PreparationsAreRevokedWhileConsumedLedgerAndUsageRemainExact",
+        "failedV16RollsBackEarlierDdlAndDoesNotRevokeOldAuthority",
+    ),
+    "DurableStudyServiceTest": (
+        "acceptedLessonTwoExactInputsRestartCloseAndDeletionHaveNoExtraModelWork",
+        "duplicateKeysChangedRequestsQuestionConflictsAndStaleSnapshotsDoNotWrite",
+        "canonicalStateSurvivesNewLoginButOriginalMutationAuthorityDoesNot",
+        "ordinaryMessagesAndContextChangesPreserveHistoricalInputEvidence",
+        "pausedExecutionBlocksWritesButDoesNotHideRecordedInputs",
+        "rejectedMockClarificationOrSubstitutedSourcesNeverStart",
+        "cancelledOrMeasuredClarificationSubstitutedAsSuccessCannotSupplyLessonAuthority",
+        "maximumUnicodeInputAndUnknownFieldsRespectDedicatedRequestCap",
+        "deletionHeadroomAndUnknownSchemaRefuseBeforeAnyInputAllocation",
+        "contentFreeIndexAndNotObservedReadDoNotClaimAWriteOutcome",
+    ),
+    "StudyDeletionIntegrationTest": (
+        "openAndFeedbackPendingStudySourcesDeleteWithoutChangingHistoryOrUsage",
+        "redactionRequiresBothMatchingTombstonesAndIsOneWay",
+        "commonInventoryCountsAllStudyRowsAndCiphertextsIncludingCloseReceipt",
+        "metadataOnlyCloseCannotExceedActualByteCapacityAndReplayCostsNothing",
+        "exactSchemaGateRejectsBothOldAndUnreviewedFutureVersion",
+        "clearingOnlyOldSourcesCannotCommitTheConversationTombstone",
+        "everyOperationAtMaxMinusTwoPreservesTheFinalDeletionIncrement",
+    ),
+    "StudyStorageFixtures": (
+    ),
+    "StudyStorageSqlTest": (
+        "eachReceiptIsTheOnlyConversationBumpAndHistoricalInputsRemainValid",
+        "unreceiptedSourceSessionAndTimestampChangesRollback",
+        "unreceiptedStartCannotCommit",
+        "nullPriorVersionCannotBypassAnswerOrCloseChecks",
+        "mismatchedInputReceiptAndHistoricalObservationCannotCommit",
+        "sourceIdentityTextCommitmentAndReceiptAreImmutable",
+        "wrongEpochAndCrossSessionSourceBindingsFail",
+        "duplicateQuestionAttemptAndCloseThenAnswerCannotCommit",
+        "gapDuplicateTransitionAndBackwardTimestampCannotCommit",
+        "conflictDoNothingDoesNotFireConversationBump",
+        "aggregateRowCapCountsTheFinalCloseReceiptAndRejectsCapPlusOne",
+        "defensiveSessionAndAnswerCapProbesRejectCorruptCapPlusOneWithoutCommitting",
+    ),
     "StudyLessonContractTest": (
         "exactTypedWireHasNoModelIdentityAndMintsOnlyAtAdmission",
         "ordinaryAndStudyPurposeCannotSubstituteTheirSuccessKinds",
@@ -104,6 +168,7 @@ ALLOWED_TESTS = {
         "unavailableErrorsAndSourceDiagnosticsContainNoPrivateValues",
         "acceptedAnswerPreservesIdentityAndInputValuesWithoutSideEffects",
         "existingUnicodeAndTargetBoundsStillApplyAfterSourceBinding",
+        "directInputRequiresIndependentlyObservedTargetAndClosedSourceKind",
     ),
     "RestoreLaunchGuardTest": (
         "everyPresentControlValueDeniesWithoutReadingIt",
@@ -805,6 +870,24 @@ def source_snapshot(root):
         if re.search(r"@(?:ParameterizedTest|RepeatedTest|TestFactory|TestTemplate|Nested|DisplayName|DisplayNameGeneration)\b", source):
             fail("TEST_INVENTORY_REVIEW_REQUIRED")
         if re.findall(r"\bpackage\s+([\w.]+)\s*;", source) != [PACKAGE]:
+            fail("TEST_INVENTORY_REVIEW_REQUIRED")
+        # Bind literal methods to their reviewed top-level class, not merely a
+        # matching filename. Nested/helper tests cannot borrow its XML identity.
+        depth = 0
+        declarations = []
+        for token in re.finditer(r"[{}]|\b(class|interface|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)|@Test\b", source):
+            if token.group() == "{":
+                depth += 1
+            elif token.group() == "}":
+                depth -= 1
+                if depth < 0:
+                    fail("TEST_INVENTORY_REVIEW_REQUIRED")
+            elif token.group() == "@Test":
+                if depth != 1:
+                    fail("TEST_INVENTORY_REVIEW_REQUIRED")
+            elif depth == 0:
+                declarations.append((token.group(1), token.group(2)))
+        if depth != 0 or declarations != [("class", path.stem)]:
             fail("TEST_INVENTORY_REVIEW_REQUIRED")
         names = re.findall(r"@Test\b\s+(?:public\s+)?void\s+([A-Za-z][A-Za-z0-9_]*)\s*\(\s*\)", source)
         if (len(re.findall(r"@Test\b", source)) != len(names)

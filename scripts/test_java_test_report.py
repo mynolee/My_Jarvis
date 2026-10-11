@@ -17,6 +17,17 @@ ENVIRONMENT = {value: CONTEXT[key] or "" for key, value in report.CONTEXT_ENV.it
 CLASS = "dev.myjarvis.core.ConversationHistoryHttpTest"
 METHOD = report.ALLOWED_TESTS["ConversationHistoryHttpTest"][0]
 MARKER = "SYNTHETIC_PRIVATE_PAYLOAD /private/synthetic/key token=synthetic-secret"
+DURABLE_CLASS_COUNTS = {
+    'DurableStudyConcurrencyTest': 9,
+    'DurableStudyFixtures': 0,
+    'DurableStudyHttpTest': 6,
+    'DurableStudyMigrationTest': 4,
+    'DurableStudyServiceTest': 10,
+    'StudyDeletionIntegrationTest': 7,
+    'StudyStorageFixtures': 0,
+    'StudyStorageSqlTest': 12,
+}
+DIRECT_INPUT_METHOD = 'directInputRequiresIndependentlyObservedTargetAndClosedSourceKind'
 
 
 def testcase(name=METHOD + "()", classname=CLASS, outcome="passed", extra=""):
@@ -219,7 +230,7 @@ class ReportFixtureTest(unittest.TestCase):
         methods = [item for item in result['methods']
                    if item['class'] == report.PACKAGE + '.StudyAnswerSourcePolicyTest']
         target = self.root / report.TEST_ROOT / 'dev/myjarvis/core/StudyAnswerSourcePolicyTest.java'
-        self.assertEqual(len(methods), 14)
+        self.assertEqual(len(methods), 15)
         self.assertEqual({item['method'] for item in methods}, set(report.ALLOWED_TESTS['StudyAnswerSourcePolicyTest']))
         self.assertTrue(all(item['outcome'] == 'PASS' and item['observations'] == 1 for item in methods))
         self.assertTrue(all(item['source_sha256'] == hashlib.sha256(target.read_bytes()).hexdigest() for item in methods))
@@ -267,6 +278,111 @@ class ReportFixtureTest(unittest.TestCase):
                     report.source_snapshot(self.root)
             target.write_text(original)
         report.source_snapshot(self.root)
+
+    def test_durable_study_literal_inventory_and_every_source_hash_are_bound(self):
+        self.prepare(); self.xml(); result = self.emit()
+        self.assertEqual(result['status'], 'PASS')
+        for name, count in DURABLE_CLASS_COUNTS.items():
+            methods = [item for item in result['methods'] if item['class'] == report.PACKAGE + '.' + name]
+            target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+            self.assertEqual(len(methods), count)
+            self.assertEqual({item['method'] for item in methods}, set(report.ALLOWED_TESTS[name]))
+            self.assertTrue(all(item['outcome'] == 'PASS' and item['observations'] == 1 for item in methods))
+            self.assertTrue(all(item['source_sha256'] == hashlib.sha256(target.read_bytes()).hexdigest() for item in methods))
+            original = target.read_bytes()
+            target.write_bytes(original + b'\n// synthetic source alteration\n')
+            self.assertEqual(self.emit()['reason_codes'], ['SOURCE_CHANGED_DURING_VERIFICATION'])
+            target.write_bytes(original)
+        self.assertEqual(self.emit()['status'], 'PASS')
+        self.assertNotIn(MARKER, json.dumps(result))
+
+    def test_durable_study_source_missing_renamed_extra_duplicate_parameterized_is_rejected(self):
+        for name in DURABLE_CLASS_COUNTS:
+            target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+            original = target.read_text()
+            mutations = [original + '\n@Test void unreviewedDurableExtra() {}\n']
+            if report.ALLOWED_TESTS[name]:
+                first = report.ALLOWED_TESTS[name][0]
+                mutations += [original.replace('@Test void ' + first + '() {}\n', ''),
+                              original.replace(first, 'unreviewedDurableRename'),
+                              original.replace('@Test void ' + first + '() {}', '@Test void ' + first + '() {} @Test void ' + first + '() {}'),
+                              original.replace('@Test', '@ParameterizedTest', 1),
+                              original.replace('@Test', '@RepeatedTest(2)', 1),
+                              original.replace('@Test', '@DisplayName("synthetic") @Test', 1),
+                              original.replace('@Test void ' + first + '()', '@Test void ' + first + '(String synthetic)')]
+            for source in mutations:
+                target.write_text(source)
+                with self.assertRaisesRegex(report.ReportError, '^TEST_INVENTORY_REVIEW_REQUIRED$'):
+                    report.source_snapshot(self.root)
+            target.write_text(original)
+        report.source_snapshot(self.root)
+
+    def test_durable_study_class_package_and_nested_identity_substitutions_are_rejected(self):
+        self.prepare(); self.xml()
+        for name in DURABLE_CLASS_COUNTS:
+            target = self.root / report.TEST_ROOT / ('dev/myjarvis/core/' + name + '.java')
+            original = target.read_text()
+            for source in (original.replace('class ' + name, 'class UnreviewedIdentity'),
+                           original.replace('package dev.myjarvis.core;', 'package synthetic.privatevalue;'),
+                           original + '\nclass UnreviewedSibling {}\n',
+                           original.replace('class ' + name + ' {', 'class UnreviewedOuter { class ' + name + ' {') + '}\n',
+                           original.replace('class ' + name + ' {', 'class ' + name + ' { class UnreviewedNested {') + '}\n'):
+                # Empty fixtures can contain nested helpers; test-bearing classes
+                # must never relocate reviewed methods into a nested identity.
+                if 'UnreviewedNested' in source and not report.ALLOWED_TESTS[name]:
+                    continue
+                target.write_text(source)
+                result = self.emit()
+                self.assertEqual(result['reason_codes'], ['TEST_INVENTORY_REVIEW_REQUIRED'])
+                self.assertNotIn(MARKER, json.dumps(result))
+                self.assertNotIn('synthetic.privatevalue', json.dumps(result))
+            target.write_text(original)
+        self.assertEqual(self.emit()['status'], 'PASS')
+
+    def test_durable_study_xml_missing_renamed_extra_duplicate_parameterized_and_wrong_class_fail_closed(self):
+        self.prepare()
+        for name in DURABLE_CLASS_COUNTS:
+            if not report.ALLOWED_TESTS[name]:
+                continue
+            cls = report.PACKAGE + '.' + name
+            method = report.ALLOWED_TESTS[name][0]
+            matched = testcase(name=method + '()', classname=cls)
+            rest = [testcase(name=m + '()', classname=report.PACKAGE + '.' + c)
+                    for c, names in report.ALLOWED_TESTS.items() for m in names
+                    if (c, m) != (name, method)]
+            for cases, unobserved, unmapped, duplicate in (
+                    (rest, 1, 0, 0),
+                    (rest + [testcase(name=MARKER, classname=cls)], 1, 1, 0),
+                    (rest + [matched, testcase(name=MARKER, classname=cls)], 0, 1, 0),
+                    (rest + [matched, matched], 0, 0, 1),
+                    (rest + [testcase(name=method + '(' + MARKER + ')', classname=cls)], 1, 1, 0),
+                    (rest + [testcase(name=method + '()', classname=MARKER)], 1, 1, 0)):
+                self.xml(suite(cases))
+                result = self.emit()
+                self.assertEqual(result['status'], 'INCOMPLETE')
+                self.assertEqual(result['counts']['unobserved_methods'], unobserved)
+                self.assertEqual(result['counts']['unmapped_testcases'], unmapped)
+                self.assertEqual(result['counts']['duplicate_observations'], duplicate)
+                self.assertNotIn(MARKER, json.dumps(result))
+                self.assertNotIn(str(self.root), json.dumps(result))
+
+    def test_direct_owner_input_added_identity_cannot_be_omitted_or_parameterized(self):
+        self.assertIn(DIRECT_INPUT_METHOD, report.ALLOWED_TESTS['StudyAnswerSourcePolicyTest'])
+        target = self.root / report.TEST_ROOT / 'dev/myjarvis/core/StudyAnswerSourcePolicyTest.java'
+        original = target.read_text()
+        declaration = '@Test void ' + DIRECT_INPUT_METHOD + '() {}'
+        for source in (original.replace(declaration, ''),
+                       original.replace(declaration, '@ParameterizedTest void ' + DIRECT_INPUT_METHOD + '() {}'),
+                       original.replace(DIRECT_INPUT_METHOD, 'unreviewedDirectInputRename')):
+            target.write_text(source)
+            with self.assertRaisesRegex(report.ReportError, '^TEST_INVENTORY_REVIEW_REQUIRED$'):
+                report.source_snapshot(self.root)
+        target.write_text(original)
+        self.prepare(); self.xml(); result = self.emit()
+        methods = [item for item in result['methods'] if item['class'] == report.PACKAGE + '.StudyAnswerSourcePolicyTest'
+                   and item['method'] == DIRECT_INPUT_METHOD]
+        self.assertEqual(len(methods), 1)
+        self.assertEqual(methods[0]['source_sha256'], hashlib.sha256(target.read_bytes()).hexdigest())
 
     def test_missing_method_is_not_observed_not_a_pass(self):
         self.prepare()
@@ -388,7 +504,35 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 569)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 618)
+
+    def test_all_569_historical_identities_remain_exactly_preserved(self):
+        historical = sorted(cls + '.' + method for cls, names in report.ALLOWED_TESTS.items() for method in names
+                            if cls not in DURABLE_CLASS_COUNTS
+                            and (cls, method) != ('StudyAnswerSourcePolicyTest', DIRECT_INPUT_METHOD))
+        self.assertEqual(len(historical), 569)
+        self.assertEqual(hashlib.sha256(('\n'.join(historical) + '\n').encode()).hexdigest(),
+                         'eaf1fb4616a8dbcd87fc28744000afa9778575c98003332e734c11fbe43b25fa')
+        self.assertEqual({name: len(report.ALLOWED_TESTS[name]) for name in DURABLE_CLASS_COUNTS}, DURABLE_CLASS_COUNTS)
+        self.assertEqual(len(report.ALLOWED_TESTS), 56)
+
+    def test_historical_and_durable_migration_tests_keep_distinct_version_boundaries(self):
+        self.assertEqual(report.ALLOWED_TESTS['StudyLessonMigrationTest'],
+                         ('v14PreparedAuthorityIsRevokedAndConsumedPreparationRemainsUnchanged',))
+        historical = (report.ROOT / report.TEST_ROOT / 'dev/myjarvis/core/StudyLessonMigrationTest.java').read_text()
+        self.assertIn('"--spring.flyway.target=14"', historical)
+        self.assertIn('.target("15").load().migrate()', historical)
+        self.assertIn('assertEquals("14", db.queryForObject', historical)
+        self.assertIn('assertEquals("15", db.queryForObject', historical)
+        durable = (report.ROOT / report.TEST_ROOT / 'dev/myjarvis/core/DurableStudyMigrationTest.java').read_text()
+        self.assertIn('v15PreparationsAreRevokedWhileConsumedLedgerAndUsageRemainExact', durable)
+        self.assertIn('migration(ds,"15").migrate()', durable)
+        self.assertIn('migration(ds,"16").migrate()', durable)
+        self.assertIn('failedV16RollsBackEarlierDdlAndDoesNotRevokeOldAuthority', durable)
+        self.assertIn('assertEquals("15",db.queryForObject', durable)
+        self.assertIn('assertEquals("16",db.queryForObject', durable)
+        self.assertIn('assertEquals(15,expected.size())', durable)
+        self.assertIn('/migrations/pre-v16-sha256.properties', durable)
 
     def test_workflow_keeps_verification_status_and_always_reports(self):
         workflow = (report.ROOT / '.github/workflows/m0.yml').read_text()
