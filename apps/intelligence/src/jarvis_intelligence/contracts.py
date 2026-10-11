@@ -228,6 +228,7 @@ def validate_context(value):
 class TurnRequest(StrictModel):
     request_id: str
     run_id: str
+    purpose: Literal["CONVERSATION", "STUDY_LESSON"] = "CONVERSATION"
     user_input: Annotated[str, Field(min_length=1, max_length=16000)]
     current_time: str
     timezone: Annotated[str, Field(min_length=1, max_length=80)]

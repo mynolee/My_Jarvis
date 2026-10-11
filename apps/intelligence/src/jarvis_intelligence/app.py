@@ -92,11 +92,18 @@ def _validate_output(output, turn, *, measured=None):
     # rejects risk/approved/verified/owner fields nested inside tool arguments.
     if type(output) is not dict or "usage" in output:
         raise ContractViolation("provider cannot set usage")
+    study = getattr(turn, "purpose", "CONVERSATION") == "STUDY_LESSON"
+    if study:
+        if output.get("kind") not in {"LESSON", "NEED_INPUT", "ERROR"}:
+            raise ContractViolation("invalid study output mode")
+    elif output.get("kind") == "LESSON":
+        raise ContractViolation("lesson outside study purpose")
     if measured is None and len(canonical(output)) > turn.budget.max_output_tokens:
         raise ContractViolation("output bound exceeded")
     usage = _usage(turn)
     if measured is not None:
-        if output.get("kind") not in {"ANSWER", "NEED_INPUT", "TOOL_PROPOSALS"}:
+        native_kinds = {"LESSON", "NEED_INPUT"} if study else {"ANSWER", "NEED_INPUT", "TOOL_PROPOSALS"}
+        if output.get("kind") not in native_kinds:
             raise ContractViolation("invalid model output mode")
         for key in ("input_tokens", "output_tokens", "compute_ms", "peak_memory_bytes"):
             value = measured[key]
@@ -106,7 +113,8 @@ def _validate_output(output, turn, *, measured=None):
         if usage["input_tokens"] + 512 > 4096 or usage["input_tokens"] > turn.budget.max_input_tokens or usage["output_tokens"] > min(512, turn.budget.max_output_tokens):
             raise ContractViolation("measured budget exceeded")
     if getattr(turn, 'context', None) is not None:
-        if output.get('kind') not in {'ANSWER', 'NEED_INPUT', 'ERROR'} or output.get('cited_source_ids', []) != []:
+        context_kinds = {'LESSON', 'NEED_INPUT', 'ERROR'} if study else {'ANSWER', 'NEED_INPUT', 'ERROR'}
+        if output.get('kind') not in context_kinds or output.get('cited_source_ids', []) != []:
             raise ContractViolation('context output authority exceeded')
     complete = {**output, "usage": usage}
     validate("turn-response", complete)

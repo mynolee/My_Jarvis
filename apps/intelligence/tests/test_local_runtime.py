@@ -101,7 +101,7 @@ class ArtifactTests(unittest.TestCase):
         with self.assertRaises(ValueError): verify_artifacts(replace(self.config, manifest_sha256=digest(self.config.manifest_path)))
     def test_private_configuration_permissions(self):
         path=Path(self.tmp.name)/'config.json'
-        path.write_text(json.dumps({key:str(value) for key,value in self.config.__dict__.items()})); path.chmod(0o600)
+        path.write_text(json.dumps({key:str(value) for key,value in self.config.__dict__.items() if value is not None})); path.chmod(0o600)
         self.assertEqual(LocalConfig.from_file(path), self.config)
         path.chmod(0o644)
         with self.assertRaises(ValueError): LocalConfig.from_file(path)

@@ -15,7 +15,7 @@ import platform
 import re
 import stat
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .contracts import ContractViolation, canonical, parse_json, validate
@@ -45,6 +45,16 @@ class LocalConfig:
     runtime_lock_sha256: str
     prompt_sha256: str
     manifest_sha256: str
+    study_lesson_prompt_path: Path | None = field(default=None, repr=False)
+    study_lesson_prompt_sha256: str | None = field(default=None, repr=False)
+
+    def __post_init__(self):
+        path, pin = self.study_lesson_prompt_path, self.study_lesson_prompt_sha256
+        if (path is None) != (pin is None):
+            raise ValueError('incomplete study prompt configuration')
+        if path is not None and (not isinstance(path, Path) or not path.is_absolute() or
+                                 not isinstance(pin, str) or not re.fullmatch('[a-f0-9]{64}', pin)):
+            raise ValueError('invalid study prompt configuration')
 
     @classmethod
     def from_file(cls, path: Path):
@@ -55,9 +65,10 @@ class LocalConfig:
             raise ValueError('configuration must be owner-only')
         value = parse_json(path.read_bytes())
         names = set(cls.__dataclass_fields__)
-        if type(value) is not dict or set(value) != names:
+        optional = {'study_lesson_prompt_path', 'study_lesson_prompt_sha256'}
+        if type(value) is not dict or set(value) not in (names, names - optional):
             raise ValueError('invalid local configuration')
-        for name in names:
+        for name in value:
             if not isinstance(value[name], str) or not value[name]:
                 raise ValueError('invalid local configuration')
             if name.endswith('_path'):
@@ -68,6 +79,32 @@ class LocalConfig:
             elif not re.fullmatch('[a-f0-9]{64}', value[name]):
                 raise ValueError('invalid digest')
         return cls(**value)
+
+
+def load_study_lesson_prompt(config: LocalConfig) -> str | None:
+    """Read only the exact privately pinned bytes; never disclose path or text."""
+    path, pin = config.study_lesson_prompt_path, config.study_lesson_prompt_sha256
+    if path is None and pin is None:
+        return None
+    if (not isinstance(path, Path) or not path.is_absolute() or
+            not isinstance(pin, str) or not re.fullmatch('[a-f0-9]{64}', pin)):
+        raise ValueError('invalid study prompt configuration')
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+                raise ValueError('invalid study prompt file')
+            # Use one bounded descriptor read, not a hash-then-reread path race.
+            with os.fdopen(fd, 'rb', closefd=False) as handle:
+                raw = handle.read(65537)
+            if not raw or len(raw) > 65536 or hashlib.sha256(raw).hexdigest() != pin:
+                raise ValueError('invalid study prompt bytes')
+            return raw.decode('utf-8', errors='strict')
+        finally:
+            os.close(fd)
+    except (OSError, ValueError):
+        raise ValueError('study prompt unavailable') from None
 
 
 def verify_artifacts(config: LocalConfig) -> str:
@@ -86,6 +123,9 @@ def verify_artifacts(config: LocalConfig) -> str:
             raise ValueError('license evidence missing')
     if manifest.get('runtime_lock_sha256') != config.runtime_lock_sha256 or manifest.get('prompt_sha256') != config.prompt_sha256:
         raise ValueError('manifest runtime binding mismatch')
+    if manifest.get('study_lesson_prompt_sha256') != config.study_lesson_prompt_sha256:
+        raise ValueError('manifest study prompt binding mismatch')
+    load_study_lesson_prompt(config)
     if manifest.get('complete') is not True or not re.fullmatch('[a-f0-9]{40}', manifest.get('revision', '')):
         raise ValueError('model revision incomplete')
     if not isinstance(manifest.get('repo'), str) or not manifest['repo']:
@@ -294,6 +334,9 @@ class LocalRuntime:
             self._cancel.set()
 
     async def generate(self, turn, deadline_epoch):
+        study = getattr(turn, 'purpose', 'CONVERSATION') == 'STUDY_LESSON'
+        if study and getattr(self.config, 'study_lesson_prompt_path', None) is None:
+            raise RuntimeFailure('MODEL_UNAVAILABLE')
         if not self.health()['runtime_ready']:
             raise RuntimeFailure('MODEL_UNAVAILABLE')
         if self._waiting + int(self._serial.locked()) >= 3:
@@ -328,6 +371,8 @@ class LocalRuntime:
                               'max_input_tokens': turn.budget.max_input_tokens,
                               'max_output_tokens': turn.budget.max_output_tokens,
                               'deadline_monotonic': time.monotonic() + duration}
+            if study:
+                worker_request['purpose'] = 'STUDY_LESSON'
             if getattr(turn, 'context', None) is not None:
                 wire = turn.model_dump(mode='json', exclude_unset=True)
                 worker_request.update({key: wire[key] for key in

@@ -8,16 +8,19 @@ from __future__ import annotations
 
 import json
 import time
-from .contracts import CONTRACT_ROOT, canonical, parse_json
-from .local_runtime import RuntimeFailure
+from .contracts import CONTRACT_ROOT, ContractViolation, canonical, parse_json
+from .local_runtime import RuntimeFailure, load_study_lesson_prompt
 
 
-def output_schema(allowed_tools):
+def output_schema(allowed_tools, purpose='CONVERSATION'):
+    if purpose not in {'CONVERSATION', 'STUDY_LESSON'}:
+        raise ContractViolation('invalid generation purpose')
     schema = json.loads((CONTRACT_ROOT / 'schemas/turn-response.schema.json').read_text())
     variants = []
     for branch in schema['oneOf']:
         kind = branch['properties']['kind']['const']
-        if kind == 'ERROR' or (kind == 'TOOL_PROPOSALS' and not allowed_tools):
+        kinds = {'LESSON', 'NEED_INPUT'} if purpose == 'STUDY_LESSON' else {'ANSWER', 'NEED_INPUT', 'TOOL_PROPOSALS'}
+        if kind not in kinds or (kind == 'TOOL_PROPOSALS' and not allowed_tools):
             continue
         branch['properties'].pop('usage')
         branch['required'].remove('usage')
@@ -39,6 +42,7 @@ def admit(input_ids, max_input, max_output):
 
 class MLXAdapter:
     def __init__(self, config):
+        self.study_lesson_system = load_study_lesson_prompt(config)
         import mlx.core as mx
         from mlx_vlm import load, stream_generate
         from mlx_vlm.prompt_utils import apply_chat_template
@@ -66,6 +70,13 @@ class MLXAdapter:
     def generate(self, request, cancel):
         start = time.monotonic()
         deadline = min(start + 60, request.get('deadline_monotonic', start + 60))
+        purpose = request.get('purpose', 'CONVERSATION')
+        system = self.system
+        if purpose == 'STUDY_LESSON':
+            system = getattr(self, 'study_lesson_system', None)
+            if system is None:
+                raise RuntimeFailure('MODEL_UNAVAILABLE')
+        schema = output_schema(request['allowed_tool_ids'], purpose)
 
         def checkpoint():
             if cancel.is_set():
@@ -78,7 +89,7 @@ class MLXAdapter:
         # At most 28 removals; final candidate still uses the actual preparation path.
         for attempt in range(29):
             checkpoint()
-            messages = [{'role': 'system', 'content': self.system + '\n' + canonical(output_schema(request['allowed_tool_ids'])).decode() + '\n' + canonical({'current_time': request['current_time'], 'timezone': request['timezone']}).decode()}]
+            messages = [{'role': 'system', 'content': system + '\n' + canonical(schema).decode() + '\n' + canonical({'current_time': request['current_time'], 'timezone': request['timezone']}).decode()}]
             if request.get('context') is not None:
                 data = {key: request[key] for key in ('context', 'project_context', 'evidence', 'tool_results')}
                 data.update(memories=memories, history=[{key: value for key, value in item.items() if key != 'text'} for item in history])
