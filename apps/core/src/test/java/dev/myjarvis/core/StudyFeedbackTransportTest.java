@@ -28,15 +28,31 @@ class StudyFeedbackTransportTest extends StudyFeedbackFixtures {
     @Test void dedicatedFeedbackRequestsNeverUseGenericTextRequestFactory(){saveTwo();UUID id=requestFeedback(0);var row=db.queryForMap("SELECT * FROM inference_reservations WHERE id=?",feedbackRow(id).get("reservation_id"));assertThrows(ApiException.class,()->feedbackLocal.request(row,"fabricated",Map.of()));assertEquals(0,feedbackClient.calls);}
     @org.junit.jupiter.api.Timeout(150) @Test void actualNinetySecondRecoveryRetainsImmutableDispatchAndUncertainExpense()throws Exception {
         saveTwo();UUID id=requestFeedback(0);var dispatch=dispatch(id);var before=db.queryForMap("SELECT * FROM inference_reservations WHERE id=?",dispatch.reservation());
-        feedbackLocal.recover();assertEquals("RUNNING",feedbackRow(id).get("state"));
+        long version=conversationVersion(targetConversation);feedbackLocal.recover();assertEquals("RUNNING",feedbackRow(id).get("state"));assertEquals(version,conversationVersion(targetConversation));
+        assertEquals(0L,db.queryForObject("SELECT count(*) FROM study_feedback_events WHERE feedback_id=? AND operation='REVOKE'",Long.class,id));
         // Real elapsed time only: immutable source/dispatch timestamps and DB guards stay untouched.
         Thread.sleep(91000);
         assertTrue(db.queryForObject("SELECT started_at<clock_timestamp()-interval '90 seconds' FROM inference_reservations WHERE id=?",Boolean.class,dispatch.reservation()));
-        long version=conversationVersion(targetConversation);feedbackLocal.recover();var after=db.queryForMap("SELECT * FROM inference_reservations WHERE id=?",dispatch.reservation());
+        // The real scheduled worker may win recovery while this test waits; both use the same predicate.
+        feedbackLocal.recover();var after=db.queryForMap("SELECT * FROM inference_reservations WHERE id=?",dispatch.reservation());
         assertEquals("REVOKED",feedbackRow(id).get("state"));assertEquals("UNKNOWN",after.get("status"));assertEquals(version+4,conversationVersion(targetConversation));
         for(String field:List.of("started_at","body_hash","dispatch_context_id","dispatch_cache_policy","max_compute_ms","reserved_output_tokens"))assertEquals(before.get(field),after.get(field),field);
         assertEquals("RECOVERY_UNKNOWN",db.queryForObject("SELECT reason_code FROM study_feedback_events WHERE feedback_id=? AND operation='REVOKE'",String.class,id));assertFalse(quiescent(id));assertEquals(0,feedbackClient.calls);assertEquals(0L,db.queryForObject("SELECT count(*) FROM inference_usage_receipts WHERE reservation_id=?",Long.class,dispatch.reservation()));
-        var events=db.queryForList("SELECT * FROM study_feedback_events WHERE feedback_id=? ORDER BY version",id);feedbackLocal.recover();assertFalse(feedbackLocal.runOne());assertEquals(events,db.queryForList("SELECT * FROM study_feedback_events WHERE feedback_id=? ORDER BY version",id));
+        assertEquals(3L,((Number)feedbackRow(id).get("version")).longValue());assertEquals(3L,db.queryForObject("SELECT count(*) FROM study_feedback_events WHERE feedback_id=?",Long.class,id));
+        assertTrue(db.queryForObject("SELECT e.committed_at>=i.started_at+interval '90 seconds' FROM study_feedback_events e JOIN inference_reservations i ON i.owner_id=e.owner_id AND i.id=? WHERE e.owner_id=? AND e.feedback_id=? AND e.operation='REVOKE'",Boolean.class,dispatch.reservation(),owner,id));
+        var terminal=recoveryState();feedbackLocal.recover();assertFalse(feedbackLocal.runOne());assertEquals(terminal,recoveryState());
+    }
+    private Map<String,Object> recoveryState(){
+        Map<String,Object> result=new LinkedHashMap<>();
+        for(String table:List.of("study_feedback_requests","study_feedback_events","runs","inference_reservations","inference_contexts","inference_control_slots","inference_usage_receipts")){
+            String order=switch(table){case "study_feedback_events"->"feedback_id,version";case "inference_control_slots"->"reservation_id";case "inference_usage_receipts"->"reservation_id,receipt_kind";default->"id";};
+            result.put(table,db.queryForList("SELECT * FROM "+table+" WHERE owner_id=? ORDER BY "+order,owner));
+        }
+        for(String table:List.of("inference_context_memories","inference_context_history")){
+            String order=table.equals("inference_context_memories")?"context_id,memory_id":"context_id,ordinal";
+            result.put(table,db.queryForList("SELECT * FROM "+table+" WHERE context_id IN (SELECT id FROM inference_contexts WHERE owner_id=?) ORDER BY "+order,owner));
+        }
+        result.put("conversation_content_version",conversationVersion(targetConversation));return result;
     }
     @Test void runOnePostRegistrationAuthorityLossPreventsTransportAndClosesExactlyOnce(){
         saveTwo();UUID id=requestFeedback(0);var gate=spy(feedback);feedbackLocal.feedbackService(gate);
