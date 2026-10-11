@@ -1,0 +1,27 @@
+{
+  "checked_at": "2030-01-15T12:00:00Z",
+  "timezone": "Etc/UTC",
+  "local_date": "2030-01-15",
+  "day_start_at": "2030-01-15T00:00:00Z",
+  "next_day_start_at": "2030-01-16T00:00:00Z",
+  "deadline_window_end_at": "2030-01-16T00:00:00Z",
+  "tasks": {
+    "status": "AVAILABLE",
+    "top_tasks": [],
+    "deadlines": [],
+    "deadline_total": 0,
+    "deadlines_truncated": false
+  },
+  "calendar": {
+    "status": "UNAVAILABLE",
+    "reason": "NOT_IMPLEMENTED"
+  },
+  "briefing": {
+    "status": "UNAVAILABLE",
+    "reason": "NOT_IMPLEMENTED"
+  },
+  "device": {
+    "status": "UNAVAILABLE",
+    "reason": "NOT_IMPLEMENTED"
+  }
+}

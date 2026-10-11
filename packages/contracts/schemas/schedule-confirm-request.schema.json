@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/schedule-confirm-request.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "type": "object",
+  "properties": {
+    "expected_preparation_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "payload_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "confirm": {
+      "const": true
+    }
+  },
+  "required": [
+    "expected_preparation_version",
+    "payload_hash",
+    "confirm"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$(?![\\s\\S])"
+    }
+  }
+}

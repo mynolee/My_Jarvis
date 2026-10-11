@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/conversation-deletion-preparation-path.schema.json",
+  "$comment": "Closed wire shape only. Strict UTF-8/integer-only JSON parsing and real calendar format assertions are required. Runtime enforces cross-field relationships, current owner/session/epoch, exact reviewed snapshot, quiescence, provenance, transaction limits and tombstone barriers.",
+  "type": "object",
+  "properties": {
+    "preparation_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    }
+  },
+  "required": [
+    "preparation_id"
+  ],
+  "additionalProperties": false
+}

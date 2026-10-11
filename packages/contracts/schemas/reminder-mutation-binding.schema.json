@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/reminder-mutation-binding.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "enum": [
+            "CREATE",
+            "REPLACE"
+          ]
+        },
+        "target_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "body": {
+          "$ref": "#/$defs/confirm_request"
+        }
+      },
+      "required": [
+        "operation",
+        "target_id",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "const": "DISABLE"
+        },
+        "target_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "body": {
+          "$ref": "#/$defs/disable_request"
+        }
+      },
+      "required": [
+        "operation",
+        "target_id",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "confirm_request": {
+      "type": "object",
+      "properties": {
+        "expected_preparation_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "payload_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "confirm": {
+          "const": true
+        }
+      },
+      "required": [
+        "expected_preparation_version",
+        "payload_hash",
+        "confirm"
+      ],
+      "additionalProperties": false
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$(?![\\s\\S])"
+    },
+    "disable_request": {
+      "type": "object",
+      "properties": {
+        "expected_version": {
+          "$ref": "#/$defs/version"
+        }
+      },
+      "required": [
+        "expected_version"
+      ],
+      "additionalProperties": false
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    }
+  }
+}

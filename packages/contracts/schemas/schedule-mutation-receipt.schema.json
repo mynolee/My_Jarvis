@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/schedule-mutation-receipt.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer-only JSON, actual dates, exact server timezone membership, sibling consistency, authority, DB clock, storage privacy and transaction behavior require runtime checks.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "COMMITTED"
+        },
+        "schedule_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "operation": {
+          "enum": [
+            "CREATE",
+            "REPLACE",
+            "DISABLE"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "schedule_id",
+        "version",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "NOT_OBSERVED"
+        },
+        "schedule_id": {
+          "type": "null"
+        },
+        "version": {
+          "type": "null"
+        },
+        "operation": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "schedule_id",
+        "version",
+        "operation"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    }
+  }
+}

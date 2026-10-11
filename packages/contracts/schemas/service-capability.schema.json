@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/service-capability.schema.json",
+  "type": "object",
+  "properties": {
+    "issuer": {
+      "const": "jarvis-core"
+    },
+    "audience": {
+      "const": "jarvis-orchestrator"
+    },
+    "key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "body_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reservation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "model_id": {
+      "enum": [
+        "mock-v1",
+        "local-mlx-v1"
+      ]
+    },
+    "max_model_calls": {
+      "const": 1
+    },
+    "max_output_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 512
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "owner_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "issuer",
+    "audience",
+    "key_id",
+    "request_id",
+    "run_id",
+    "body_hash",
+    "reservation_id",
+    "model_id",
+    "max_model_calls",
+    "max_output_tokens",
+    "issued_at",
+    "expires_at",
+    "nonce",
+    "owner_id"
+  ],
+  "additionalProperties": false
+}
