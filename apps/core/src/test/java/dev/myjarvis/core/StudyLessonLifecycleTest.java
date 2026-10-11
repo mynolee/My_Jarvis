@@ -109,10 +109,26 @@ class StudyLessonLifecycleTest extends ConversationDeletionFixtures {
     }
     @Test void crossOwnerNonLessonAndCorruptReadsNeverExposeSourceText() {
         UUID conversation = conversation("private"), run = accept(conversation); local.runOne();
-        UUID foreignOwner = UUID.randomUUID(); db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,'foreign-study-owner','unused')", foreignOwner);
-        var auth = context.getBean(AuthService.class); AuthService.Session other = auth.find(auth.issue(foreignOwner, true, null).token());
-        ApiException foreign = error(() -> local.lesson(other, run), 404, "NOT_FOUND");
-        assertFalse(foreign.getMessage().contains("Synthetic"));
+        String singleton = db.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='owners'::regclass AND conname='owners_singleton_key'", String.class);
+        var ownersBefore = db.queryForList("SELECT * FROM owners ORDER BY id");
+        var sessionsBefore = db.queryForList("SELECT * FROM sessions ORDER BY token_hash");
+        try {
+            flow.tx.executeWithoutResult(transaction -> {
+                transaction.setRollbackOnly();
+                // Isolated synthetic cross-owner defense in depth, not supported multi-owner operation.
+                // The second principal and this one constraint change never leave the rollback fixture.
+                db.execute("ALTER TABLE owners DROP CONSTRAINT owners_singleton_key");
+                UUID foreignOwner = UUID.randomUUID(); db.update("INSERT INTO owners(id,login_name,password_hash) VALUES (?,'foreign-study-owner','unused')", foreignOwner);
+                var auth = context.getBean(AuthService.class); AuthService.Session other = auth.find(auth.issue(foreignOwner, true, null).token());
+                assertNotNull(other); assertEquals(foreignOwner, other.owner());
+                ApiException foreign = error(() -> local.lesson(other, run), 404, "NOT_FOUND");
+                assertFalse(foreign.getMessage().contains("Synthetic"));
+            });
+        } finally {
+            assertEquals(singleton, db.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='owners'::regclass AND conname='owners_singleton_key'", String.class), "Rollback restores the production singleton constraint");
+            assertEquals(ownersBefore, db.queryForList("SELECT * FROM owners ORDER BY id"), "Fixture principals must roll back");
+            assertEquals(sessionsBefore, db.queryForList("SELECT * FROM sessions ORDER BY token_hash"), "Fixture sessions must roll back");
+        }
         UUID ordinary = answered(conversation, "unrelated"); error(() -> local.lesson(session, ordinary), 404, "NOT_FOUND");
         db.update("UPDATE runs SET result_ref=? WHERE id=?", flow.vault.seal(owner, run, "result", "private-corrupt-sentinel"), run);
         ApiException failure = error(() -> local.lesson(session, run), 500, "STUDY_LESSON_UNAVAILABLE");
