@@ -1,0 +1,328 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "owner_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "conversation_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "minLength": 36,
+          "maxLength": 36
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "lifecycle": {
+      "enum": [
+        "OPEN",
+        "CLOSED_BY_OWNER",
+        "SOURCE_UNAVAILABLE"
+      ]
+    },
+    "lesson": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "urn:myjarvis:study-session:v1#/$defs/lesson"
+        }
+      ]
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:myjarvis:study-session:v1#/$defs/attempt"
+      },
+      "minItems": 0,
+      "maxItems": 2
+    }
+  },
+  "required": [
+    "id",
+    "owner_id",
+    "conversation_id",
+    "project_id",
+    "version",
+    "lifecycle",
+    "lesson",
+    "attempts"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:myjarvis:study-session:v1",
+  "$defs": {
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "question_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "minLength": 36,
+          "maxLength": 36
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "minLength": 36,
+          "maxLength": 36
+        },
+        "outcome": {
+          "enum": [
+            "CORRECT",
+            "NEEDS_WORK",
+            "NEEDS_CLARIFICATION"
+          ]
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "allOf": [
+            {
+              "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+            },
+            {
+              "not": {
+                "pattern": "[\\u0000\\uD800-\\uDFFF]"
+              }
+            }
+          ]
+        },
+        "example": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "allOf": [
+            {
+              "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+            },
+            {
+              "not": {
+                "pattern": "[\\u0000\\uD800-\\uDFFF]"
+              }
+            }
+          ]
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "allOf": [
+              {
+                "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+              },
+              {
+                "not": {
+                  "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                }
+              }
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 5
+        },
+        "checklist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "allOf": [
+              {
+                "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+              },
+              {
+                "not": {
+                  "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                }
+              }
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "question_id",
+        "attempt_id",
+        "outcome",
+        "explanation",
+        "example",
+        "assumptions",
+        "checklist"
+      ]
+    },
+    "lesson": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concepts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "allOf": [
+              {
+                "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+              },
+              {
+                "not": {
+                  "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                }
+              }
+            ]
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "minLength": 36,
+                "maxLength": 36
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "allOf": [
+                  {
+                    "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+                  },
+                  {
+                    "not": {
+                      "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "text"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "concepts",
+        "questions"
+      ]
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "question_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "minLength": 36,
+          "maxLength": 36
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "minLength": 36,
+          "maxLength": 36
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "allOf": [
+            {
+              "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]"
+            },
+            {
+              "not": {
+                "pattern": "[\\u0000\\uD800-\\uDFFF]"
+              }
+            }
+          ]
+        },
+        "feedback": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "urn:myjarvis:study-session:v1#/$defs/feedback"
+            }
+          ]
+        }
+      },
+      "required": [
+        "question_id",
+        "id",
+        "answer",
+        "feedback"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "lifecycle": {
+            "const": "SOURCE_UNAVAILABLE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "lesson": {
+            "type": "null"
+          },
+          "attempts": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "lesson": {
+            "$ref": "urn:myjarvis:study-session:v1#/$defs/lesson"
+          }
+        }
+      }
+    }
+  ]
+}

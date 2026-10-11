@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/mail-draft-mutation-receipt.schema.json",
+  "$comment": "Synthetic wire shape only. Strict integer JSON, duplicate-key rejection, combined recipient count, UTF-8/canonical byte limits, cross-field relations and authorization require runtime enforcement. No external sending or verified attachment capability.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "COMMITTED"
+        },
+        "draft_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "operation": {
+          "enum": [
+            "CREATE",
+            "UPDATE"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "draft_id",
+        "version",
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "NOT_OBSERVED"
+        },
+        "draft_id": {
+          "type": "null"
+        },
+        "version": {
+          "type": "null"
+        },
+        "operation": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "draft_id",
+        "version",
+        "operation"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

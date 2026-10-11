@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/durable-study-start-request.schema.json",
+  "$comment": "Closed wire shape. Integer-only canonical JSON, byte ceilings and cross-field identity, version and time relationships are additionally checked by the service and contract oracle.",
+  "type": "object",
+  "properties": {
+    "lesson_run_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "expected_conversation_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "lesson_run_id",
+    "expected_conversation_version"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/execution-control-request.schema.json",
+  "$comment": "For both POST /execution/pause and /execution/resume. Require strict raw JSON parsing, no query parameters, authenticated owner, Origin/CSRF and recent server reauthentication, then compare shared owner version under its lock before checking same-state no-op. The schema itself does not authorize execution.",
+  "type": "object",
+  "properties": {
+    "expected_version": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+  },
+  "required": ["expected_version"],
+  "additionalProperties": false
+}
