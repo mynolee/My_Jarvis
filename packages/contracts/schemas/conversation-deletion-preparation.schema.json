@@ -101,6 +101,16 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 2000
+        },
+        "feedback_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "feedback_results": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
         }
       },
       "required": [
@@ -110,7 +120,9 @@
         "action_payloads",
         "inference_contexts",
         "study_sessions",
-        "study_answers"
+        "study_answers",
+        "feedback_requests",
+        "feedback_results"
       ],
       "additionalProperties": false
     },

@@ -120,7 +120,7 @@ Counts alone are insufficient. Reconstruct and compare under lock before commit.
 
 The confirmation commitment binds owner_id, session_hash, security_epoch,
 preparation_id, conversation_id, tool_id `conversation.source.delete`, tool_version
-`1`, policy_version `conversation-source-v1-r6`, scope_policy
+`1`, policy_version `conversation-source-v1-r7`, scope_policy
 `CONVERSATION_SOURCE_V1`, expected_version, expected_digest, manifest_revision 1,
 prepared_at, expires_at and max_executions 1. Use separate keyed domains for
 manifest, confirmation and prepare/confirm request bindings. Protect temporary
@@ -264,11 +264,10 @@ erasure remain NOT_RUN unless independently exercised and separately reported.
 ## Durable-study scope revision
 
 V16 introduced the durable-study storage revision; the current reviewed schema
-is exactly17 and the current deletion policy is r6.
+is exactly18 and the current deletion policy is r7.
 V16 revokes unconsumed older preparations; consumed historical values and immutable
 accounting are preserved. Additive study count fields default to zero for old
-records. The seven review counts are messages, runs, run_results, action_payloads,
-inference_contexts, study_sessions and study_answers. The last two describe source
+records. V16 added study_sessions and study_answers to the review counts. These describe source
 bindings and retained answer bodies to remove, not deletion of immutable identities.
 
 The shared SQL inventory includes study_sessions, study_owner_answer_inputs and
@@ -300,3 +299,26 @@ The slot and actual usage survive source deletion without source text. No model
 stop, new generation or remote reconciliation is performed by deletion itself.
 Bounded immutable insertion markers on runs/contexts are database metadata only;
 they are neither source content nor owner/model execution authority.
+
+
+## Feedback source review
+
+The current preparation has nine source counts. `feedback_requests` counts durable
+feedback request shells in the conversation. `feedback_results` counts the accepted
+feedback ciphertexts still retained in those shells; it never exceeds the request
+count. Each request's source binding and any retained result are included in the
+exact snapshot. Feedback event operation digests are included as retained metadata.
+
+An active feedback request blocks deletion. A revoked result may still have
+unconfirmed execution; deletion stays blocked until the exact control lineage has
+a permanent terminal fact. The same rule applies to completed feedback whose
+execution proof is missing. No timeout, closed connection, expiry, or zero-valued
+error observation is a substitute for that proof. Ordinary and lesson inference
+retain their existing deletion requirements.
+
+Confirmation clears the feedback source binding and result at the deletion ledger
+time, together with the other conversation sources. Feedback identities, events,
+usage receipts, and control facts remain. Confirmation neither cancels work nor
+starts an inference or control call. Revocation and deletion are separate explicit
+operations. Late numeric usage or an immutable control observation cannot restore
+source content or change the consumed deletion snapshot.

@@ -114,6 +114,13 @@
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
       "description": "Optional private lesson response-shaping dependency. No prompt content is published."
+    },
+    "study_feedback_prompt_sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$(?![\\s\\S])",
+      "description": "Optional integrity pin for a private feedback template. Template contents and paths are never public."
     }
   },
   "required": [

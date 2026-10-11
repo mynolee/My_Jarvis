@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/durable-study-feedback-source.schema.json",
+  "type": "object",
+  "properties": {
+    "revision": {
+      "const": 1
+    },
+    "feedback_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "study_session_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "study_version": {
+      "const": 3
+    },
+    "lesson_run_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "lesson_run_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "question_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "input_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "attempt_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+    },
+    "lesson": {
+      "type": "object",
+      "properties": {
+        "concepts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+            "not": {
+              "pattern": "[\\u0000\\uD800-\\uDFFF]"
+            }
+          }
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+                "not": {
+                  "pattern": "[\\u0000\\uD800-\\uDFFF]"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "concepts",
+        "questions"
+      ],
+      "additionalProperties": false
+    },
+    "answer": {
+      "type": "object",
+      "properties": {
+        "source_kind": {
+          "const": "OWNER_STUDY_ANSWER_INPUT"
+        },
+        "role": {
+          "const": "USER"
+        },
+        "trust": {
+          "const": "USER_DIRECT"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]",
+          "not": {
+            "pattern": "[\\u0000\\uD800-\\uDFFF]"
+          }
+        }
+      },
+      "required": [
+        "source_kind",
+        "role",
+        "trust",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "revision",
+    "feedback_id",
+    "study_session_id",
+    "study_version",
+    "lesson_run_id",
+    "lesson_run_version",
+    "question_id",
+    "input_id",
+    "attempt_id",
+    "lesson",
+    "answer"
+  ],
+  "additionalProperties": false,
+  "$comment": "Runtime additionally checks distinct question identities, exact selected-question membership, source/context aggregate <=196608 UTF-8 bytes and answer <=32000 UTF-8 bytes. Text is preserved without normalization."
+}

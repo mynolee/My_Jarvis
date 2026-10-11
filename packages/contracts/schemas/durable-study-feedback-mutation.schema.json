@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/durable-study-feedback-mutation.schema.json",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": [
+        "COMMITTED",
+        "NOT_OBSERVED"
+      ]
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mutation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "operation": {
+              "enum": [
+                "REQUEST_FEEDBACK",
+                "REVOKE_FEEDBACK"
+              ]
+            },
+            "feedback_request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "conversation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "study_session_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "lesson_run_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "question_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "input_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "attempt_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+            },
+            "prior_feedback_version": {
+              "anyOf": [
+                {
+                  "enum": [
+                    1,
+                    2
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resulting_feedback_version": {
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            },
+            "study_version": {
+              "const": 3
+            },
+            "prior_conversation_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "resulting_conversation_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "committed_at": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+            }
+          },
+          "required": [
+            "mutation_id",
+            "operation",
+            "feedback_request_id",
+            "conversation_id",
+            "study_session_id",
+            "lesson_run_id",
+            "question_id",
+            "input_id",
+            "attempt_id",
+            "prior_feedback_version",
+            "resulting_feedback_version",
+            "study_version",
+            "prior_conversation_version",
+            "resulting_conversation_version",
+            "committed_at"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "operation": {
+                    "const": "REQUEST_FEEDBACK"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "prior_feedback_version": {
+                    "const": null
+                  },
+                  "resulting_feedback_version": {
+                    "const": 1
+                  }
+                }
+              },
+              "else": {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "prior_feedback_version": {
+                        "const": 1
+                      },
+                      "resulting_feedback_version": {
+                        "const": 2
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "prior_feedback_version": {
+                        "const": 2
+                      },
+                      "resulting_feedback_version": {
+                        "const": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+    }
+  },
+  "required": [
+    "status",
+    "receipt",
+    "checked_at"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "COMMITTED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "receipt": {
+            "type": "object",
+            "properties": {
+              "mutation_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "operation": {
+                "enum": [
+                  "REQUEST_FEEDBACK",
+                  "REVOKE_FEEDBACK"
+                ]
+              },
+              "feedback_request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "conversation_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "study_session_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "lesson_run_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "question_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "input_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "attempt_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\\s\\S])"
+              },
+              "prior_feedback_version": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resulting_feedback_version": {
+                "enum": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "study_version": {
+                "const": 3
+              },
+              "prior_conversation_version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "resulting_conversation_version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "committed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$(?![\\s\\S])"
+              }
+            },
+            "required": [
+              "mutation_id",
+              "operation",
+              "feedback_request_id",
+              "conversation_id",
+              "study_session_id",
+              "lesson_run_id",
+              "question_id",
+              "input_id",
+              "attempt_id",
+              "prior_feedback_version",
+              "resulting_feedback_version",
+              "study_version",
+              "prior_conversation_version",
+              "resulting_conversation_version",
+              "committed_at"
+            ],
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "operation": {
+                      "const": "REQUEST_FEEDBACK"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "prior_feedback_version": {
+                      "const": null
+                    },
+                    "resulting_feedback_version": {
+                      "const": 1
+                    }
+                  }
+                },
+                "else": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "prior_feedback_version": {
+                          "const": 1
+                        },
+                        "resulting_feedback_version": {
+                          "const": 2
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "prior_feedback_version": {
+                          "const": 2
+                        },
+                        "resulting_feedback_version": {
+                          "const": 3
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "receipt": {
+            "const": null
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "The receipt is private to the original operation session and epoch. Runtime checks C increase and checked_at >= committed_at. NOT_OBSERVED is not rollback proof."
+}

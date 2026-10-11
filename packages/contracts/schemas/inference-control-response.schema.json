@@ -34,7 +34,8 @@
     "purpose": {
       "enum": [
         "CONVERSATION",
-        "STUDY_LESSON"
+        "STUDY_LESSON",
+        "STUDY_FEEDBACK"
       ]
     },
     "security_epoch": {
