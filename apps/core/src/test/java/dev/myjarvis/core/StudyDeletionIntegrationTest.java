@@ -50,6 +50,7 @@ class StudyDeletionIntegrationTest extends StudyStorageFixtures {
             if(operation.equals("START")){conversation=conversation("start headroom");run=lesson(conversation);s=null;}
             else{s=startStudy();conversation=s.conversation();run=s.run();}
             flow.tx.executeWithoutResult(status->{
+                context.getBean(ConversationAccess.class).lockOwner(owner);
                 // Disposable boundary fixture only: restore the normal guard before commit.
                 db.execute("ALTER TABLE conversations DISABLE TRIGGER conversation_tombstone_guard");
                 db.update("UPDATE conversations SET content_version=? WHERE id=?",MemoryService.MAX-2,conversation);
