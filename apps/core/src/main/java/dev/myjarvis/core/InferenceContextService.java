@@ -53,6 +53,28 @@ final class InferenceContextService {
         if(Json.canonical(selected).getBytes(StandardCharsets.UTF_8).length>131072||Json.canonical(history).getBytes(StandardCharsets.UTF_8).length>65536||Json.canonical(result).getBytes(StandardCharsets.UTF_8).length>196608)throw new ApiException(413,"CONTEXT_TOO_LARGE");
         db.update("UPDATE inference_contexts SET state='PREPARED',profile_version=? WHERE owner_id=? AND run_id=?",profileVersion,owner,run);if(!freshness.valid(owner,run))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");return result;
     }
+    /** Dedicated capture has no transcript or memory selections and no hidden run UPDATE. */
+    void captureFeedback(AuthService.Session session,UUID conversation,UUID run,UUID context) {
+        authorize(session,conversation);
+        var request=db.queryForMap("SELECT * FROM study_feedback_requests WHERE owner_id=? AND run_id=? AND context_id=? AND state='QUEUED'",session.owner(),run,context);
+        db.update("INSERT INTO inference_contexts(id,owner_id,run_id,conversation_id,project_id,project_version,session_hash,security_epoch,context_epoch,history_epoch,state) VALUES (?,?,?,?,?,?,?,?,?,?,'CAPTURED')",context,session.owner(),run,conversation,request.get("project_id"),request.get("project_version"),session.hash(),session.epoch(),request.get("context_epoch"),request.get("history_epoch"));
+    }
+    Map<String,Object> prepareFeedback(UUID owner,UUID run) {
+        if(!freshness.valid(owner,run))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");
+        var c=db.queryForMap("SELECT * FROM inference_contexts WHERE owner_id=? AND run_id=? AND state='CAPTURED'",owner,run);
+        var request=db.queryForMap("SELECT * FROM study_feedback_requests WHERE owner_id=? AND run_id=? AND output_authority='ACTIVE'",owner,run);
+        Long version=db.queryForObject("SELECT version FROM owners WHERE id=?",Long.class,owner);
+        if(!Objects.equals(version,request.get("profile_version")))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");
+        if(db.queryForObject("SELECT (SELECT count(*) FROM inference_context_history WHERE context_id=?)+(SELECT count(*) FROM inference_context_memories WHERE context_id=?)",Long.class,c.get("id"),c.get("id"))!=0)throw new ApiException(409,"FEEDBACK_SOURCE_UNAVAILABLE");
+        var descriptor=new LinkedHashMap<String,Object>();descriptor.put("id",c.get("id"));descriptor.put("revision",1);
+        for(String f:List.of("conversation_id","context_epoch","history_epoch"))descriptor.put(f,c.get(f));descriptor.put("profile_version",version);
+        var selected=new LinkedHashMap<String,Object>();selected.put("context",descriptor);
+        selected.put("project_context",c.get("project_id")==null?null:Map.of("id",c.get("project_id"),"version",c.get("project_version")));
+        selected.put("memories",List.of());selected.put("history",List.of());selected.put("timezone","UTC");
+        selected.put("current_time",AuthService.instant(db.queryForObject("SELECT clock_timestamp()",Object.class)).toString());
+        if(db.update("UPDATE inference_contexts SET state='PREPARED',profile_version=? WHERE owner_id=? AND run_id=? AND state='CAPTURED'",version,owner,run)!=1)throw new ApiException(409,"STALE_INFERENCE_CONTEXT");
+        if(!freshness.valid(owner,run))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");return selected;
+    }
     void markDispatched(UUID owner,UUID run){if(!freshness.valid(owner,run))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");if(db.update("UPDATE inference_contexts SET state='DISPATCHED' WHERE owner_id=? AND run_id=? AND state='PREPARED'",owner,run)!=1)throw new ApiException(409,"CONTEXT_NOT_PREPARED");}
     void markSettled(UUID owner,UUID run){if(!freshness.valid(owner,run))throw new ApiException(409,"STALE_INFERENCE_CONTEXT");if(db.update("UPDATE inference_contexts SET state='SETTLED' WHERE owner_id=? AND run_id=? AND state='DISPATCHED'",owner,run)!=1)throw new ApiException(409,"STALE_INFERENCE_CONTEXT");}
 }

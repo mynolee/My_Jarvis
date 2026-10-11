@@ -47,7 +47,7 @@ class InferenceControlResultTest {
         var extra=response(request,"TERMINAL","COMPLETED");extra.put("completed_at","2026-10-11T00:00:00Z");assertThrows(ApiException.class,()->InferenceControlResult.verify(extra,request));
         for(long ordinal:List.of(0L,-1L,9007199254740992L)){var unsafe=response(request,"TERMINAL","COMPLETED");((ObjectNode)unsafe.get("terminal")).put("ordinal",ordinal);assertThrows(ApiException.class,()->InferenceControlResult.verify(unsafe,request));}
         var noncanonical=response(request,"TERMINAL","COMPLETED");noncanonical.put("owner_id",request.get("owner_id").asText().toUpperCase(Locale.ROOT));assertThrows(ApiException.class,()->InferenceControlResult.verify(noncanonical,request));
-        var feedback=request();feedback.put("purpose","STUDY_FEEDBACK");assertThrows(ApiException.class,()->InferenceControlResult.request(feedback));
+        var feedback=request();feedback.put("purpose","UNSUPPORTED_PURPOSE");assertThrows(ApiException.class,()->InferenceControlResult.request(feedback));
     }
     @Test void missingAndPendingAreNeverUnstartedEvidence(){
         var request=request();var missing=InferenceControlResult.verify(response(request,"NOT_OBSERVED",null),request);

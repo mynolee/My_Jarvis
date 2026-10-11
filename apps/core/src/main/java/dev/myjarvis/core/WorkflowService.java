@@ -40,6 +40,7 @@ final class WorkflowService {
                 UUID run=(UUID)prior.getFirst().get("run_id");return Map.of("run_id",run,"status",owned("runs",owner,run).get("status"));
             }
             var ownerRow=owned("owners",owner,owner);if(Boolean.TRUE.equals(ownerRow.get("execution_paused")))throw new ApiException(409,"EXECUTION_PAUSED");
+            new StudyFeedbackLifecycle(db).requireWritableConversation(owner,conversation);
             UUID run=UUID.randomUUID(),message=UUID.randomUUID();
             db.update("INSERT INTO runs(id,owner_id,conversation_id,status) VALUES (?,?,?,'ACCEPTED')",run,owner,conversation);
             db.update("UPDATE runs SET history_epoch=? WHERE owner_id=? AND id=?",ownerRow.get("history_epoch"),owner,run);
@@ -91,6 +92,8 @@ final class WorkflowService {
     Map<String,Object> cancel(AuthService.Session session,UUID run,long version){return tx.execute(s->{access.requireRun(session,run);return cancel(session.owner(),run,version);});}
     Map<String,Object> cancel(UUID owner,UUID run,long version){return tx.execute(s->{var r=access.requireRun(owner,run);if(((Number)r.get("version")).longValue()!=version)throw new ApiException(409,"PRECONDITION_CHANGED");
         if(Set.of("SUCCEEDED","PARTIAL_SUCCESS","FAILED","CANCELLED","EXPIRED","BLOCKED").contains(r.get("status")))return run(owner,run);
+        var feedback=new StudyFeedbackLifecycle(db);
+        if(feedback.feedbackRun(owner,run)){feedback.closeAffected(owner,"RUN_EXACT",null,run,"RUN_CANCELLED");return run(owner,run);}
         boolean inFlight=Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM jobs WHERE owner_id=? AND run_id=? AND started_effect=true AND status IN ('RUNNING','UNKNOWN'))",Boolean.class,owner,run));
         db.update("UPDATE jobs SET status='CANCELLED',lease_generation=lease_generation+1 WHERE owner_id=? AND run_id=? AND started_effect=false AND status IN ('QUEUED','RUNNING')",owner,run);
         db.update("UPDATE approvals SET status='REVOKED' WHERE owner_id=? AND action_id IN (SELECT id FROM action_proposals WHERE owner_id=? AND run_id=?) AND status='PENDING'",owner,owner,run);
@@ -148,6 +151,8 @@ final class WorkflowService {
     }
     private Map<String,Object> executionSnapshot(UUID owner){return executionView(db.queryForMap("SELECT execution_paused,version,clock_timestamp() AS checked_at FROM owners WHERE id=?",owner));}
     private void invalidateExecution(UUID owner){
+        // Close each feedback phase including its scoped historical invalidations before bulk statements.
+        new StudyFeedbackLifecycle(db).closeAffected(owner,"PAUSE_ACTIVE",null,null,"OWNER_PAUSED");
         // Fence every active lease. Started work remains uncertain; this is not external cancellation.
         db.update("UPDATE jobs SET status=CASE WHEN started_effect THEN 'UNKNOWN' ELSE 'CANCELLED' END,lease_generation=lease_generation+1,lease_owner=NULL,lease_until=NULL WHERE owner_id=? AND status IN ('QUEUED','RUNNING')",owner);
         db.update("UPDATE approvals SET status='REVOKED' WHERE owner_id=? AND status='PENDING'",owner);
@@ -155,7 +160,7 @@ final class WorkflowService {
         db.update("UPDATE action_proposals SET status=CASE WHEN status='EXECUTING' THEN 'UNKNOWN' ELSE 'CANCELLED' END,version=version+1 WHERE owner_id=? AND status IN ('WAITING_APPROVAL','QUEUED','EXECUTING')",owner);
         db.update("UPDATE inference_reservations SET cancel_requested_at=clock_timestamp(),status=CASE WHEN status='QUEUED' THEN 'CANCELLED' ELSE 'UNKNOWN' END WHERE owner_id=? AND status IN ('QUEUED','STARTED')",owner);
         db.update("UPDATE inference_contexts SET state='INVALIDATED',invalidated_at=clock_timestamp() WHERE owner_id=? AND state IN ('CAPTURED','PREPARED','DISPATCHED')",owner);
-        db.update("UPDATE runs r SET status=CASE WHEN r.status='RUNNING' OR EXISTS(SELECT 1 FROM jobs j WHERE j.owner_id=r.owner_id AND j.run_id=r.id AND j.started_effect AND j.status='UNKNOWN') OR EXISTS(SELECT 1 FROM inference_reservations i WHERE i.owner_id=r.owner_id AND i.run_id=r.id AND i.status='UNKNOWN') THEN 'UNKNOWN' ELSE 'CANCELLED' END,cancel_requested_at=clock_timestamp(),version=version+1 WHERE r.owner_id=? AND r.status IN ('ACCEPTED','PLANNING','WAITING_APPROVAL','QUEUED','RUNNING','CANCEL_REQUESTED')",owner);
+        db.update("UPDATE runs r SET status=CASE WHEN r.status='RUNNING' OR EXISTS(SELECT 1 FROM jobs j WHERE j.owner_id=r.owner_id AND j.run_id=r.id AND j.started_effect AND j.status='UNKNOWN') OR EXISTS(SELECT 1 FROM inference_reservations i WHERE i.owner_id=r.owner_id AND i.run_id=r.id AND i.status='UNKNOWN') THEN 'UNKNOWN' ELSE 'CANCELLED' END,cancel_requested_at=clock_timestamp(),version=version+1 WHERE r.owner_id=? AND NOT EXISTS(SELECT 1 FROM study_feedback_requests f WHERE f.owner_id=r.owner_id AND f.run_id=r.id) AND r.status IN ('ACCEPTED','PLANNING','WAITING_APPROVAL','QUEUED','RUNNING','CANCEL_REQUESTED')",owner);
     }
     private void validateSession(AuthService.Session session,Map<String,Object> ownerRow){
         AuthService.requireRecent(session);

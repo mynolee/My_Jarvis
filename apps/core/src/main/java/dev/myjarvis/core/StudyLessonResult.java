@@ -13,7 +13,7 @@ final class StudyLessonResult {
     static String purpose(JsonNode request) {
         if (!request.has("purpose")) return "CONVERSATION";
         String purpose = Json.string(request, "purpose", 30);
-        if (!Set.of("CONVERSATION", PURPOSE).contains(purpose)) throw ApiException.bad();
+        if (!Set.of("CONVERSATION", PURPOSE, StudyFeedbackResult.PURPOSE).contains(purpose)) throw ApiException.bad();
         return purpose;
     }
 

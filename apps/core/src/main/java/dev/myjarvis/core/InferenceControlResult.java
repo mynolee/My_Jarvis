@@ -23,7 +23,7 @@ record InferenceControlResult(String state, UUID ledger, String kind, UUID gener
     static void identity(JsonNode value){
         if(Json.integer(value,"revision")!=1)throw ApiException.bad();
         for(String field:ID_FIELDS)Json.uuid(value,field);
-        if(!Set.of("CONVERSATION","STUDY_LESSON").contains(Json.string(value,"purpose",20)))throw ApiException.bad();
+        if(!Set.of("CONVERSATION","STUDY_LESSON","STUDY_FEEDBACK").contains(Json.string(value,"purpose",20)))throw ApiException.bad();
         long epoch=Json.integer(value,"security_epoch");if(epoch<0||epoch>MAX_SAFE_INTEGER)throw ApiException.bad();
         for(String field:List.of("origin_binding","dispatch_commitment"))if(!Json.string(value,field,64).matches("[a-f0-9]{64}"))throw ApiException.bad();
     }

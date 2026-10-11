@@ -62,7 +62,7 @@ final class StudySessionService {
         return checked;
     }
     private void schema() {
-        if (!"17".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1", String.class)))
+        if (!"18".equals(db.queryForObject("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1", String.class)))
             throw new ApiException(409, "CONVERSATION_GRAPH_UNVERIFIED");
     }
     private Map<String,Object> live(AuthService.Session session, UUID conversation) {
@@ -100,8 +100,8 @@ final class StudySessionService {
         return outcome(row, finish(session, observed, row == null ? null : AuthService.instant(row.get("committed_at")), false));
     }); }
 
-    private record Lesson(Map<String,Object> run, StudySessionPolicy.Lesson lesson, String encoded) {}
-    private Lesson lesson(UUID owner, UUID conversation, UUID project, UUID runId) {
+    record Lesson(Map<String,Object> run, StudySessionPolicy.Lesson lesson, String encoded) {}
+    Lesson lesson(UUID owner, UUID conversation, UUID project, UUID runId) {
         var runs = db.queryForList("SELECT * FROM runs WHERE owner_id=? AND id=? FOR UPDATE", owner, runId);
         if (runs.isEmpty()) throw ApiException.missing(); var run = runs.getFirst();
         require(conversation.equals(run.get("conversation_id")) && "SUCCEEDED".equals(run.get("status"))
@@ -130,7 +130,7 @@ final class StudySessionService {
             return new Lesson(run, StudyLessonResult.stored(encoded), encoded);
         } catch (RuntimeException invalid) { throw new ApiException(500, "STUDY_LESSON_UNAVAILABLE"); }
     }
-    private String lessonBinding(UUID owner, UUID conversation, UUID project, Lesson lesson) {
+    String lessonBinding(UUID owner, UUID conversation, UUID project, Lesson lesson) {
         var value = new LinkedHashMap<String,Object>(); value.put("owner_id", owner); value.put("conversation_id", conversation);
         value.put("project_id", project); value.put("run_id", lesson.run().get("id")); value.put("run_version", lesson.run().get("version"));
         value.put("envelope", lesson.encoded()); return digest(owner, "lesson-binding-v1", value);
@@ -139,8 +139,8 @@ final class StudySessionService {
         var rows = db.queryForList("SELECT * FROM study_sessions WHERE owner_id=? AND id=?", owner, study);
         if (rows.isEmpty()) throw ApiException.missing(); return rows.getFirst();
     }
-    private record Hydrated(Map<String,Object> row, StudySessionPolicy.State state, List<Map<String,Object>> inputs) {}
-    private Hydrated hydrate(UUID owner, Map<String,Object> conversation, UUID study) {
+    record Hydrated(Map<String,Object> row, StudySessionPolicy.State state, List<Map<String,Object>> inputs) {}
+    Hydrated hydrate(UUID owner, Map<String,Object> conversation, UUID study) {
         var identity = sessionIdentity(owner, study);
         require(id(conversation, "id").equals(identity.get("conversation_id")) && Objects.equals(conversation.get("project_id"), identity.get("project_id")));
         Lesson lesson = lesson(owner, id(conversation, "id"), id(conversation, "project_id"), id(identity, "lesson_run_id"));
@@ -163,13 +163,13 @@ final class StudySessionService {
                 number(row, "version"), StudySessionPolicy.Lifecycle.valueOf((String) row.get("lifecycle")), lesson.lesson(), attempts), inputs); }
         catch (RuntimeException invalid) { throw new ApiException(409, "STUDY_SOURCE_UNAVAILABLE"); }
     }
-    private String inputBinding(UUID owner, Map<String,Object> input, String text) {
+    String inputBinding(UUID owner, Map<String,Object> input, String text) {
         var value = new LinkedHashMap<String,Object>(); value.put("source_kind", "OWNER_STUDY_ANSWER_INPUT");
         for (String field : List.of("id", "attempt_id", "owner_id", "conversation_id", "project_id", "study_session_id", "question_id", "expected_study_version", "resulting_study_version", "session_hash", "security_epoch", "observed_conversation_version")) value.put(field, input.get(field));
         value.put("created_at", AuthService.instant(input.get("created_at")).toString()); value.put("role", "USER"); value.put("trust", "USER_DIRECT"); value.put("text", text);
         return digest(owner, "owner-answer-binding-v1", value);
     }
-    private String inputText(UUID owner, Map<String,Object> input) {
+    String inputText(UUID owner, Map<String,Object> input) {
         require(input.get("content_deleted_at") == null && input.get("text_ref") != null && input.get("source_binding_ref") != null);
         try {
             String text = memories.vault.open(owner, id(input, "id"), "study-answer-text", (String) input.get("text_ref"));
@@ -208,6 +208,7 @@ final class StudySessionService {
             var owner = access.lockSession(session); schema(); Instant observed = now();
             var replay = replay(session, key, request, observed); if (replay != null) return replay;
             MemoryService.unpaused(owner); var conversation = live(session, conversationId); expected(conversation, expected);
+            new StudyFeedbackLifecycle(db).requireWritableConversation(session.owner(),conversationId);
             deletion.validateStudyGraph(session.owner(), conversationId);
             Lesson lesson = lesson(session.owner(), conversationId, id(conversation, "project_id"), runId);
             if (!db.queryForList("SELECT id FROM study_sessions WHERE owner_id=? AND lesson_run_id=?", session.owner(), runId).isEmpty()) throw new ApiException(409, "STUDY_SESSION_ALREADY_EXISTS");
@@ -239,6 +240,7 @@ final class StudySessionService {
             var replay = replay(session, key, request, observed); if (replay != null) return replay;
             MemoryService.unpaused(owner); var identity = sessionIdentity(session.owner(), study);
             var conversation = live(session, id(identity, "conversation_id")); expected(conversation, conversationVersion);
+            new StudyFeedbackLifecycle(db).requireWritableConversation(session.owner(),id(conversation,"id"));
             deletion.validateStudyGraph(session.owner(), id(conversation, "id")); Hydrated current = hydrate(session.owner(), conversation, study);
             if (current.state().version() != version) throw new ApiException(409, "PRECONDITION_CHANGED");
             if (current.state().lifecycle() != StudySessionPolicy.Lifecycle.OPEN) throw new ApiException(409, "SESSION_NOT_OPEN");

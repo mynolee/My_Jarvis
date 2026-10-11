@@ -74,6 +74,16 @@ class LocalInferenceClient {
             return "READY".equals(response.path("status").asText())&&"local-mlx-v1".equals(response.path("model_id").asText())&&Json.equal(manifestHash,response.path("model_manifest_hash").asText());
         }catch(Exception e){return false;}
     }
+    boolean feedbackReady(){
+        if(!configured())return false;
+        try {
+            JsonNode response=exchange(HttpRequest.newBuilder(endpoint.resolve("/health/study-feedback")).timeout(Duration.ofSeconds(3)).GET().build(),16384,8192);
+            InferenceControlResult.exact(response,"revision","control_revision","model_id","model_manifest_hash","ready");
+            return Json.integer(response,"revision")==1&&Json.integer(response,"control_revision")==1
+                &&"local-mlx-v1".equals(Json.string(response,"model_id",40))&&response.path("ready").isBoolean()&&response.path("ready").asBoolean()
+                &&Json.equal(manifestHash,Json.string(response,"model_manifest_hash",64));
+        }catch(Exception unavailable){return false;}
+    }
     static String capability(PrivateKey key,String keyId,UUID owner,JsonNode body,Instant now)throws Exception {
         Map<String,Object> claims=new LinkedHashMap<>();
         claims.put("issuer","jarvis-core");claims.put("audience","jarvis-orchestrator");claims.put("key_id",keyId);

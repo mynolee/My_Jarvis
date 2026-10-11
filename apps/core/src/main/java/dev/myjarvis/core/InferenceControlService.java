@@ -98,7 +98,7 @@ final class InferenceControlService {
         finishClock(owner,reservation,entry);
     }
     private void validateClosure(UUID owner,UUID conversation,UUID reservation){
-        flow.db.queryForMap("SELECT * FROM conversation_source_inventory_v17(?,?)",owner,conversation);
+        flow.db.queryForMap("SELECT * FROM conversation_source_inventory_v18(?,?)",owner,conversation);
         flow.db.queryForObject("SELECT verify_inference_control_slot(?,?)",Object.class,owner,reservation);
         flow.db.execute("SET CONSTRAINTS ALL IMMEDIATE");
     }
