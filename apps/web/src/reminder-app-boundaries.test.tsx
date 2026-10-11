@@ -91,7 +91,8 @@ it('retains only an uncertainty warning across sign-out, not private recovery id
   await screen.findByRole('heading', { name: 'Owner sign in' });
   fireEvent.change(screen.getByLabelText('Login name'), { target: { value: 'synthetic-owner' } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-password' } }); click('Sign in');
-  await screen.findByText(/Private recovery identifiers were cleared at sign-out/);
+  await screen.findByText('Session active'); await screen.findByText('No saved messages.');
+  expect(screen.getByRole('alert', { name: 'Previous request outcome unconfirmed' })).toBeTruthy();
   expect(screen.queryByRole('region', { name: 'Schedule boundary probe' })).toBeNull();
   expect(request.mock.calls.some(call => call[0].startsWith('/schedule') || call[0].startsWith('/notification'))).toBe(false);
 });

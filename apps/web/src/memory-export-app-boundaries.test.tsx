@@ -166,7 +166,7 @@ it.each(['pending', 'UNKNOWN'])('clears a %s export on sign out without stale cl
   expect(screen.queryByRole('region', { name: 'Export wiring probe' })).toBeNull();
   fireEvent.change(screen.getByLabelText('Login name'), { target: { value: 'synthetic-owner' } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'synthetic-password' } }); click('Sign in'); await account_ready();
-  expect(screen.getByText(/Private recovery identifiers were cleared at sign-out/)).toBeTruthy();
+  expect(screen.getByRole('alert', { name: 'Previous request outcome unconfirmed' })).toBeTruthy();
   expect(screen.queryByRole('region', { name: 'Export wiring probe' })).toBeNull();
   expect(probes.discarded).toHaveBeenCalledOnce(); expect(screen.queryByText('Writes paused')).toBeNull();
   expect(button('Start new conversation').disabled).toBe(false); click('기억 내보내기 열기');

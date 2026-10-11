@@ -411,15 +411,15 @@ it.each(editors.flatMap(editor => ['read', 'intent', 'write'].flatMap(phase => [
   if (boundary === 'logout') {
     const nextList = deferred<unknown>(); f.state.conversationsRead = nextList.promise;
     click('Sign out'); await login();
-    // Observe the established lost-recovery warning before normal initial
-    // conversation selection clears the App notice. No selection is fabricated.
-    if (phase !== 'read') expect(screen.getByText(/Private recovery identifiers were cleared at sign-out/)).toBeTruthy();
+    // The advisory survives both the held list and its real canonical selection.
+    // A read-only refresh without a loss signal must not invent a warning.
+    if (phase !== 'read') expect(screen.getByRole('alert', { name: 'Previous request outcome unconfirmed' })).toBeTruthy();
+    else expect(screen.queryByRole('alert', { name: 'Previous request outcome unconfirmed' })).toBeNull();
     await openEditor(otherEditor(editor));
     f.state.conversationsRead = null; await act(async () => nextList.resolve(f.conversations()));
     await screen.findByText('No saved messages.');
-    // Existing App selection clears the visible notice; this is a visibility
-    // limitation, not proof that interrupted server work was cancelled/resolved.
-    expect(screen.queryByText(/Private recovery identifiers were cleared at sign-out/)).toBeNull();
+    if (phase !== 'read') expect(screen.getByRole('alert', { name: 'Previous request outcome unconfirmed' })).toBeTruthy();
+    else expect(screen.queryByRole('alert', { name: 'Previous request outcome unconfirmed' })).toBeNull();
   } else { pause(); await screen.findByText('Account state: PAUSED'); await screen.findByRole('region', { name: regionName(editor) }); }
   expect(screen.queryByDisplayValue(privateValue)).toBeNull(); expect(screen.queryByText(`Reason: ${privateReason}`)).toBeNull();
   if (boundary === 'execution boundary' && phase !== 'read') expect(screen.getByText(/Earlier work remains unresolved across this safety boundary/)).toBeTruthy();
