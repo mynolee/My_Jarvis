@@ -118,6 +118,7 @@ class DurableStudyServiceTest extends DurableStudyFixtures {
             // Synthetic version-boundary seed; restore the guard before committing the fixture.
             db.execute("ALTER TABLE conversations DISABLE TRIGGER conversation_tombstone_guard");
             db.update("UPDATE conversations SET content_version=? WHERE id=?", MemoryService.MAX - 1, conversation);
+            db.execute("SET CONSTRAINTS ALL IMMEDIATE");
             db.execute("ALTER TABLE conversations ENABLE TRIGGER conversation_tombstone_guard");
         });
         error(() -> study.answer(session, UUID.randomUUID(), id, answerBody(id, 0, "No room")), 409, "VERSION_EXHAUSTED");

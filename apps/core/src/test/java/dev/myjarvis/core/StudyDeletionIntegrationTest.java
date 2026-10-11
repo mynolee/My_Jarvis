@@ -53,6 +53,7 @@ class StudyDeletionIntegrationTest extends StudyStorageFixtures {
                 // Disposable boundary fixture only: restore the normal guard before commit.
                 db.execute("ALTER TABLE conversations DISABLE TRIGGER conversation_tombstone_guard");
                 db.update("UPDATE conversations SET content_version=? WHERE id=?",MemoryService.MAX-2,conversation);
+                db.execute("SET CONSTRAINTS ALL IMMEDIATE");
                 db.execute("ALTER TABLE conversations ENABLE TRIGGER conversation_tombstone_guard");
             });
             if(operation.equals("START"))studies.start(session,UUID.randomUUID(),conversation,json(Map.of("lesson_run_id",run,"expected_conversation_version",MemoryService.MAX-2)));

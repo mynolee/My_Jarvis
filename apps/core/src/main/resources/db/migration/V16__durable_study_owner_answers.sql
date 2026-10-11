@@ -205,7 +205,7 @@ CREATE TRIGGER study_receipt_commit AFTER INSERT ON study_mutations FOR EACH ROW
 -- Whole-session historical closure, never a prefix and never compared to today's
 -- source observation as though an old receipt represented the latest operation.
 CREATE FUNCTION verify_study_history_v16(p_owner uuid,p_study uuid) RETURNS void LANGUAGE plpgsql AS $$
-DECLARE s study_sessions%ROWTYPE; c conversations%ROWTYPE; m study_mutations%ROWTYPE; a study_owner_answer_inputs%ROWTYPE;
+DECLARE s study_sessions%ROWTYPE; c conversations%ROWTYPE; v_receipt study_mutations%ROWTYPE; v_input study_owner_answer_inputs%ROWTYPE;
  n integer; answers integer:=0; closed boolean:=false; previous_version bigint:=0; previous_c bigint:=0; previous_at timestamptz;
 BEGIN
  SELECT * INTO s FROM study_sessions WHERE owner_id=p_owner AND id=p_study;
@@ -214,27 +214,27 @@ BEGIN
  IF NOT FOUND OR c.project_id IS DISTINCT FROM s.project_id THEN RAISE EXCEPTION 'Unverified study history scope'; END IF;
  SELECT count(*) INTO n FROM (SELECT 1 FROM study_mutations WHERE study_session_id=p_study ORDER BY resulting_version LIMIT 5) bounded;
  IF n<1 OR n>4 OR n<>s.version THEN RAISE EXCEPTION 'Incomplete study transition chain'; END IF;
- FOR m IN SELECT * FROM study_mutations WHERE study_session_id=p_study ORDER BY resulting_version LIMIT 5 LOOP
-  IF m.owner_id<>s.owner_id OR m.conversation_id<>s.conversation_id OR m.project_id IS DISTINCT FROM s.project_id OR m.lesson_run_id<>s.lesson_run_id
-   OR m.resulting_version<>previous_version+1 OR m.prior_conversation_version<previous_c
-   OR (previous_at IS NOT NULL AND m.committed_at<previous_at) OR closed
+ FOR v_receipt IN SELECT * FROM study_mutations WHERE study_session_id=p_study ORDER BY resulting_version LIMIT 5 LOOP
+  IF v_receipt.owner_id<>s.owner_id OR v_receipt.conversation_id<>s.conversation_id OR v_receipt.project_id IS DISTINCT FROM s.project_id OR v_receipt.lesson_run_id<>s.lesson_run_id
+   OR v_receipt.resulting_version<>previous_version+1 OR v_receipt.prior_conversation_version<previous_c
+   OR (previous_at IS NOT NULL AND v_receipt.committed_at<previous_at) OR closed
    THEN RAISE EXCEPTION 'Invalid study historical transition'; END IF;
   IF previous_version=0 THEN
-   IF m.operation<>'START' OR m.prior_version IS NOT NULL OR m.committed_at<>s.created_at THEN RAISE EXCEPTION 'Missing exact study start'; END IF;
+   IF v_receipt.operation<>'START' OR v_receipt.prior_version IS NOT NULL OR v_receipt.committed_at<>s.created_at THEN RAISE EXCEPTION 'Missing exact study start'; END IF;
   ELSE
-   IF m.operation='START' OR m.prior_version IS DISTINCT FROM previous_version THEN RAISE EXCEPTION 'Invalid study predecessor'; END IF;
-   IF m.operation='ANSWER' THEN
+   IF v_receipt.operation='START' OR v_receipt.prior_version IS DISTINCT FROM previous_version THEN RAISE EXCEPTION 'Invalid study predecessor'; END IF;
+   IF v_receipt.operation='ANSWER' THEN
     answers=answers+1;
-    SELECT * INTO a FROM study_owner_answer_inputs WHERE id=m.input_id;
-    IF NOT FOUND OR a.owner_id<>m.owner_id OR a.study_session_id<>m.study_session_id OR a.conversation_id<>m.conversation_id
-     OR a.project_id IS DISTINCT FROM m.project_id OR a.question_id<>m.question_id OR a.attempt_id<>m.attempt_id
-     OR a.expected_study_version IS DISTINCT FROM m.prior_version OR a.resulting_study_version<>m.resulting_version
-     OR a.session_hash<>m.session_hash OR a.security_epoch<>m.security_epoch OR a.observed_conversation_version<>m.prior_conversation_version
-     OR a.created_at>m.committed_at OR a.question_id NOT IN (s.question_1_id,s.question_2_id)
+    SELECT * INTO v_input FROM study_owner_answer_inputs WHERE id=v_receipt.input_id;
+    IF NOT FOUND OR v_input.owner_id<>v_receipt.owner_id OR v_input.study_session_id<>v_receipt.study_session_id OR v_input.conversation_id<>v_receipt.conversation_id
+     OR v_input.project_id IS DISTINCT FROM v_receipt.project_id OR v_input.question_id<>v_receipt.question_id OR v_input.attempt_id<>v_receipt.attempt_id
+     OR v_input.expected_study_version IS DISTINCT FROM v_receipt.prior_version OR v_input.resulting_study_version<>v_receipt.resulting_version
+     OR v_input.session_hash<>v_receipt.session_hash OR v_input.security_epoch<>v_receipt.security_epoch OR v_input.observed_conversation_version<>v_receipt.prior_conversation_version
+     OR v_input.created_at>v_receipt.committed_at OR v_input.question_id NOT IN (s.question_1_id,s.question_2_id)
      THEN RAISE EXCEPTION 'Study answer and receipt mismatch'; END IF;
    ELSE closed=true; END IF;
   END IF;
-  previous_version=m.resulting_version; previous_c=m.resulting_conversation_version; previous_at=m.committed_at;
+  previous_version=v_receipt.resulting_version; previous_c=v_receipt.resulting_conversation_version; previous_at=v_receipt.committed_at;
  END LOOP;
  SELECT count(*) INTO n FROM (SELECT 1 FROM study_owner_answer_inputs WHERE study_session_id=p_study LIMIT 3) bounded;
  IF answers>2 OR n<>answers OR s.updated_at<>previous_at OR c.content_version<previous_c
