@@ -212,6 +212,35 @@ class ReportFixtureTest(unittest.TestCase):
         target.write_text(original)
         report.source_snapshot(self.root)
 
+    def test_study_answer_source_literal_mapping_binds_exact_source_bytes(self):
+        self.prepare()
+        self.xml()
+        result = self.emit()
+        methods = [item for item in result['methods']
+                   if item['class'] == report.PACKAGE + '.StudyAnswerSourcePolicyTest']
+        target = self.root / report.TEST_ROOT / 'dev/myjarvis/core/StudyAnswerSourcePolicyTest.java'
+        self.assertEqual(len(methods), 14)
+        self.assertEqual({item['method'] for item in methods}, set(report.ALLOWED_TESTS['StudyAnswerSourcePolicyTest']))
+        self.assertTrue(all(item['outcome'] == 'PASS' and item['observations'] == 1 for item in methods))
+        self.assertTrue(all(item['source_sha256'] == hashlib.sha256(target.read_bytes()).hexdigest() for item in methods))
+        target.write_text(target.read_text() + '\n// synthetic source alteration\n')
+        self.assertEqual(self.emit()['reason_codes'], ['SOURCE_CHANGED_DURING_VERIFICATION'])
+
+    def test_study_answer_source_missing_extra_renamed_duplicate_or_parameterized_is_rejected(self):
+        target = self.root / report.TEST_ROOT / 'dev/myjarvis/core/StudyAnswerSourcePolicyTest.java'
+        original = target.read_text()
+        first, second = report.ALLOWED_TESTS['StudyAnswerSourcePolicyTest'][:2]
+        for source in (original.replace('@Test void ' + first + '() {}\n', ''),
+                       original + '\n@Test void unreviewedExtraMethod() {}\n',
+                       original.replace(first, 'unreviewedRenamedMethod'), original.replace(second, first),
+                       original.replace('@Test', '@ParameterizedTest', 1),
+                       original.replace('@Test', '@DisplayName("synthetic") @Test', 1)):
+            target.write_text(source)
+            with self.assertRaisesRegex(report.ReportError, '^TEST_INVENTORY_REVIEW_REQUIRED$'):
+                report.source_snapshot(self.root)
+        target.write_text(original)
+        report.source_snapshot(self.root)
+
     def test_missing_method_is_not_observed_not_a_pass(self):
         self.prepare()
         self.xml(suite([testcase()]))
@@ -332,7 +361,7 @@ class SourceAndWorkflowGuardTest(unittest.TestCase):
         snapshot = report.source_snapshot(report.ROOT)
         self.assertEqual(len(snapshot['class_source_sha256']), len(report.ALLOWED_TESTS))
         # This assertion is inventory evidence only; no Java execution is claimed.
-        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 520)
+        self.assertEqual(sum(map(len, report.ALLOWED_TESTS.values())), 534)
 
     def test_workflow_keeps_verification_status_and_always_reports(self):
         workflow = (report.ROOT / '.github/workflows/m0.yml').read_text()
