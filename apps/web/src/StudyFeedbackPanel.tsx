@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Api, ApiError } from './api';
 import { task_time_micros } from './tasks';
+import { select_review_items, type StudyReviewSelection } from './study-review-task';
 import { feedback_path, feedback_receipt_path, feedback_request_path, feedback_revoke_path, read_feedback, read_feedback_outcome, type FeedbackStudy, type FeedbackProjection, type FeedbackReceipt, type FeedbackTarget, type PendingFeedback } from './study-feedback';
 
-export interface StudyFeedbackPanelProps { api: Api; sessionKey: number; snapshotKey: number; study: FeedbackStudy; writesPaused?: boolean; selectionDisabled?: boolean; onUnauthorized: () => void; onDeleted: (id: string) => void; onAcquirePending?: (revoking: boolean) => boolean; onPendingChange?: (pending: boolean) => void; onOutcomeUnknown?: () => void; onBarrierChange?: (active: boolean) => void; onCommitted?: () => void; onPrivateClear?: () => void }
-interface Session { api: Api; auth: number; snapshot: number; target: string; live: boolean; revision: number; projection: FeedbackProjection | null; receipts: Record<string, FeedbackReceipt>; busy: boolean; sending: PendingFeedback | null; pending: PendingFeedback | null; notice: string }
+export interface StudyFeedbackPanelProps { api: Api; sessionKey: number; snapshotKey: number; study: FeedbackStudy; writesPaused?: boolean; selectionDisabled?: boolean; onUnauthorized: () => void; onDeleted: (id: string) => void; onAcquirePending?: (revoking: boolean) => boolean; onPendingChange?: (pending: boolean) => void; onOutcomeUnknown?: () => void; onBarrierChange?: (active: boolean) => void; onCommitted?: () => void; onPrivateClear?: () => void; onCopyReviewSelection?: (selection: StudyReviewSelection) => void; copyDisabled?: boolean }
+interface Session { api: Api; auth: number; snapshot: number; target: string; live: boolean; revision: number; projection: FeedbackProjection | null; selected: Record<string, number[]>; receipts: Record<string, FeedbackReceipt>; busy: boolean; sending: PendingFeedback | null; pending: PendingFeedback | null; notice: string }
 const unknown = 'OUTCOME_UNKNOWN: The operation may have committed. Private feedback was cleared. Check its original receipt; no request will be sent again.';
 function identity(study: FeedbackStudy) { return JSON.stringify([study.id, study.conversation_id, study.version, study.lesson.questions.map(q => q.id), study.attempts.map(a => [a.question_id, a.input_id, a.attempt_id])]); }
 
@@ -16,7 +17,7 @@ export function StudyFeedbackPanel(props: StudyFeedbackPanelProps) {
   function same(s: Session) { return s.live && state.current === s && current.current.api === s.api && current.current.sessionKey === s.auth && current.current.snapshotKey === s.snapshot && identity(current.current.study) === s.target; }
   function active(s: Session, revision: number) { return same(s) && revision === s.revision; }
   function publish(s: Session) { if (same(s)) { setView({ ...s }); current.current.onPendingChange?.(!!s.pending || !!s.sending); if (s.projection) current.current.onBarrierChange?.(s.projection.targets.some(t => t.request?.output_authority === 'ACTIVE')); } }
-  function clear(s: Session) { s.live = false; s.revision++; s.projection = null; s.receipts = {}; s.pending = null; s.sending = null; s.busy = false; }
+  function clear(s: Session) { s.live = false; s.revision++; s.projection = null; s.selected = {}; s.receipts = {}; s.pending = null; s.sending = null; s.busy = false; }
   function failed(error: unknown, s: Session, revision: number) {
     if (!same(s)) return;
     if (error instanceof ApiError && error.status === 401) { clear(s); setView(null); s.api.clear(); current.current.onUnauthorized(); return; }
@@ -32,16 +33,28 @@ export function StudyFeedbackPanel(props: StudyFeedbackPanelProps) {
   }
   async function refresh() {
     const s = state.current; if (!s || !same(s) || s.busy || s.pending || s.sending) return;
-    const revision = ++s.revision; s.busy = true; s.projection = null; s.notice = ''; publish(s);
+    const revision = ++s.revision; s.busy = true; s.projection = null; s.selected = {}; s.notice = ''; publish(s);
     try { await load(s, revision); } catch (error) { failed(error, s, revision); }
     finally { if (active(s, revision)) { s.busy = false; publish(s); } }
   }
   useEffect(() => {
-    const s: Session = { api: props.api, auth: props.sessionKey, snapshot: props.snapshotKey, target, live: true, revision: 0, projection: null, receipts: {}, busy: false, sending: null, pending: null, notice: '' }; state.current = s; publish(s); void refresh();
+    const s: Session = { api: props.api, auth: props.sessionKey, snapshot: props.snapshotKey, target, live: true, revision: 0, projection: null, selected: {}, receipts: {}, busy: false, sending: null, pending: null, notice: '' }; state.current = s; publish(s); void refresh();
     const hide = () => { if (s.pending || s.sending) current.current.onOutcomeUnknown?.(); clear(s); setView(null); current.current.onPendingChange?.(false); };
     window.addEventListener('pagehide', hide);
     return () => { window.removeEventListener('pagehide', hide); if (s.pending || s.sending) current.current.onOutcomeUnknown?.(); clear(s); if (state.current === s) { state.current = null; current.current.onPendingChange?.(false); } };
   }, [props.api, props.sessionKey, props.snapshotKey, target]);
+  function include(target: FeedbackTarget, index: number, checked: boolean) {
+    const s = state.current;
+    if (!s || !same(s) || !s.projection?.targets.includes(target) || s.busy || s.pending || s.sending || current.current.selectionDisabled || current.current.copyDisabled || current.current.writesPaused || target.request?.status !== 'ACCEPTED') return;
+    const id = target.request.id, before = s.selected[id] ?? [];
+    s.selected = { [id]: checked ? [...new Set([...before, index])].sort((a, b) => a - b) : before.filter(value => value !== index) }; publish(s);
+  }
+  function copy(target: FeedbackTarget) {
+    const s = state.current;
+    if (!s || !same(s) || !s.projection || s.busy || s.pending || s.sending || current.current.selectionDisabled || current.current.copyDisabled || current.current.writesPaused || !current.current.onCopyReviewSelection || !target.request) return;
+    try { current.current.onCopyReviewSelection(select_review_items(current.current.study, s.projection, target, s.selected[target.request.id] ?? [])); }
+    catch { s.notice = 'REVIEW_SOURCE_NOT_VERIFIED: Select saved checklist items again. No task change was made.'; publish(s); }
+  }
   async function mutate(target: FeedbackTarget, revoking: boolean) {
     const s = state.current; if (!s || !same(s) || !s.projection || s.busy || s.pending || s.sending || current.current.selectionDisabled || !s.projection.targets.includes(target) || !target.input_id || !target.attempt_id || !revoking && current.current.writesPaused) return;
     if (revoking ? target.request?.output_authority !== 'ACTIVE' : target.availability !== 'AVAILABLE') return;
@@ -86,7 +99,7 @@ export function StudyFeedbackPanel(props: StudyFeedbackPanelProps) {
       {target.request && <><p>Request: {target.request.status}</p><p>Output authority: {target.request.output_authority}</p><p>Execution evidence: {target.request.execution_evidence}</p><p>Accounting: {target.request.accounting}</p>
         {target.request.output_authority === 'ACTIVE' && <button type="button" className="secondary" disabled={blocked} onClick={() => void mutate(target, true)}>Do not keep question {index + 1} result</button>}
         {target.request.output_authority === 'REVOKED' && target.request.execution_evidence === 'UNCONFIRMED' && <p>The result is revoked. Execution may still be running; usage and stop evidence are being checked.</p>}
-        {target.request.result && <section aria-label={`Model feedback for question ${index + 1}`}><p>Model assessment: {target.request.result.assessment}</p><p className="result">{target.request.result.explanation}</p><h5>Example, not executed</h5><pre>{target.request.result.example}</pre><p>Code execution: NOT_RUN. This is not a compilation or correctness check.</p><h5>Assumptions</h5><ul>{target.request.result.assumptions.map((text, i) => <li key={i}>{text}</li>)}</ul><h5>Review checklist</h5><ul>{target.request.result.review_checklist.map((text, i) => <li key={i}>{text}</li>)}</ul></section>}
+        {target.request.result && <section aria-label={`Model feedback for question ${index + 1}`}><p>Model assessment: {target.request.result.assessment}</p><p className="result">{target.request.result.explanation}</p><h5>Example, not executed</h5><pre>{target.request.result.example}</pre><p>Code execution: NOT_RUN. This is not a compilation or correctness check.</p><h5>Assumptions</h5><ul>{target.request.result.assumptions.map((text, i) => <li key={i}>{text}</li>)}</ul><h5>Review checklist</h5><ul>{target.request.result.review_checklist.map((text, i) => <li key={i}>{props.onCopyReviewSelection && target.request?.status === 'ACCEPTED' ? <label><input type="checkbox" aria-label={`Include review item ${i + 1} from question ${index + 1} in task draft`} checked={(currentView.selected[target.request.id] ?? []).includes(i)} disabled={blocked || props.writesPaused || props.copyDisabled} onChange={event => include(target, i, event.target.checked)}/>{text}</label> : text}</li>)}</ul>{props.onCopyReviewSelection && target.request.status === 'ACCEPTED' && <><p>Include checkboxes select text for an independent task draft. They do not record review completion.</p><button type="button" disabled={blocked || props.writesPaused || props.copyDisabled || !(currentView.selected[target.request.id]?.length)} onClick={() => copy(target)}>Copy selected items to task draft</button></>}</section>}
       </>}
     </section>)}
   </section>;

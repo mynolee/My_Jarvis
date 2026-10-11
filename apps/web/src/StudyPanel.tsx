@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { Api, ApiError } from './api';
 import { StudyFeedbackPanel } from './StudyFeedbackPanel';
-import { feedback_study, type FeedbackStudy } from './study-feedback';
+import { build_review_copy, read_review_study, type StudyReviewCopy, type StudyReviewSelection } from './study-review-task';
+import { feedback_path, feedback_study, type FeedbackStudy } from './study-feedback';
 import { read_accepted_lesson, read_durable_study, read_study_index, read_study_outcome, study_id, study_index_path, study_path, study_receipt_path, valid_study_text, type DurableStudy, type PendingStudy, type StudyIndex, type StudyIndexItem, type StudyLesson, type StudyReceipt } from './study';
 
 export interface StudyPanelProps {
   api: Api; sessionKey: number; conversationId: string | null; projectId: string | null; snapshotKey: number;
   onUnauthorized: () => void; onDeleted: (id: string) => void;
   writesPaused?: boolean; selectionDisabled?: boolean; contentHidden?: boolean; sourceWriteBarrier?: boolean;
+  onReviewCopy?: (copy: StudyReviewCopy) => void; onReviewSourceInvalidated?: () => void; onReviewReadInvalidated?: () => void;
   onFeedbackBarrierChange?: (studyId: string, active: boolean) => void; onAcquireFeedbackPending?: (revoking: boolean) => boolean;
   onAcquirePending?: () => boolean; onPendingChange?: (pending: boolean) => void; onOutcomeUnknown?: () => void; onCommitted?: () => void;
 }
 interface Session {
   api: Api; key: number; alive: boolean; revision: number; conversation: string | null; project: string | null; snapshot: number; paused: boolean;
-  index: StudyIndex | null; selected: StudyIndexItem | null; lesson: StudyLesson | null; study: DurableStudy | null; drafts: Record<string, string>;
-  busy: 'index' | 'select' | 'mutation' | 'reconcile' | 'read' | null; sending: PendingStudy | null; pending: PendingStudy | null; notice: string;
+  copySource: string | null; index: StudyIndex | null; selected: StudyIndexItem | null; lesson: StudyLesson | null; study: DurableStudy | null; drafts: Record<string, string>;
+  busy: 'index' | 'select' | 'mutation' | 'reconcile' | 'read' | 'copy' | null; sending: PendingStudy | null; pending: PendingStudy | null; notice: string;
 }
 interface View { session: Session; index: StudyIndex | null; selected: StudyIndexItem | null; lesson: StudyLesson | null; study: DurableStudy | null; drafts: Record<string, string>; busy: Session['busy']; pending: PendingStudy | null; notice: string }
 const unknownNotice = 'OUTCOME_UNKNOWN: The request may have committed. Answer drafts and private source content were cleared. Check the original outcome; the request will not be sent again.';
@@ -43,7 +45,7 @@ export function StudyPanel(props: StudyPanelProps) {
     publish(s);
   }
   useEffect(() => {
-    const s: Session = { api: props.api, key: props.sessionKey, alive: true, revision: 0, conversation: props.conversationId, project: props.projectId, snapshot: props.snapshotKey, paused: !!props.writesPaused, index: null, selected: null, lesson: null, study: null, drafts: {}, busy: null, sending: null, pending: null, notice: '' };
+    const s: Session = { api: props.api, key: props.sessionKey, alive: true, revision: 0, conversation: props.conversationId, project: props.projectId, snapshot: props.snapshotKey, paused: !!props.writesPaused, copySource: null, index: null, selected: null, lesson: null, study: null, drafts: {}, busy: null, sending: null, pending: null, notice: '' };
     session.current = s; publish(s);
     const hide = () => { if (session.current === s) { discard(s); setView(null); live.current.onPendingChange?.(false); } };
     window.addEventListener('pagehide', hide);
@@ -52,6 +54,8 @@ export function StudyPanel(props: StudyPanelProps) {
   useEffect(() => {
     const s = session.current; if (!s || !same(s)) return;
     if (s.conversation === props.conversationId && s.project === props.projectId && s.snapshot === props.snapshotKey && s.paused === !!props.writesPaused && !props.contentHidden) return;
+    if (s.conversation !== props.conversationId || s.project !== props.projectId || props.contentHidden) { s.copySource = null; live.current.onReviewSourceInvalidated?.(); }
+    else if (s.snapshot !== props.snapshotKey) live.current.onReviewReadInvalidated?.();
     s.revision++; if (s.sending) { s.pending = s.sending; s.sending = null; }
     s.conversation = props.conversationId; s.project = props.projectId; s.snapshot = props.snapshotKey; s.paused = !!props.writesPaused; s.busy = null; purge(s);
     s.notice = s.pending ? unknownNotice : ''; report(s); publish(s);
@@ -66,13 +70,16 @@ export function StudyPanel(props: StudyPanelProps) {
     const s = session.current; if (!s || !same(s) || !active(s, s.revision) || !study_id(s.conversation) || s.busy || s.pending || s.sending || feedbackPending.current || live.current.selectionDisabled) return;
     const revision = ++s.revision, conversation = s.conversation, cursor = next ? s.index?.next_cursor ?? null : null;
     if (next && !cursor) return;
-    purge(s); s.busy = 'index'; s.notice = ''; publish(s);
+    live.current.onReviewReadInvalidated?.(); purge(s); s.busy = 'index'; s.notice = ''; publish(s);
     try { const raw = await s.api.request<unknown>(study_index_path(conversation, cursor)); if (!active(s, revision)) return; s.index = read_study_index(raw, conversation); }
     catch (error) { failed(error, s, revision); }
     finally { if (active(s, revision)) { s.busy = null; publish(s); } }
   }
   async function select(item: StudyIndexItem) {
     const s = session.current; if (!s || !same(s) || !active(s, s.revision) || !s.index?.items.includes(item) || s.busy || s.pending || s.sending || feedbackPending.current || live.current.selectionDisabled || !study_id(s.conversation)) return;
+    const copySource = JSON.stringify([item.lesson_run_id, item.study_session_id]);
+    if (s.copySource !== copySource) live.current.onReviewSourceInvalidated?.();
+    s.copySource = copySource;
     const revision = ++s.revision; feedbackRecovery.current = false; setFeedbackStudy(null); s.selected = item; s.lesson = null; s.study = null; s.drafts = {}; s.busy = 'select'; s.notice = ''; publish(s);
     try {
       if (item.study_session_id) {
@@ -83,6 +90,28 @@ export function StudyPanel(props: StudyPanelProps) {
       }
     } catch (error) { failed(error, s, revision); }
     finally { if (active(s, revision)) { s.busy = null; publish(s); } }
+  }
+  async function copyReview(selection: StudyReviewSelection) {
+    const s = session.current;
+    if (!s || !same(s) || !active(s, s.revision) || !s.study || s.busy || s.pending || s.sending || feedbackPending.current || live.current.writesPaused || live.current.selectionDisabled || !live.current.onReviewCopy) return;
+    const captured = s.study, revision = ++s.revision;
+    s.busy = 'copy'; s.notice = ''; publish(s);
+    try {
+      const rawStudy = await s.api.request<unknown>(study_path(captured.id));
+      if (!active(s, revision)) return;
+      const fresh = read_review_study(rawStudy, captured, selection);
+      const rawFeedback = await s.api.request<unknown>(feedback_path(fresh.id));
+      if (!active(s, revision)) return;
+      const copy = build_review_copy(rawFeedback, fresh, selection, crypto.randomUUID());
+      s.copySource = JSON.stringify([fresh.lesson_run_id, fresh.id]);
+      live.current.onReviewCopy?.(copy);
+    } catch (error) {
+      if (!same(s)) return;
+      if (error instanceof ApiError && error.status === 401) { unauthorized(s); return; }
+      if (!active(s, revision)) return;
+      if (error instanceof ApiError && error.status === 410) { const id = s.conversation; live.current.onReviewSourceInvalidated?.(); purge(s); if (id) live.current.onDeleted(id); }
+      else s.notice = 'REVIEW_SOURCE_NOT_VERIFIED: The saved source could not be checked. No task change was made. Choose Copy again to make a new read attempt.';
+    } finally { if (active(s, revision)) { s.busy = null; publish(s); } }
   }
   async function canonical(s: Session, revision: number, receipt: StudyReceipt) {
     const raw = await s.api.request<unknown>(study_path(receipt.study_session_id)); if (!active(s, revision)) return;
@@ -152,7 +181,7 @@ export function StudyPanel(props: StudyPanelProps) {
       {lesson.questions.map((question, index) => { const answer = study?.attempts.find(a => a.question_id === question.id); return <section key={question.id} aria-label={`Study question ${index + 1}`}><h4>Question {index + 1}</h4><p>{question.text}</p>{answer ? <><p>Answer recorded. Feedback status is shown separately.</p><p className="result">{answer.text}</p></> : study && study.lifecycle === 'OPEN' ? <form onSubmit={event => { event.preventDefault(); void mutate('ANSWER', question.id); }}><label>Answer {index + 1}<textarea value={visible?.drafts[question.id] ?? ''} maxLength={16000} disabled={blocked} onChange={event => { const s = session.current; if (!s || !canWrite(s)) return; s.drafts = { ...s.drafts, [question.id]: event.target.value }; publish(s); }}/></label><button disabled={blocked || !valid_study_text(visible?.drafts[question.id])}>Record answer {index + 1}</button></form> : <p>No answer recorded.</p>}</section>; })}
       {!study && visible?.selected && <button type="button" disabled={blocked} onClick={() => void mutate('START')}>Start study session</button>}
     </section>}
-    {visible && feedbackStudy && (study?.id === feedbackStudy.id || feedbackRecovery.current) && <StudyFeedbackPanel key={`${props.sessionKey}:${feedbackStudy.id}`} api={props.api} sessionKey={props.sessionKey} snapshotKey={props.snapshotKey} study={feedbackStudy} writesPaused={props.writesPaused} selectionDisabled={props.selectionDisabled || busy || pending} onUnauthorized={props.onUnauthorized} onDeleted={props.onDeleted} onAcquirePending={revoking => acquireFeedback(feedbackStudy, revoking)} onPendingChange={value => { feedbackPending.current = value; setFeedbackBusy(value); const s = session.current; if (s && same(s)) report(s); }} onOutcomeUnknown={props.onOutcomeUnknown} onBarrierChange={value => props.onFeedbackBarrierChange?.(feedbackStudy.id, value)} onPrivateClear={() => { const s = session.current; if (s && same(s)) { purge(s, true); publish(s); } }}/>}
+    {visible && feedbackStudy && (study?.id === feedbackStudy.id || feedbackRecovery.current) && <StudyFeedbackPanel key={`${props.sessionKey}:${feedbackStudy.id}`} api={props.api} sessionKey={props.sessionKey} snapshotKey={props.snapshotKey} study={feedbackStudy} writesPaused={props.writesPaused} selectionDisabled={props.selectionDisabled || busy || pending} onUnauthorized={props.onUnauthorized} onDeleted={props.onDeleted} onAcquirePending={revoking => acquireFeedback(feedbackStudy, revoking)} onPendingChange={value => { feedbackPending.current = value; setFeedbackBusy(value); const s = session.current; if (s && same(s)) report(s); }} onOutcomeUnknown={props.onOutcomeUnknown} onBarrierChange={value => props.onFeedbackBarrierChange?.(feedbackStudy.id, value)} onCopyReviewSelection={props.onReviewCopy ? selection => void copyReview(selection) : undefined} copyDisabled={busy || pending || props.writesPaused || props.selectionDisabled} onPrivateClear={() => { const s = session.current; if (s && same(s)) { purge(s, true); publish(s); } }}/>}
     {study && <section aria-label="Saved study status"><p>Study version: {study.version}</p><p>Lifecycle: {study.lifecycle}</p>{study.stage === 'FEEDBACK_PENDING' && <p>FEEDBACK_PENDING describes two recorded answers. Use the separate feedback controls to request or inspect model feedback.</p>}{study.lifecycle === 'OPEN' && <button type="button" className="secondary" disabled={blocked} onClick={() => void mutate('CLOSE')}>Close study session</button>}</section>}
   </section>;
 }
