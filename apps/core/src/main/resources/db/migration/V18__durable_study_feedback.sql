@@ -218,7 +218,7 @@ BEGIN
   IF FOUND AND OLD.phase_xid=pg_current_xact_id()::text
    AND (to_jsonb(NEW)-ARRAY['updated_at','closed_at']) IS NOT DISTINCT FROM (to_jsonb(OLD)-ARRAY['updated_at','closed_at'])
    AND NEW.updated_at IS NOT DISTINCT FROM e.committed_at
-   AND NEW.closed_at IS NOT DISTINCT FROM CASE WHEN NEW.output_authority='ACTIVE' THEN NULL ELSE e.committed_at END THEN RETURN NEW; END IF;
+   AND NEW.closed_at IS NOT DISTINCT FROM (CASE WHEN NEW.output_authority='ACTIVE' THEN NULL ELSE e.committed_at END) THEN RETURN NEW; END IF;
   IF OLD.output_authority<>'ACTIVE' OR OLD.phase_xid=pg_current_xact_id()::text OR NEW.version<>OLD.version+1
    OR NOT ((OLD.state='QUEUED' AND NEW.state IN ('RUNNING','REVOKED')) OR (OLD.state='RUNNING' AND NEW.state IN ('ACCEPTED','FAILED','REVOKED')))
    THEN RAISE EXCEPTION 'Feedback transition requires one exact new phase'; END IF;
@@ -344,8 +344,8 @@ BEGIN
   ELSIF e.operation='DISPATCH' THEN
    IF i<>2 OR e.resulting_state<>'RUNNING' OR e.output_authority<>'ACTIVE' OR e.reason_code IS NOT NULL OR e.idempotency_key IS NOT NULL THEN RAISE EXCEPTION 'Feedback dispatch receipt is invalid'; END IF;
   ELSIF e.operation IN ('ACCEPT','FAIL') THEN
-   IF i<>3 OR prev.operation<>'DISPATCH' OR e.resulting_state IS DISTINCT FROM CASE e.operation WHEN 'ACCEPT' THEN 'ACCEPTED' ELSE 'FAILED' END OR e.output_authority<>'CLOSED'
-    OR e.reason_code IS DISTINCT FROM CASE WHEN e.operation='FAIL' THEN 'MODEL_ERROR' ELSE NULL END OR e.idempotency_key IS NOT NULL THEN RAISE EXCEPTION 'Feedback completion receipt is invalid'; END IF;
+   IF i<>3 OR prev.operation<>'DISPATCH' OR e.resulting_state IS DISTINCT FROM (CASE e.operation WHEN 'ACCEPT' THEN 'ACCEPTED' ELSE 'FAILED' END) OR e.output_authority<>'CLOSED'
+    OR e.reason_code IS DISTINCT FROM (CASE WHEN e.operation='FAIL' THEN 'MODEL_ERROR' ELSE NULL END) OR e.idempotency_key IS NOT NULL THEN RAISE EXCEPTION 'Feedback completion receipt is invalid'; END IF;
   ELSIF e.operation='REVOKE' THEN
    IF e.resulting_state<>'REVOKED' OR e.output_authority<>'REVOKED' OR e.reason_code IS NULL OR e.reason_code='MODEL_ERROR' OR (i=3 AND prev.operation<>'DISPATCH')
     OR (e.reason_code='OWNER_REVOKE') IS DISTINCT FROM (e.idempotency_key IS NOT NULL) THEN RAISE EXCEPTION 'Feedback revocation receipt is invalid'; END IF;
@@ -355,19 +355,19 @@ BEGIN
   prev=e;
  END LOOP;
  IF i<>f.version OR prev.resulting_state IS DISTINCT FROM f.state OR prev.output_authority IS DISTINCT FROM f.output_authority OR prev.committed_at IS DISTINCT FROM f.updated_at
-  OR prev.phase_xid IS DISTINCT FROM f.phase_xid OR f.closed_at IS DISTINCT FROM CASE WHEN f.output_authority='ACTIVE' THEN NULL ELSE prev.committed_at END THEN RAISE EXCEPTION 'Feedback phase is not completely sealed'; END IF;
+  OR prev.phase_xid IS DISTINCT FROM f.phase_xid OR f.closed_at IS DISTINCT FROM (CASE WHEN f.output_authority='ACTIVE' THEN NULL ELSE prev.committed_at END) THEN RAISE EXCEPTION 'Feedback phase is not completely sealed'; END IF;
  IF f.state='QUEUED' THEN
   IF f.version<>1 OR r.status<>'QUEUED' OR q.status<>'QUEUED' OR x.state<>'CAPTURED' OR x.profile_version IS NOT NULL OR q.started_at IS NOT NULL OR q.completed_at IS NOT NULL OR q.cancel_requested_at IS NOT NULL OR r.cancel_requested_at IS NOT NULL OR x.invalidated_at IS NOT NULL OR k.decision IS NOT NULL OR k.terminal_kind IS NOT NULL THEN RAISE EXCEPTION 'Incomplete queued feedback'; END IF;
  ELSIF f.state='RUNNING' THEN
   IF f.version<>2 OR r.status<>'RUNNING' OR q.status<>'STARTED' OR x.state<>'DISPATCHED' OR q.started_at IS NULL OR q.completed_at IS NOT NULL OR q.cancel_requested_at IS NOT NULL OR r.cancel_requested_at IS NOT NULL OR x.invalidated_at IS NOT NULL THEN RAISE EXCEPTION 'Incomplete dispatched feedback'; END IF;
  ELSIF f.state IN ('ACCEPTED','FAILED') THEN
-  IF f.version<>3 OR r.status IS DISTINCT FROM CASE f.state WHEN 'ACCEPTED' THEN 'SUCCEEDED' ELSE 'FAILED' END OR q.status IS DISTINCT FROM r.status OR q.started_at IS NULL OR q.completed_at IS NULL OR q.cancel_requested_at IS NOT NULL OR r.cancel_requested_at IS NOT NULL
+  IF f.version<>3 OR r.status IS DISTINCT FROM (CASE f.state WHEN 'ACCEPTED' THEN 'SUCCEEDED' ELSE 'FAILED' END) OR q.status IS DISTINCT FROM r.status OR q.started_at IS NULL OR q.completed_at IS NULL OR q.cancel_requested_at IS NOT NULL OR r.cancel_requested_at IS NOT NULL
    OR NOT (x.state='SETTLED' AND x.invalidated_at IS NULL OR x.state='INVALIDATED' AND x.invalidated_at IS NOT NULL AND x.invalidated_at>=f.closed_at)
    OR NOT EXISTS(SELECT 1 FROM inference_usage_receipts u WHERE u.owner_id=p_owner AND u.reservation_id=q.id AND u.run_id=r.id AND u.request_id=q.request_id AND u.request_digest=q.body_hash
     AND u.receipt_kind=CASE f.state WHEN 'ACCEPTED' THEN 'MEASURED' ELSE 'ERROR' END AND u.response_kind=CASE f.state WHEN 'ACCEPTED' THEN 'FEEDBACK' ELSE 'ERROR' END)
    THEN RAISE EXCEPTION 'Incomplete closed feedback'; END IF;
  ELSE
-  IF r.status IS DISTINCT FROM CASE f.version WHEN 2 THEN 'CANCELLED' ELSE 'UNKNOWN' END OR q.status IS DISTINCT FROM r.status OR r.cancel_requested_at IS NULL OR q.cancel_requested_at IS NULL OR q.completed_at IS NULL
+  IF r.status IS DISTINCT FROM (CASE f.version WHEN 2 THEN 'CANCELLED' ELSE 'UNKNOWN' END) OR q.status IS DISTINCT FROM r.status OR r.cancel_requested_at IS NULL OR q.cancel_requested_at IS NULL OR q.completed_at IS NULL
    OR x.state<>'INVALIDATED' OR x.invalidated_at IS NULL OR (f.version=2) IS DISTINCT FROM (q.started_at IS NULL) THEN RAISE EXCEPTION 'Incomplete revoked feedback'; END IF;
  END IF;
  IF q.started_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM study_feedback_events d JOIN study_feedback_events a ON a.owner_id=d.owner_id AND a.feedback_id=d.feedback_id AND a.version=1
@@ -393,8 +393,8 @@ BEGIN
  IF c.deleted_at IS NOT NULL OR NEW.conversation_id IS DISTINCT FROM f.conversation_id OR NEW.project_id IS DISTINCT FROM f.project_id
   OR NEW.study_session_id IS DISTINCT FROM f.study_session_id OR NEW.lesson_run_id IS DISTINCT FROM f.lesson_run_id OR NEW.question_id IS DISTINCT FROM f.question_id
   OR NEW.input_id IS DISTINCT FROM f.input_id OR NEW.attempt_id IS DISTINCT FROM f.attempt_id OR NEW.resulting_state IS DISTINCT FROM f.state OR NEW.output_authority IS DISTINCT FROM f.output_authority
-  OR NEW.operation IS DISTINCT FROM CASE f.state WHEN 'QUEUED' THEN 'REQUEST' WHEN 'RUNNING' THEN 'DISPATCH' WHEN 'ACCEPTED' THEN 'ACCEPT' WHEN 'FAILED' THEN 'FAIL' ELSE 'REVOKE' END
-  OR NEW.prior_version IS DISTINCT FROM CASE WHEN f.version=1 THEN NULL ELSE (f.version-1)::smallint END THEN RAISE EXCEPTION 'Feedback event target mismatch'; END IF;
+  OR NEW.operation IS DISTINCT FROM (CASE f.state WHEN 'QUEUED' THEN 'REQUEST' WHEN 'RUNNING' THEN 'DISPATCH' WHEN 'ACCEPTED' THEN 'ACCEPT' WHEN 'FAILED' THEN 'FAIL' ELSE 'REVOKE' END)
+  OR NEW.prior_version IS DISTINCT FROM (CASE WHEN f.version=1 THEN NULL ELSE (f.version-1)::smallint END) THEN RAISE EXCEPTION 'Feedback event target mismatch'; END IF;
  n=clock_timestamp();
  IF NOT isfinite(n) OR n<f.phase_started_at OR n<f.updated_at THEN RAISE EXCEPTION 'Feedback event clock moved backward'; END IF;
  IF NEW.idempotency_key IS NOT NULL THEN
@@ -478,7 +478,7 @@ BEGIN
  IF remaining>1000 THEN RAISE EXCEPTION USING ERRCODE='54000',MESSAGE='Feedback context scope limit'; END IF;
  rows_due=CASE f.state WHEN 'QUEUED' THEN 2 WHEN 'RUNNING' THEN 1 ELSE 0 END;
  version_due=CASE WHEN f.output_authority='ACTIVE' THEN 16*rows_due+remaining ELSE 0 END;
- IF v.scoped_rows+rows_due>40000 OR v.source_bytes+CASE WHEN f.output_authority='ACTIVE' THEN 131072 ELSE 0 END>16777216 OR c.content_version+version_due>9007199254740990
+ IF v.scoped_rows+rows_due>40000 OR v.source_bytes+(CASE WHEN f.output_authority='ACTIVE' THEN 131072 ELSE 0 END)>16777216 OR c.content_version+version_due>9007199254740990
   THEN RAISE EXCEPTION USING ERRCODE='54000',MESSAGE='Feedback reserved source capacity exhausted'; END IF;
 END; $$;
 
