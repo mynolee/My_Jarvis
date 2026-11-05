@@ -1,0 +1,909 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/computer-action.schema.json",
+  "title": "Observation-bound general computer action proposal v4.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_ref",
+    "target_ref",
+    "observation_ref",
+    "action",
+    "element_ref",
+    "text",
+    "keys",
+    "pointer",
+    "artifact_ref",
+    "destination_ref"
+  ],
+  "properties": {
+    "session_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "target_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "observation_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "action": {
+      "enum": [
+        "activate_target",
+        "focus_element",
+        "click",
+        "double_click",
+        "scroll",
+        "drag",
+        "type_text",
+        "set_value",
+        "press_keys",
+        "select_text",
+        "copy_selection",
+        "paste_artifact",
+        "open_resource",
+        "save_working_copy"
+      ]
+    },
+    "element_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4096
+    },
+    "keys": {
+      "anyOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "enum": [
+              "CMD",
+              "CTRL",
+              "ALT",
+              "SHIFT",
+              "ENTER",
+              "TAB",
+              "ESC",
+              "BACKSPACE",
+              "DELETE",
+              "LEFT",
+              "RIGHT",
+              "UP",
+              "DOWN",
+              "HOME",
+              "END",
+              "PAGEUP",
+              "PAGEDOWN",
+              "A",
+              "C",
+              "V",
+              "X",
+              "Z",
+              "S",
+              "F",
+              "L",
+              "W"
+            ]
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pointer": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "region_ref",
+            "x",
+            "y",
+            "end_x",
+            "end_y",
+            "delta_x",
+            "delta_y"
+          ],
+          "properties": {
+            "region_ref": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "end_x": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "end_y": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "delta_x": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": -1000,
+              "maximum": 1000
+            },
+            "delta_y": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifact_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "destination_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "focus_element"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "pointer": {
+                  "type": "object"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "pointer": {
+                  "type": "object",
+                  "properties": {
+                    "end_x": {
+                      "type": "null"
+                    },
+                    "end_y": {
+                      "type": "null"
+                    },
+                    "delta_x": {
+                      "type": "null"
+                    },
+                    "delta_y": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "click"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "pointer": {
+                  "type": "object"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "pointer": {
+                  "type": "object",
+                  "properties": {
+                    "end_x": {
+                      "type": "null"
+                    },
+                    "end_y": {
+                      "type": "null"
+                    },
+                    "delta_x": {
+                      "type": "null"
+                    },
+                    "delta_y": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "double_click"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "pointer": {
+                  "type": "object"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "pointer": {
+                  "type": "object",
+                  "properties": {
+                    "end_x": {
+                      "type": "null"
+                    },
+                    "end_y": {
+                      "type": "null"
+                    },
+                    "delta_x": {
+                      "type": "null"
+                    },
+                    "delta_y": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "select_text"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "activate_target"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "element_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "type_text"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "set_value"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "press_keys"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "element_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          },
+          "keys": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "copy_selection"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "element_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "paste_artifact"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "element_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,100}$"
+              },
+              "pointer": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "element_ref": {
+                "type": "null"
+              },
+              "pointer": {
+                "type": "object"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "open_resource"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "element_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "save_working_copy"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "element_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          },
+          "destination_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "scroll"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "element_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "object",
+            "properties": {
+              "end_x": {
+                "type": "null"
+              },
+              "end_y": {
+                "type": "null"
+              },
+              "delta_x": {
+                "type": "integer"
+              },
+              "delta_y": {
+                "type": "integer"
+              }
+            },
+            "anyOf": [
+              {
+                "properties": {
+                  "delta_x": {
+                    "not": {
+                      "const": 0
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "delta_y": {
+                    "not": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "drag"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "element_ref": {
+            "type": "null"
+          },
+          "text": {
+            "type": "null"
+          },
+          "keys": {
+            "type": "null"
+          },
+          "artifact_ref": {
+            "type": "null"
+          },
+          "destination_ref": {
+            "type": "null"
+          },
+          "pointer": {
+            "type": "object",
+            "properties": {
+              "end_x": {
+                "type": "number"
+              },
+              "end_y": {
+                "type": "number"
+              },
+              "delta_x": {
+                "type": "null"
+              },
+              "delta_y": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

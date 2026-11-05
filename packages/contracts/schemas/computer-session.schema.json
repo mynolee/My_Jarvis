@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/computer-session.schema.json",
+  "title": "Computer session proposal v4.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "purpose",
+    "app_refs",
+    "resource_refs",
+    "origin_refs",
+    "requested_actions",
+    "duration_seconds",
+    "max_actions",
+    "max_frames",
+    "data_mode"
+  ],
+  "properties": {
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "app_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,100}$"
+      }
+    },
+    "resource_refs": {
+      "type": "array",
+      "maxItems": 40,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,100}$"
+      }
+    },
+    "origin_refs": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,100}$"
+      }
+    },
+    "requested_actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "activate_target",
+          "focus_element",
+          "click",
+          "double_click",
+          "scroll",
+          "drag",
+          "type_text",
+          "set_value",
+          "press_keys",
+          "select_text",
+          "copy_selection",
+          "paste_artifact",
+          "open_resource",
+          "save_working_copy",
+          "observe",
+          "wait_for_state"
+        ]
+      }
+    },
+    "duration_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 600
+    },
+    "max_actions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 40
+    },
+    "max_frames": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60
+    },
+    "data_mode": {
+      "enum": [
+        "local_only",
+        "approved_non_AI_connections"
+      ]
+    }
+  }
+}

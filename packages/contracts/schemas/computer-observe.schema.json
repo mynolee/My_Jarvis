@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-jarvis.invalid/contracts/computer-observe.schema.json",
+  "title": "Bounded computer observation v4.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_ref",
+    "target_ref",
+    "mode"
+  ],
+  "properties": {
+    "session_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "target_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "mode": {
+      "enum": [
+        "auto",
+        "native",
+        "DOM",
+        "AX",
+        "OCR_image"
+      ]
+    }
+  }
+}

@@ -1,0 +1,2916 @@
+{
+  "revision": "computer-v42-structural-1",
+  "scope": "STRUCTURAL_PROPOSALS_ONLY",
+  "runtime_status": "NOT_RUN",
+  "execution_authority": "NONE",
+  "schema_files": {
+    "computer-session": "computer-session.schema.json",
+    "computer-observe": "computer-observe.schema.json",
+    "computer-action": "computer-action.schema.json"
+  },
+  "cases": [
+    {
+      "id": "session.local-valid",
+      "schema": "computer-session",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Bounded local proposal without client-issued authority",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.maximum-budgets-valid",
+      "schema": "computer-session",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "The declared numeric ceilings and finite action enum are retained",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "activate_target",
+          "focus_element",
+          "click",
+          "double_click",
+          "scroll",
+          "drag",
+          "type_text",
+          "set_value",
+          "press_keys",
+          "select_text",
+          "copy_selection",
+          "paste_artifact",
+          "open_resource",
+          "save_working_copy",
+          "observe",
+          "wait_for_state"
+        ],
+        "duration_seconds": 600,
+        "max_actions": 40,
+        "max_frames": 60,
+        "data_mode": "approved_non_AI_connections"
+      }
+    },
+    {
+      "id": "session.no-frames-valid",
+      "schema": "computer-session",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01"
+      ],
+      "reason": "A non-observation proposal may request zero frames",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "wait_for_state"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 0,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "observe.auto-valid",
+      "schema": "computer-observe",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "MAC-04"
+      ],
+      "reason": "A declared observation mode is a proposal, not capture permission",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto"
+      }
+    },
+    {
+      "id": "observe.native-valid",
+      "schema": "computer-observe",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "MAC-04"
+      ],
+      "reason": "A declared observation mode is a proposal, not capture permission",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "native"
+      }
+    },
+    {
+      "id": "observe.DOM-valid",
+      "schema": "computer-observe",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "MAC-04"
+      ],
+      "reason": "A declared observation mode is a proposal, not capture permission",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "DOM"
+      }
+    },
+    {
+      "id": "observe.AX-valid",
+      "schema": "computer-observe",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "MAC-04"
+      ],
+      "reason": "A declared observation mode is a proposal, not capture permission",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "AX"
+      }
+    },
+    {
+      "id": "observe.OCR_image-valid",
+      "schema": "computer-observe",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-01",
+        "MAC-04"
+      ],
+      "reason": "A declared observation mode is a proposal, not capture permission",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "OCR_image"
+      }
+    },
+    {
+      "id": "action.activate_target-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.focus_element-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "focus_element",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.click-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.double_click-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "double_click",
+        "element_ref": "button_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.select_text-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "select_text",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.type_text-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "type_text",
+        "element_ref": "field_1",
+        "text": "합성 초안",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.set_value-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "set_value",
+        "element_ref": null,
+        "text": "Synthetic value",
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.press_keys-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "press_keys",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": [
+          "CTRL",
+          "A"
+        ],
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.copy_selection-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "copy_selection",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.paste_artifact-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "paste_artifact",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": "artifact_1",
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.open_resource-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "open_resource",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": "resource_1",
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.save_working_copy-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "save_working_copy",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": "working_copy_1",
+        "destination_ref": "destination_1"
+      }
+    },
+    {
+      "id": "action.scroll-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0,
+          "y": 1,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": 0,
+          "delta_y": 1000
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.drag-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-05"
+      ],
+      "reason": "The action has only its declared operands",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "drag",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0,
+          "y": 1,
+          "end_x": 1,
+          "end_y": 0,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.click-element-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02"
+      ],
+      "reason": "A server-issued opaque element reference may replace a pointer",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": "button_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.scroll-negative-delta-valid",
+      "schema": "computer-action",
+      "expected_valid": true,
+      "requirement_ids": [
+        "CU-02"
+      ],
+      "reason": "Signed integer scroll deltas preserve their declared bounds",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": -1000,
+          "delta_y": 0
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-session.missing-purpose",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-app_refs",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-resource_refs",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-origin_refs",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-requested_actions",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-duration_seconds",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-max_actions",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-max_frames",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "computer-session.missing-data_mode",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2
+      }
+    },
+    {
+      "id": "computer-session.client-owner_id",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "owner_id": "other_owner"
+      }
+    },
+    {
+      "id": "computer-session.client-risk",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "risk": "R0"
+      }
+    },
+    {
+      "id": "computer-session.client-approved",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "approved": true
+      }
+    },
+    {
+      "id": "computer-session.client-authorization",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "authorization": "client_claim"
+      }
+    },
+    {
+      "id": "computer-session.client-security_epoch",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "security_epoch": 1
+      }
+    },
+    {
+      "id": "computer-session.client-execution_authorized",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "execution_authorized": true
+      }
+    },
+    {
+      "id": "computer-session.client-selector_code",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only",
+        "selector_code": "client_code"
+      }
+    },
+    {
+      "id": "computer-observe.missing-session_ref",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "target_ref": "target_1",
+        "mode": "auto"
+      }
+    },
+    {
+      "id": "computer-observe.missing-target_ref",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "mode": "auto"
+      }
+    },
+    {
+      "id": "computer-observe.missing-mode",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1"
+      }
+    },
+    {
+      "id": "computer-observe.client-owner_id",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "owner_id": "other_owner"
+      }
+    },
+    {
+      "id": "computer-observe.client-risk",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "risk": "R0"
+      }
+    },
+    {
+      "id": "computer-observe.client-approved",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "approved": true
+      }
+    },
+    {
+      "id": "computer-observe.client-authorization",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "authorization": "client_claim"
+      }
+    },
+    {
+      "id": "computer-observe.client-security_epoch",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "security_epoch": 1
+      }
+    },
+    {
+      "id": "computer-observe.client-execution_authorized",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "execution_authorized": true
+      }
+    },
+    {
+      "id": "computer-observe.client-selector_code",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "auto",
+        "selector_code": "client_code"
+      }
+    },
+    {
+      "id": "computer-action.missing-session_ref",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-target_ref",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-observation_ref",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-action",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-element_ref",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-keys",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-pointer",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-artifact_ref",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "computer-action.missing-destination_ref",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Required proposal data cannot be omitted",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null
+      }
+    },
+    {
+      "id": "computer-action.client-owner_id",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "owner_id": "other_owner"
+      }
+    },
+    {
+      "id": "computer-action.client-risk",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "risk": "R0"
+      }
+    },
+    {
+      "id": "computer-action.client-approved",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "approved": true
+      }
+    },
+    {
+      "id": "computer-action.client-authorization",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "authorization": "client_claim"
+      }
+    },
+    {
+      "id": "computer-action.client-security_epoch",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "security_epoch": 1
+      }
+    },
+    {
+      "id": "computer-action.client-execution_authorized",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "execution_authorized": true
+      }
+    },
+    {
+      "id": "computer-action.client-selector_code",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-06"
+      ],
+      "reason": "Client-supplied authority or selector code is an additional field",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null,
+        "selector_code": "client_code"
+      }
+    },
+    {
+      "id": "session.empty-purpose",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.no-apps",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.duplicate-app",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app",
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.app-wildcard",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "*"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.too-many-apps",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "app_0",
+          "app_1",
+          "app_2",
+          "app_3",
+          "app_4",
+          "app_5",
+          "app_6",
+          "app_7",
+          "app_8",
+          "app_9",
+          "app_10",
+          "app_11",
+          "app_12"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.duplicate-resource",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "file_1",
+          "file_1"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.raw-origin",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [
+          "https://example.invalid"
+        ],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.duplicate-action",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "click",
+          "click"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.no-actions",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.shell-action",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "run_shell"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.duration-zero",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 0,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.duration-over",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 601,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.duration-bool",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": true,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.actions-over",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 41,
+        "max_frames": 2,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.frames-over",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 61,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.frames-negative",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": -1,
+        "data_mode": "local_only"
+      }
+    },
+    {
+      "id": "session.unknown-data-mode",
+      "schema": "computer-session",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "A scope or budget exceeds the declared proposal contract",
+      "instance": {
+        "purpose": "Review a synthetic local draft",
+        "app_refs": [
+          "synthetic_app"
+        ],
+        "resource_refs": [
+          "working_copy"
+        ],
+        "origin_refs": [],
+        "requested_actions": [
+          "observe",
+          "type_text"
+        ],
+        "duration_seconds": 60,
+        "max_actions": 2,
+        "max_frames": 2,
+        "data_mode": "unrestricted_network"
+      }
+    },
+    {
+      "id": "observe.unknown-mode",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01"
+      ],
+      "reason": "Arbitrary collection modes are not registered",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "mode": "shell"
+      }
+    },
+    {
+      "id": "observe.selector-not-ref",
+      "schema": "computer-observe",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-01",
+        "CU-06"
+      ],
+      "reason": "An executable-looking selector is not an opaque target reference",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "native:execute",
+        "mode": "auto"
+      }
+    },
+    {
+      "id": "action.unknown-action",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "execute_script",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.activate-unrelated-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "activate_target",
+        "element_ref": null,
+        "text": "unexpected",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.click-no-target",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.click-two-targets",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.click-endpoint",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": 0.5,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.type-no-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "type_text",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.type-empty-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "type_text",
+        "element_ref": "field_1",
+        "text": "",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.type-no-field",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "type_text",
+        "element_ref": null,
+        "text": "Synthetic text",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.type-overlong-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "type_text",
+        "element_ref": "field_1",
+        "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.set-unrelated-keys",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "set_value",
+        "element_ref": "field_1",
+        "text": "value",
+        "keys": [
+          "ENTER"
+        ],
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.keys-missing",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "press_keys",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.keys-empty",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "press_keys",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": [],
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.keys-unknown",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "press_keys",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": [
+          "RUN"
+        ],
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.keys-over-count",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "press_keys",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ],
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.keys-no-field",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "press_keys",
+        "element_ref": null,
+        "text": null,
+        "keys": [
+          "ENTER"
+        ],
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.copy-unrelated-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "copy_selection",
+        "element_ref": "field_1",
+        "text": "not_an_operand",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.paste-no-artifact",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "paste_artifact",
+        "element_ref": "field_1",
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.open-no-resource",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "open_resource",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.save-no-copy",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "save_working_copy",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": "destination_1"
+      }
+    },
+    {
+      "id": "action.save-no-destination",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "save_working_copy",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": "working_copy_1",
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.scroll-no-pointer",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.scroll-zero",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": 0,
+          "delta_y": 0
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.scroll-fractional-delta",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": 0.5,
+          "delta_y": 1
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.scroll-over-delta",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": 0,
+          "delta_y": 1001
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.scroll-endpoint",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "scroll",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": 0.5,
+          "delta_x": 0,
+          "delta_y": 1
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.drag-no-endpoint",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "drag",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.drag-unrelated-delta",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "drag",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": 0.5,
+          "end_y": 0.5,
+          "delta_x": 1,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.pointer-x-negative",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": -0.01,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.pointer-y-over",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 1.01,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.pointer-x-string",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": "0.25",
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.pointer-x-bool",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": true,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.pointer-extra-field",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "region_ref": "region_1",
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null,
+          "unbound_window": "other_window"
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.selection-unrelated-text",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "CU-06"
+      ],
+      "reason": "Operand or pointer data is not valid for this exact action",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "select_text",
+        "element_ref": "field_1",
+        "text": "unrelated",
+        "keys": null,
+        "pointer": null,
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    },
+    {
+      "id": "action.pointer-no-region",
+      "schema": "computer-action",
+      "expected_valid": false,
+      "requirement_ids": [
+        "CU-02",
+        "MAC-04"
+      ],
+      "reason": "A pointer must remain tied to a region reference",
+      "instance": {
+        "session_ref": "session_1",
+        "target_ref": "target_1",
+        "observation_ref": "observation_1",
+        "action": "click",
+        "element_ref": null,
+        "text": null,
+        "keys": null,
+        "pointer": {
+          "x": 0.25,
+          "y": 0.75,
+          "end_x": null,
+          "end_y": null,
+          "delta_x": null,
+          "delta_y": null
+        },
+        "artifact_ref": null,
+        "destination_ref": null
+      }
+    }
+  ]
+}
