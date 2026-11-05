@@ -1,0 +1,1005 @@
+{
+  "fixture_format": "cu-wire-hash-golden-v1",
+  "profile_id": "cu-wire-hash-v1",
+  "domain": "JARVIS.CU.APPROVAL",
+  "map_version": "cu-pixel-map-v1",
+  "status": "SPECIFICATION_EXPECTATIONS_NOT_EXECUTED",
+  "scope": "CU-only profile and synthetic vector documentation; unchanged canonical3 and legacy hashes.",
+  "references": [
+    {
+      "id": "RFC8785",
+      "url": "https://www.rfc-editor.org/rfc/rfc8785.html",
+      "sections": [
+        "3.1",
+        "3.2",
+        "Appendix B"
+      ]
+    },
+    {
+      "id": "RFC7493",
+      "url": "https://www.rfc-editor.org/rfc/rfc7493.html",
+      "sections": [
+        "2.1",
+        "2.2",
+        "2.3"
+      ]
+    }
+  ],
+  "canonical_byte_contract": {
+    "encoding": "UTF-8",
+    "bom": false,
+    "trailing_lf": false,
+    "source": "Explicit expected_jcs_utf8 literal, never a default JSON serializer",
+    "digest": "SHA-256",
+    "digest_encoding": "lowercase-hex",
+    "digest_computation": "STANDARD_LIBRARY_SHA256_OF_LITERAL_UTF8_ONLY"
+  },
+  "language_parity": {
+    "required": [
+      "Java",
+      "Python",
+      "TypeScript"
+    ],
+    "expected": "SAME_CANONICAL_UTF8_REJECTION_RESOLUTION_AND_SHA256",
+    "actual": {
+      "Java": "NOT_RUN",
+      "Python": "NOT_RUN",
+      "TypeScript": "NOT_RUN"
+    },
+    "implementation_selected": false
+  },
+  "encoding_vectors": [
+    {
+      "id": "N01_one_integer",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1}",
+      "expected_jcs_utf8": "{\"n\":1}",
+      "expected_sha256": "2bfd14f43d17fc7cea24e0917a8879b4b2f880b8baeec1b9d90fbaad655e71bd",
+      "basis": "1/1.0/1e0 equivalence",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "N02_one_fraction_spelling",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1.0}",
+      "expected_jcs_utf8": "{\"n\":1}",
+      "expected_sha256": "2bfd14f43d17fc7cea24e0917a8879b4b2f880b8baeec1b9d90fbaad655e71bd",
+      "basis": "same binary64 value",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "N03_one_exponent",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1e0}",
+      "expected_jcs_utf8": "{\"n\":1}",
+      "expected_sha256": "2bfd14f43d17fc7cea24e0917a8879b4b2f880b8baeec1b9d90fbaad655e71bd",
+      "basis": "same binary64 value",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "N04_zero",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":0}",
+      "expected_jcs_utf8": "{\"n\":0}",
+      "expected_sha256": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0",
+      "basis": "zero",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "N05_negative_zero",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":-0}",
+      "expected_jcs_utf8": "{\"n\":0}",
+      "expected_sha256": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0",
+      "basis": "negative zero normalized by JCS",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "N06_negative_zero_fraction",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":-0.0}",
+      "expected_jcs_utf8": "{\"n\":0}",
+      "expected_sha256": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0",
+      "basis": "negative zero normalized by JCS",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "N07_fraction_point_one",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":0.1}",
+      "expected_jcs_utf8": "{\"n\":0.1}",
+      "expected_sha256": "c20c34ed16c837e86b4dcdb33f98c274c9f7da1231f64302082d2cd50743f951",
+      "basis": "binary64 shortest round-trip spelling",
+      "expected_utf8_bytes": 9
+    },
+    {
+      "id": "N08_fraction_point_three",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":0.3}",
+      "expected_jcs_utf8": "{\"n\":0.3}",
+      "expected_sha256": "399299ae7e87ca72e1e92fa63506ae95c4c338e80135e2069edb3594e72715c5",
+      "basis": "binary64 shortest round-trip spelling",
+      "expected_utf8_bytes": 9
+    },
+    {
+      "id": "N09_exponent_lower_boundary",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1e-6}",
+      "expected_jcs_utf8": "{\"n\":0.000001}",
+      "expected_sha256": "28343867a0be00aee19f81aa90cfd6c646878b9303fa15410d16bfd3f8894578",
+      "basis": "JCS number spelling boundary",
+      "expected_utf8_bytes": 14
+    },
+    {
+      "id": "N10_small_exponent",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1e-7}",
+      "expected_jcs_utf8": "{\"n\":1e-7}",
+      "expected_sha256": "747d6d23b64d1b2d579adb832b44de31c91c875bbef7a8e397f5d183a746b54b",
+      "basis": "JCS number spelling boundary",
+      "expected_utf8_bytes": 10
+    },
+    {
+      "id": "N11_large_exponent",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1e21}",
+      "expected_jcs_utf8": "{\"n\":1e+21}",
+      "expected_sha256": "f1ee2b60ee95a3170fdc07a577e5f3514ced26867443d69da265acadead81007",
+      "basis": "JCS number spelling boundary; encoding probe only",
+      "expected_utf8_bytes": 11
+    },
+    {
+      "id": "N12_min_subnormal",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":5e-324}",
+      "expected_jcs_utf8": "{\"n\":5e-324}",
+      "expected_sha256": "cf4df7d2834198d284947133d3ec7a66f3d94e8d447cac6a0783324211b36d43",
+      "basis": "RFC8785 Appendix B binary64 0000000000000001",
+      "expected_utf8_bytes": 12
+    },
+    {
+      "id": "N13_max_finite",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1.7976931348623157e308}",
+      "expected_jcs_utf8": "{\"n\":1.7976931348623157e+308}",
+      "expected_sha256": "9599e0f9672bfa5d654b432fa5f9b7ee04f35c607b3a3ff01ce97b070f8f2648",
+      "basis": "RFC8785 Appendix B; encoding probe only",
+      "expected_utf8_bytes": 29
+    },
+    {
+      "id": "N14_decimal_to_binary64",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":333333333.33333329}",
+      "expected_jcs_utf8": "{\"n\":333333333.3333333}",
+      "expected_sha256": "8e1aa496328ac7acbd045b34464ae11d72d8b525c355b85099382ffcb499143b",
+      "basis": "RFC8785 section3.2.2 parsed binary64 example",
+      "expected_utf8_bytes": 23
+    },
+    {
+      "id": "N15_positive_underflow",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"n\":1e-400}",
+      "expected_jcs_utf8": "{\"n\":0}",
+      "expected_sha256": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0",
+      "basis": "one IEEE754 conversion underflows to positive zero",
+      "expected_utf8_bytes": 7
+    },
+    {
+      "id": "S01_recursive_order",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"b\":[{\"z\":0,\"a\":1}],\"a\":2}",
+      "expected_jcs_utf8": "{\"a\":2,\"b\":[{\"a\":1,\"z\":0}]}",
+      "expected_sha256": "33ec988e23bbadd7d910de7a0c909e19bc0856885bbd6a9c1604c14e5f79221b",
+      "basis": "object sorting; array order preserved",
+      "expected_utf8_bytes": 27
+    },
+    {
+      "id": "S02_utf16_order",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"\\ue000\":1,\"\\ud83d\\ude00\":2,\"a\":3}",
+      "expected_jcs_utf8": "{\"a\":3,\"😀\":2,\"\":1}",
+      "expected_sha256": "84495633024b0992798250783e7ccb01ab2875649ab22f353f14c0d6a8389fc2",
+      "basis": "unsigned UTF16 code-unit order, not UTF8/code-point order",
+      "expected_utf8_bytes": 24
+    },
+    {
+      "id": "S03_valid_surrogate_pair",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"s\":\"\\ud83d\\ude00\"}",
+      "expected_jcs_utf8": "{\"s\":\"😀\"}",
+      "expected_sha256": "f9949e1006d1ca22bc0b60ea94f09779f11a8f0a29bae250fc7ab313d879f5e7",
+      "basis": "valid scalar after escape decoding",
+      "expected_utf8_bytes": 12
+    },
+    {
+      "id": "S04_composed",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"s\":\"é\"}",
+      "expected_jcs_utf8": "{\"s\":\"é\"}",
+      "expected_sha256": "86028b41ba792eaf82aa26a45b218f6734f7f1096a86f1746c8296e088a0ccb4",
+      "basis": "no Unicode normalization",
+      "expected_utf8_bytes": 10
+    },
+    {
+      "id": "S05_decomposed",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"s\":\"e\\u0301\"}",
+      "expected_jcs_utf8": "{\"s\":\"é\"}",
+      "expected_sha256": "1fc0bd7cc93fca8092a2041d7d01842876422aa7e2838acf42c14578e9f2be05",
+      "basis": "distinct from composed string",
+      "expected_utf8_bytes": 11
+    },
+    {
+      "id": "S06_array_order",
+      "stage": "JCS_IJSON_ENCODING_PROBE_NOT_CU_SCHEMA",
+      "input_json": "{\"a\":[2,1]}",
+      "expected_jcs_utf8": "{\"a\":[2,1]}",
+      "expected_sha256": "439e3fbf35fa867d156db2626f94efbd435852a97bbe16660ee529d9bda0e502",
+      "basis": "no array element sorting",
+      "expected_utf8_bytes": 11
+    }
+  ],
+  "rejection_vectors": [
+    {
+      "id": "R01_duplicate_literal",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"a\":1,\"a\":2}",
+      "expected_error": "DUPLICATE_KEY",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R02_duplicate_decoded",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"a\":1,\"\\u0061\":2}",
+      "expected_error": "DUPLICATE_KEY",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R03_invalid_utf8",
+      "stage": "WIRE_ADMISSION",
+      "input_utf8_hex": "7b2273223a22c0af227d",
+      "expected_error": "INVALID_UTF8",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R04_lone_high_surrogate",
+      "stage": "IJSON_ADMISSION",
+      "input_json": "{\"s\":\"\\ud800\"}",
+      "expected_error": "INVALID_UNICODE",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R05_lone_low_surrogate",
+      "stage": "IJSON_ADMISSION",
+      "input_json": "{\"s\":\"\\udead\"}",
+      "expected_error": "INVALID_UNICODE",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R06_noncharacter_fdd0",
+      "stage": "IJSON_ADMISSION",
+      "input_json": "{\"s\":\"\\ufdd0\"}",
+      "expected_error": "IJSON_NONCHARACTER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R07_noncharacter_ffff",
+      "stage": "IJSON_ADMISSION",
+      "input_json": "{\"s\":\"\\uffff\"}",
+      "expected_error": "IJSON_NONCHARACTER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R08_noncharacter_10ffff",
+      "stage": "IJSON_ADMISSION",
+      "input_json": "{\"s\":\"\\udbff\\udfff\"}",
+      "expected_error": "IJSON_NONCHARACTER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R09_NaN",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"n\":NaN}",
+      "expected_error": "INVALID_JSON_NUMBER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R10_infinity",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"n\":Infinity}",
+      "expected_error": "INVALID_JSON_NUMBER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R11_negative_infinity",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"n\":-Infinity}",
+      "expected_error": "INVALID_JSON_NUMBER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R12_binary64_overflow",
+      "stage": "BINARY64_ADMISSION",
+      "input_json": "{\"n\":1e400}",
+      "expected_error": "NONFINITE_BINARY64",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R13_leading_zero",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"n\":01}",
+      "expected_error": "INVALID_JSON_NUMBER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R14_plus_sign",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{\"n\":+1}",
+      "expected_error": "INVALID_JSON_NUMBER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R15_second_value",
+      "stage": "WIRE_ADMISSION",
+      "input_json": "{}{}",
+      "expected_error": "TRAILING_VALUE",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R16_BOM",
+      "stage": "WIRE_ADMISSION",
+      "input_utf8_hex": "efbbbf7b7d",
+      "expected_error": "BOM",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R17_coordinate_above_one_rounds_to_one",
+      "stage": "ORIGINAL_DECIMAL_COORDINATE_ADMISSION",
+      "coordinate_path": "/proposal/pointer/x",
+      "number_token": "1.0000000000000001",
+      "expected_error": "COORDINATE_ORIGINAL_DECIMAL_OUT_OF_RANGE",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R18_coordinate_negative_underflows",
+      "stage": "ORIGINAL_DECIMAL_COORDINATE_ADMISSION",
+      "coordinate_path": "/proposal/pointer/y",
+      "number_token": "-1e-10000",
+      "expected_error": "COORDINATE_ORIGINAL_DECIMAL_OUT_OF_RANGE",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R19_fractional_integer_rounds_to_one",
+      "stage": "ORIGINAL_DECIMAL_INTEGER_ADMISSION",
+      "integer_field_path": "/proposal/max_actions",
+      "number_token": "1.0000000000000001",
+      "expected_error": "NOT_EXACT_INTEGER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R20_unsafe_integer",
+      "stage": "APPLICATION_INTEGER_ADMISSION",
+      "integer_field_path": "/resolved_args/arguments/x",
+      "number_token": "9007199254740992",
+      "expected_error": "UNSAFE_INTEGER",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R21_zero_width",
+      "stage": "GEOMETRY_ADMISSION",
+      "geometry_probe": {
+        "width": 0,
+        "height": 3
+      },
+      "expected_error": "INVALID_GEOMETRY",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R22_unknown_profile",
+      "stage": "ENVELOPE_ADMISSION",
+      "field_probe": {
+        "profile_id": "cu-wire-hash-v2"
+      },
+      "expected_error": "UNSUPPORTED_PROFILE",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R23_unknown_map",
+      "stage": "GEOMETRY_ADMISSION",
+      "field_probe": {
+        "map_version": "cu-pixel-map-v2"
+      },
+      "expected_error": "UNSUPPORTED_MAP_VERSION",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    },
+    {
+      "id": "R24_native_quantization_capture_pixel_mismatch",
+      "stage": "GEOMETRY_MAPPING_ADMISSION",
+      "mapping_probe": {
+        "axis": "x",
+        "approved_full_capture_pixel": 1,
+        "native_scale": {
+          "numerator": "1",
+          "denominator": "2"
+        },
+        "native_before_quantization": {
+          "numerator": "1",
+          "denominator": "2"
+        },
+        "quantized_native_argument": 1,
+        "inverse_capture_point": {
+          "numerator": "2",
+          "denominator": "1"
+        },
+        "effective_capture_pixel": 2
+      },
+      "expected_error": "COORDINATE_MAPPING_UNSUPPORTED",
+      "expected_jcs_utf8": null,
+      "expected_sha256": null,
+      "expected_resolved_args": null
+    }
+  ],
+  "coordinate_vectors": [
+    {
+      "id": "C01_endpoints",
+      "width": 1920,
+      "height": 1080,
+      "input_tokens": {
+        "x": "0",
+        "y": "1"
+      },
+      "expected_jcs_utf8": "{\"x\":0,\"y\":1}",
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 1079
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "8f1a0ed218f536b3d3cb9308a624baa1d370eb724d502b2d02aaf60e3e22d556",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 13
+    },
+    {
+      "id": "C02_half_even_span",
+      "width": 5,
+      "height": 3,
+      "input_tokens": {
+        "x": "0.5",
+        "y": "0.25"
+      },
+      "expected_jcs_utf8": "{\"x\":0.5,\"y\":0.25}",
+      "expected_region_pixels": {
+        "x": 2,
+        "y": 1
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "c73d84ba6104ba397dedfeaa0ad9ebd5d159708b664d605e7bc5220d4eb9b74e",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 18
+    },
+    {
+      "id": "C03_half_odd_span_ties_higher",
+      "width": 4,
+      "height": 4,
+      "input_tokens": {
+        "x": "0.5",
+        "y": "0.5"
+      },
+      "expected_jcs_utf8": "{\"x\":0.5,\"y\":0.5}",
+      "expected_region_pixels": {
+        "x": 2,
+        "y": 2
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "81445eb5c1fb814b96a28a965ffe426cef322c5852d4d79f93cc6306e48dd664",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 17
+    },
+    {
+      "id": "C04_single_pixel",
+      "width": 1,
+      "height": 1,
+      "input_tokens": {
+        "x": "0.75",
+        "y": "1"
+      },
+      "expected_jcs_utf8": "{\"x\":0.75,\"y\":1}",
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 0
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "258eaf798d0826ef2d771dbb42f0383124294c2203ee63c03be1eb8c30d53c01",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 16
+    },
+    {
+      "id": "C05_single_column",
+      "width": 1,
+      "height": 3,
+      "input_tokens": {
+        "x": "0.75",
+        "y": "0.5"
+      },
+      "expected_jcs_utf8": "{\"x\":0.75,\"y\":0.5}",
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 1
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "94837f264b2efde95b3e243f22f1716d17eb2e55d41e4cb1d51cb8609167551e",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 18
+    },
+    {
+      "id": "C06_pre_half_exact_rational",
+      "width": 2,
+      "height": 2,
+      "input_tokens": {
+        "x": "0.49999999999999994",
+        "y": "0.5"
+      },
+      "expected_jcs_utf8": "{\"x\":0.49999999999999994,\"y\":0.5}",
+      "expected_binary64_hex": {
+        "x": "3fdfffffffffffff",
+        "y": "3fe0000000000000"
+      },
+      "exact_rational_x": {
+        "numerator": "9007199254740991",
+        "denominator": "18014398509481984"
+      },
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 1
+      },
+      "counterexample": "Intermediate double +0.5 can select x=1; exact rational selects x=0.",
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "2a7ee8c51834927893a7ec2d8d5319df0a93caaca10da133f8973bd8fd63f5e2",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 33
+    },
+    {
+      "id": "C07_point_three_times_five",
+      "width": 6,
+      "height": 3,
+      "input_tokens": {
+        "x": "0.3",
+        "y": "0"
+      },
+      "expected_jcs_utf8": "{\"x\":0.3,\"y\":0}",
+      "expected_binary64_hex": {
+        "x": "3fd3333333333333",
+        "y": "0000000000000000"
+      },
+      "exact_rational_x": {
+        "numerator": "5404319552844595",
+        "denominator": "18014398509481984"
+      },
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 0
+      },
+      "counterexample": "Intermediate double 0.3*5 can create a 1.5 tie; exact rational remains below 1.5.",
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "9c4f953caa847e458dd59aa1f787489f2d2105405d3a8d85b11839b901a7338c",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 15
+    },
+    {
+      "id": "C08_next_above_half",
+      "width": 2,
+      "height": 2,
+      "input_tokens": {
+        "x": "0.5000000000000001",
+        "y": "0.5"
+      },
+      "expected_jcs_utf8": "{\"x\":0.5000000000000001,\"y\":0.5}",
+      "expected_binary64_hex": {
+        "x": "3fe0000000000001",
+        "y": "3fe0000000000000"
+      },
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "1f4b499b49b51c16a08951210d0fb9155cb2959db4f512c961cac9f662959aa1",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 32
+    },
+    {
+      "id": "C09_negative_zero",
+      "width": 5,
+      "height": 3,
+      "input_tokens": {
+        "x": "-0",
+        "y": "-0.0"
+      },
+      "expected_jcs_utf8": "{\"x\":0,\"y\":0}",
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 0
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "cc978be5ab093d2b7fb688557d3772db2cf0fcebcd4262ff5954e634d0e2fbbd",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 13
+    },
+    {
+      "id": "C10_in_range_rounds_to_endpoint",
+      "width": 5,
+      "height": 3,
+      "input_tokens": {
+        "x": "0.99999999999999999",
+        "y": "1e0"
+      },
+      "expected_jcs_utf8": "{\"x\":1,\"y\":1}",
+      "expected_region_pixels": {
+        "x": 4,
+        "y": 2
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "125ad402801b1bf2425ab94bdcc5def55862ede6c68e07409dd102a1bbc0ecf9",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 13
+    },
+    {
+      "id": "C11_positive_underflow",
+      "width": 5,
+      "height": 3,
+      "input_tokens": {
+        "x": "1e-400",
+        "y": "0"
+      },
+      "expected_jcs_utf8": "{\"x\":0,\"y\":0}",
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 0
+      },
+      "basis": "Original decimal is in range; binary64 conversion yields +0; preview and hash cover 0.",
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "cc978be5ab093d2b7fb688557d3772db2cf0fcebcd4262ff5954e634d0e2fbbd",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 13
+    },
+    {
+      "id": "C12_min_subnormal",
+      "width": 1920,
+      "height": 1080,
+      "input_tokens": {
+        "x": "5e-324",
+        "y": "0"
+      },
+      "expected_jcs_utf8": "{\"x\":5e-324,\"y\":0}",
+      "expected_region_pixels": {
+        "x": 0,
+        "y": 0
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "ec320ed9599d69d9d8e1cf370661cd78362215485d76b61572be890190d24dae",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 18
+    },
+    {
+      "id": "C13_drag_endpoints",
+      "width": 5,
+      "height": 5,
+      "input_tokens": {
+        "x": "0.25",
+        "y": "0.75",
+        "end_x": "0.75",
+        "end_y": "0.25"
+      },
+      "expected_jcs_utf8": "{\"end_x\":0.75,\"end_y\":0.25,\"x\":0.25,\"y\":0.75}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 3,
+        "end_x": 3,
+        "end_y": 1
+      },
+      "stage": "COORDINATE_COMPONENT_PROBE_NOT_COMPLETE_APPROVAL",
+      "expected_sha256": "94887d11eef0c9d26de9c2ad7c54d24d0e682d7ddc1a5f8947ab936324ffb058",
+      "derivation": "MANUALLY_SPECIFIED_EXACT_RATIONAL_ORACLE_NOT_EXECUTED",
+      "expected_utf8_bytes": 45
+    }
+  ],
+  "envelope_vectors": [
+    {
+      "id": "E01_action_base",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":11,\"y\":21},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 11,
+        "y": 21
+      },
+      "coverage": "Complete synthetic CU action preimage.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "d2318b245b7066f02f1170a0db45cadbbbb6ea940470e33e25ecba8b93b871c8",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2313
+    },
+    {
+      "id": "E02_crop_origin_changed",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":11,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":12,\"y\":21},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 12,
+        "y": 21
+      },
+      "coverage": "Crop origin changes together with exact resolved args.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "6c5cc30fdb70c8e069fd64d9952e3aaaf2344b7ca8968929f489553a1b2a511a",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2313
+    },
+    {
+      "id": "E03_dpi_native_unit_mapping_changed",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"192\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"192\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"2\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"2\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-point\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-point\",\"target_ref\":\"target_demo\",\"x\":6,\"y\":11},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 6,
+        "y": 11
+      },
+      "coverage": "Encoding/mathematical probe only: native (6,11) inversely maps to capture (12,22), differing from input (11,21).",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "57f1000fc026a7d7cfae42ec10a5c1a89e10fcbde16e96c81dcec7073ed123c5",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2314,
+      "expected_profile_admission": "REJECT_COORDINATE_MAPPING_UNSUPPORTED",
+      "expected_approval_preimage_utf8": null,
+      "expected_approval_sha256": null,
+      "expected_effective_capture_point": {
+        "x": {
+          "numerator": "12",
+          "denominator": "1"
+        },
+        "y": {
+          "numerator": "22",
+          "denominator": "1"
+        }
+      },
+      "expected_effective_capture_pixel": {
+        "x": 12,
+        "y": 22
+      }
+    },
+    {
+      "id": "E04_native_origin_translation",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"100\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"-50\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":111,\"y\":-29},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 111,
+        "y": -29
+      },
+      "coverage": "Explicit native origin translation including negative native result.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "cbecf468eda1dbcb2d63d9b2329586a926fc2bba9e87dd161e09f2f0c578cb52",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2319
+    },
+    {
+      "id": "E05_geometry_version_changed",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v2\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":11,\"y\":21},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 11,
+        "y": 21
+      },
+      "coverage": "Same pixels do not permit approval reuse after geometry revision change.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "4ddf0a4811ab2ab81c24a73c01a30ac459ed931213f4936285ced89fc54c10ac",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2313
+    },
+    {
+      "id": "E06_observation_version_changed",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v2\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":11,\"y\":21},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 11,
+        "y": 21
+      },
+      "coverage": "Observation version is in the same preimage.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "b1772b25b65bca2f063db6c2585e6c03ae40c314387d6c3a234fda5cfaeee484",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2313
+    },
+    {
+      "id": "E07_target_version_changed",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v2\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.3,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":11,\"y\":21},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 1,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 11,
+        "y": 21
+      },
+      "coverage": "Target version is in the same preimage.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "d35c9cb201fe73012bfedcf96ceed74b94c4459e01146d8df4102ecae27ed91f",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2313
+    },
+    {
+      "id": "E08_normalized_and_resolved_changed",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":{\"axis_directions\":\"X_RIGHT_Y_DOWN\",\"capture_size\":{\"height\":100,\"width\":100},\"coordinate_origin\":\"TOP_LEFT_PIXEL_CENTER\",\"display_ref\":\"display_demo\",\"display_version\":\"display-v1\",\"dpi\":{\"x\":{\"denominator\":\"1\",\"numerator\":\"96\"},\"y\":{\"denominator\":\"1\",\"numerator\":\"96\"}},\"focus_ref\":\"focus_demo\",\"focus_version\":\"focus-v1\",\"geometry_version\":\"geometry-v1\",\"map_version\":\"cu-pixel-map-v1\",\"modal_version\":\"modal-v1\",\"native_mapping\":{\"contract_id\":\"synthetic-affine-v1\",\"matrix\":[{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"0\"},{\"denominator\":\"1\",\"numerator\":\"1\"},{\"denominator\":\"1\",\"numerator\":\"0\"}],\"native_unit\":\"synthetic-pixel\",\"quantization\":\"NEAREST_TIES_HIGHER\"},\"region_crop\":{\"height\":3,\"width\":6,\"x\":10,\"y\":20},\"region_ref\":\"region_demo\",\"region_version\":\"region-v1\",\"scroll_offset\":{\"x\":0,\"y\":0},\"viewport\":{\"height\":100,\"width\":100,\"x\":0,\"y\":0}},\"observation\":{\"capture_ref\":\"capture_demo\",\"capture_version\":\"capture-v1\",\"expires_at\":\"2030-01-01T00:00:30Z\",\"observation_ref\":\"obs_demo\",\"observation_version\":\"obs-v1\",\"observed_at\":\"2030-01-01T00:00:00Z\"},\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"action\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"action\":\"click\",\"artifact_ref\":null,\"destination_ref\":null,\"element_ref\":null,\"keys\":null,\"observation_ref\":\"obs_demo\",\"pointer\":{\"delta_x\":null,\"delta_y\":null,\"end_x\":null,\"end_y\":null,\"region_ref\":\"region_demo\",\"x\":0.5,\"y\":0.5},\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\",\"text\":null},\"resolved_args\":{\"arguments\":{\"coordinate_unit\":\"synthetic-pixel\",\"target_ref\":\"target_demo\",\"x\":13,\"y\":21},\"driver_ref\":\"synthetic_pointer\",\"driver_version\":\"driver-v1\",\"route\":\"synthetic\"}}",
+      "expected_region_pixels": {
+        "x": 3,
+        "y": 1
+      },
+      "expected_native_args": {
+        "x": 13,
+        "y": 21
+      },
+      "coverage": "Normalized proposal and final driver arguments both participate.",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_AND_MAPPING_EXPECTATION",
+      "expected_sha256": "bac29a8d7e61bc2638d2274a967bc67e3e391f6bbb9623b6a1f8ed7463da2584",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "expected_utf8_bytes": 2313
+    },
+    {
+      "id": "E09_session_preparation",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_EXPECTATION",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":null,\"observation\":null,\"target\":null},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"session\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"app_refs\":[\"app_demo\"],\"data_mode\":\"local_only\",\"duration_seconds\":60,\"max_actions\":1,\"max_frames\":1,\"origin_refs\":[],\"purpose\":\"Synthetic session\",\"requested_actions\":[\"click\"],\"resource_refs\":[]},\"resolved_args\":null}",
+      "expected_sha256": "e3388beecdc0d5b9b942b2f4bd4f5310c754fe85e987dec9fd1f3287b979862f",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "coverage": "Session schema remains a separate proposal; no action coordinates or authority are implied.",
+      "expected_utf8_bytes": 672
+    },
+    {
+      "id": "E10_observe_preparation",
+      "stage": "SYNTHETIC_ENVELOPE_ENCODING_EXPECTATION",
+      "expected_jcs_utf8": "{\"binding\":{\"authority_context\":{\"contract_id\":\"synthetic-authority-context-v1\",\"preimage\":{\"action_revision\":1,\"device_ref\":\"device_demo\",\"expires_at\":\"2030-01-01T00:01:00Z\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"nonce\":\"nonce_demo\",\"owner_ref\":\"owner_demo\",\"permission_revision\":1,\"policy_epoch\":1},\"revision\":1},\"geometry\":null,\"observation\":null,\"target\":{\"app_ref\":\"app_demo\",\"app_version\":\"app-v1\",\"display_ref\":\"display_demo\",\"document_version\":\"doc-v1\",\"frame_ref\":null,\"origin_ref\":null,\"tab_ref\":null,\"target_ref\":\"target_demo\",\"target_version\":\"target-v1\",\"window_ref\":\"window_demo\"}},\"domain\":\"JARVIS.CU.APPROVAL\",\"kind\":\"observe\",\"profile_id\":\"cu-wire-hash-v1\",\"proposal\":{\"mode\":\"auto\",\"session_ref\":\"session_demo\",\"target_ref\":\"target_demo\"},\"resolved_args\":null}",
+      "expected_sha256": "19917079777ca0ba3697aadf1e7211c33390a53940c2fe82a07abb1dd213a37f",
+      "policy_contract_registered": false,
+      "execution_authority": false,
+      "coverage": "Observe proposal is bound to a target but has no resulting observation or action args yet.",
+      "expected_utf8_bytes": 775
+    }
+  ],
+  "assertions": {
+    "legacy_hashes_changed": false,
+    "canonical3_schemas_changed": false,
+    "approval_policy_auto_selected": false,
+    "implementation_or_jcs_code_executed": false,
+    "project_tests_run": false,
+    "driver_executed": false,
+    "live_authority_issued": false,
+    "missing_or_unknown_cu_profile_rejected_before_hash": true,
+    "legacy_profileless_records_rewritten_or_relabeled": false
+  },
+  "limitations": [
+    "Expected literals and mathematical mappings are specification oracles, not runtime conformance evidence.",
+    "Synthetic authority contract and driver are not live registered capabilities.",
+    "Raw-token admission cannot be proved by an already-decoded dict.",
+    "Large-number encoding probes do not relax CU integer/schema bounds."
+  ],
+  "native_mapping_vectors": [
+    {
+      "id": "M01_signed_half_ties_higher",
+      "stage": "EXACT_RATIONAL_NATIVE_QUANTIZATION_PROBE",
+      "native_rationals": {
+        "x": {
+          "numerator": "-3",
+          "denominator": "2"
+        },
+        "y": {
+          "numerator": "-1",
+          "denominator": "2"
+        }
+      },
+      "expected_native_args": {
+        "x": -1,
+        "y": 0
+      },
+      "expected_jcs_utf8": "{\"x\":-1,\"y\":0}",
+      "expected_sha256": "696c661acdf03b4fb4017e3580cbdb3f07590cd164260d15b95c67da60f4279b",
+      "expected_utf8_bytes": 14
+    },
+    {
+      "id": "M02_dpi_half_scale",
+      "stage": "EXACT_RATIONAL_NATIVE_QUANTIZATION_PROBE",
+      "full_capture_pixel": {
+        "x": 11,
+        "y": 21
+      },
+      "scale": {
+        "numerator": "1",
+        "denominator": "2"
+      },
+      "expected_native_args": {
+        "x": 6,
+        "y": 11
+      },
+      "expected_jcs_utf8": "{\"x\":6,\"y\":11}",
+      "expected_sha256": "393393758cee78560e4ae1a23fa1ef1cfcaf1a93677143f7ebfd6dabac7f5132",
+      "expected_utf8_bytes": 14,
+      "full_approval_claim": false,
+      "role": "COMPONENT_MATHEMATICAL_PROBE_ONLY",
+      "full_profile_mapping_admission": "REJECT_COORDINATE_MAPPING_UNSUPPORTED"
+    }
+  ],
+  "vector_counts": {
+    "encoding_vectors": 21,
+    "coordinate_vectors": 13,
+    "native_mapping_vectors": 2,
+    "envelope_vectors": 10,
+    "rejection_vectors": 24,
+    "total": 70
+  },
+  "static_document_digest_count": 46
+}
